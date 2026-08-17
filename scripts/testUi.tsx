@@ -184,9 +184,36 @@ check('evidence detail and the causal chain are collapsed by default', () => {
 
 check('the dev passphrase never ships as plaintext', () => {
   const src = readFileSync(new URL('../src/dev/secret.ts', import.meta.url), 'utf8');
-  // Guard against someone "simplifying" the hash comparison back to a literal.
-  assert(!/bureau451/i.test(src), 'the passphrase is sitting in the source in plaintext');
-  assert(/[0-9a-f]{64}/.test(src), 'no sha-256 digest found to compare against');
+
+  // This test used to assert the literal was absent by naming it — which put
+  // the passphrase in the repository, defeating the point. A fresh clone made
+  // that obvious. So instead: the module must carry a digest, and must contain
+  // no word-like string literal that could BE a passphrase. Anything genuinely
+  // needed (storage keys, DOM tags, the algorithm name) is listed here, so
+  // hardcoding a phrase fails without anyone having to write it down.
+  assert(/'[0-9a-f]{64}'/.test(src), 'no sha-256 digest to compare against');
+
+  const ALLOWED = new Set([
+    'kqld.dev', // sessionStorage key
+    'sha-256', // digest algorithm
+    'dev', // ?dev= query parameter
+    'keydown',
+    'input',
+    'textarea',
+  ]);
+
+  const literals = [...src.matchAll(/'([^'\\\n]{3,32})'/g)].map((m) => m[1]);
+  const suspicious = literals.filter((s) => {
+    const t = s.toLowerCase();
+    if (ALLOWED.has(t)) return false;
+    if (/^[0-9a-f]{64}$/.test(t)) return false; // the digest itself
+    return /^[a-z0-9][a-z0-9._-]{3,31}$/.test(t); // looks like a passphrase
+  });
+
+  assert(
+    suspicious.length === 0,
+    `possible plaintext secret in secret.ts: ${suspicious.join(', ')}`,
+  );
 });
 
 check('dev shortcuts flag the run so scores stay honest', () => {
