@@ -25,6 +25,12 @@ jobs:
       - name: Tests
         run: node scripts/run.mjs scripts/testKql.ts
 
+      # Renders the terminal to static HTML and asserts what a player actually
+      # sees on open. A mount-only test would not have caught the sample-data
+      # panel masquerading as a query result.
+      - name: UI tests
+        run: node scripts/run.mjs scripts/testUi.tsx
+
       # Adversarial input against the KQL parser. This is what caught the
       # stack overflow on deeply nested parentheses.
       - name: Fuzz

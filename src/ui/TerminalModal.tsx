@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ChallengeSpec } from '../kql/challenge';
 import { gradeChallenge, type GradeResult } from '../kql/challenge';
 import { buildDatabase, CASE_NOW, EVIDENCE, TABLE_META, tableMeta } from '../data/case001';
@@ -7,6 +7,7 @@ import { runQuery } from '../kql/index';
 import { formatKql } from '../kql/format';
 import type { Table } from '../kql/types';
 import { KqlEditor } from './KqlEditor';
+import { Collapsible } from './Collapsible';
 import { audio } from '../game/audio';
 
 interface Props {
@@ -91,7 +92,6 @@ export function TerminalModal({
   const [revealed, setRevealed] = useState(hintsUsed);
   const [showSolution, setShowSolution] = useState(false);
   const [solvedNow, setSolvedNow] = useState(alreadySolved);
-  const [tab, setTab] = useState<'result' | 'preview'>('preview');
   /** New terminals open on Learn; revisits go straight to the task. */
   const [pane, setPane] = useState<'learn' | 'task'>(alreadySolved ? 'task' : 'learn');
 
@@ -103,7 +103,7 @@ export function TerminalModal({
 
   const preview = useMemo(() => {
     try {
-      return runQuery(`${focusTable} | take 50`, db, { now: CASE_NOW }).table;
+      return runQuery(`${focusTable} | take 8`, db, { now: CASE_NOW }).table;
     } catch {
       return null;
     }
@@ -111,10 +111,6 @@ export function TerminalModal({
 
   const focusMeta = tableMeta(focusTable);
   const evidence = spec.evidenceId ? EVIDENCE.find((e) => e.id === spec.evidenceId) : undefined;
-
-  useEffect(() => {
-    if (result) setTab('result');
-  }, [result]);
 
   const run = () => {
     const graded = gradeChallenge(spec, query, db, CASE_NOW);
@@ -205,7 +201,12 @@ export function TerminalModal({
           <h3>Worked example</h3>
           <pre className="learn-example">{formatKql(spec.concept.example.query)}</pre>
           <p className="learn-body">{spec.concept.example.explain}</p>
-          {exampleResult && <ResultTable table={exampleResult} showTypes />}
+          {exampleResult && (
+            <>
+              <p className="example-caption">What that example returns:</p>
+              <ResultTable table={exampleResult} showTypes />
+            </>
+          )}
 
           <div className="learn-actions">
             <button
@@ -225,9 +226,11 @@ export function TerminalModal({
       ) : (
         <div className="terminal-body">
         <aside className="brief-col">
-          <p className="objective">{spec.prompt}</p>
+          <div className="step-block">
+            <span className="step-label">Step 1 · Your task</span>
+            <p className="objective">{spec.prompt}</p>
+          </div>
 
-          <h3>Checks</h3>
           <ul className="checks">
             {checks.map((c, i) => (
               <li key={i} className={c.done ? 'done' : ''}>
@@ -237,85 +240,111 @@ export function TerminalModal({
             ))}
           </ul>
 
-          <h3>Schema</h3>
-          {TABLE_META.map((t) => (
-            <div key={t.name} className={`schema-table ${t.name === focusTable ? 'focus' : ''}`}>
-              <div className="schema-head">
-                <button className="schema-name" onClick={() => setQuery((q) => formatKql(`${t.name}\n${q}`))}>
-                  {t.name}
-                </button>
-                <span className="schema-rows">{db[t.name]?.rows.length ?? 0} rows</span>
-              </div>
-              <p className="schema-doc">{t.doc}</p>
+          {/* Column names stay visible even when the schema is collapsed — you
+              cannot write the query without them, so hiding them would just
+              make people open the panel every time. Types and docs are the
+              bulk, and those do collapse. */}
+          {focusMeta && (
+            <div className="focus-cols">
+              <span className="focus-cols-label">
+                Columns in <button className="schema-name" onClick={() => setQuery((q) => formatKql(`${focusTable}\n${q}`))}>{focusTable}</button>
+              </span>
               <div className="schema-cols">
-                {t.columns.map((c) => (
-                  <span key={c.name} className="col-chip" title={c.doc}>
+                {focusMeta.columns.map((c) => (
+                  <span key={c.name} className="col-chip" title={`${c.type} — ${c.doc}`}>
                     {c.name}
-                    <em>{c.type}</em>
                   </span>
                 ))}
               </div>
             </div>
-          ))}
-
-          <div className="assist">
-            <button className="ghost small" onClick={revealHint} disabled={revealed >= spec.hints.length}>
-              {revealed >= spec.hints.length
-                ? 'No hints left'
-                : crystalsLeft > 0
-                  ? `Hint ${revealed + 1}/${spec.hints.length} — free (uses a crystal)`
-                  : `Hint ${revealed + 1}/${spec.hints.length} — costs 20%`}
-            </button>
-            <button className="ghost small" onClick={() => setPane('learn')}>
-              Re-read the lesson
-            </button>
-            <button className="ghost small" onClick={() => setShowSolution((s) => !s)}>
-              {showSolution ? 'Hide solution' : 'Show solution'}
-            </button>
-          </div>
-
-          {revealed > 0 && (
-            <ul className="hints">
-              {spec.hints.slice(0, revealed).map((h, i) => (
-                <li key={i}>
-                  <code>{formatKql(h)}</code>
-                </li>
-              ))}
-            </ul>
           )}
 
-          {showSolution && (
-            <div className="solution">
-              <strong>Reference solution</strong>
-              <code>{formatKql(spec.solution)}</code>
-              <button className="ghost small" onClick={() => setQuery(formatKql(spec.solution))}>
-                Copy into editor
+          <Collapsible title="Full schema" badge={`${TABLE_META.length} tables`}>
+            {TABLE_META.map((t) => (
+              <div key={t.name} className={`schema-table ${t.name === focusTable ? 'focus' : ''}`}>
+                <div className="schema-head">
+                  <button className="schema-name" onClick={() => setQuery((q) => formatKql(`${t.name}\n${q}`))}>
+                    {t.name}
+                  </button>
+                  <span className="schema-rows">{db[t.name]?.rows.length ?? 0} rows</span>
+                </div>
+                <p className="schema-doc">{t.doc}</p>
+                <div className="schema-cols">
+                  {t.columns.map((c) => (
+                    <span key={c.name} className="col-chip" title={c.doc}>
+                      {c.name}
+                      <em>{c.type}</em>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </Collapsible>
+
+          <Collapsible
+            title="Stuck?"
+            badge={revealed > 0 ? `${revealed} hint${revealed > 1 ? 's' : ''} used` : undefined}
+          >
+            <div className="assist">
+              <button className="ghost small" onClick={revealHint} disabled={revealed >= spec.hints.length}>
+                {revealed >= spec.hints.length
+                  ? 'No hints left'
+                  : crystalsLeft > 0
+                    ? `Hint ${revealed + 1}/${spec.hints.length} — free (uses a crystal)`
+                    : `Hint ${revealed + 1}/${spec.hints.length} — costs 20%`}
+              </button>
+              <button className="ghost small" onClick={() => setPane('learn')}>
+                Re-read the lesson
+              </button>
+              <button className="ghost small" onClick={() => setShowSolution((s) => !s)}>
+                {showSolution ? 'Hide solution' : 'Show solution'}
               </button>
             </div>
-          )}
+
+            {revealed > 0 && (
+              <ul className="hints">
+                {spec.hints.slice(0, revealed).map((h, i) => (
+                  <li key={i}>
+                    <code>{formatKql(h)}</code>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {showSolution && (
+              <div className="solution">
+                <strong>Reference solution</strong>
+                <code>{formatKql(spec.solution)}</code>
+                <button className="ghost small" onClick={() => setQuery(formatKql(spec.solution))}>
+                  Copy into editor
+                </button>
+              </div>
+            )}
+          </Collapsible>
         </aside>
 
         <div className="editor-col">
+          <span className="step-label">Step 2 · Write the query</span>
           <KqlEditor value={query} onChange={setQuery} onRun={run} meta={TABLE_META} autoFocus />
 
           <div className="editor-actions">
-            <button className="primary" onClick={run}>
-              Run <kbd>Ctrl</kbd>+<kbd>Enter</kbd>
+            <button className="primary big" onClick={run}>
+              Run query <kbd>Ctrl</kbd>+<kbd>Enter</kbd>
             </button>
-            <button className="ghost" onClick={() => setQuery(formatKql(spec.starter))}>
+            <button className="ghost small" onClick={() => setQuery(formatKql(spec.starter))}>
               Reset
             </button>
             <button
-              className="ghost"
+              className="ghost small"
               onClick={() => setQuery((q) => formatKql(q))}
               title="One operator per line"
             >
               Format
             </button>
-            <span className="editor-tip">
-              <kbd>Ctrl</kbd>+<kbd>Space</kbd> suggestions · wrong answers cost nothing
-            </span>
           </div>
+          <span className="editor-tip">
+            <kbd>Ctrl</kbd>+<kbd>Space</kbd> suggestions · wrong answers cost nothing
+          </span>
 
           {result && (
             <div className={`verdict-box ${result.status}`}>
@@ -352,27 +381,33 @@ export function TerminalModal({
             </div>
           )}
 
-          <div className="result-tabs">
-            <button className={tab === 'result' ? 'on' : ''} onClick={() => setTab('result')}>
-              Your result
-            </button>
-            <button className={tab === 'preview' ? 'on' : ''} onClick={() => setTab('preview')}>
-              {focusTable} sample
-            </button>
-          </div>
-
-          {tab === 'result' ? (
-            result?.table ? (
+          {/* No tabs here any more. The old version defaulted to a sample-data
+              tab rendered with this same table component, so an untouched
+              terminal looked like it had already produced a result. Your
+              result now has one fixed home that stays empty until you run
+              something, and sample data is a separate, clearly-marked box. */}
+          <div className="step-block result-block">
+            <span className="step-label">Step 3 · Your result</span>
+            {result?.table ? (
               <ResultTable table={result.table} showTypes />
             ) : (
-              <p className="result-empty">Run a query to see its result here.</p>
-            )
-          ) : (
-            <>
-              {focusMeta && <p className="preview-doc">{focusMeta.doc}</p>}
-              {preview && <ResultTable table={preview} showTypes />}
-            </>
-          )}
+              <p className="result-empty">
+                Nothing yet — press <strong>Run query</strong> and the rows land here.
+              </p>
+            )}
+          </div>
+
+          <Collapsible
+            title={`Peek at ${focusTable}`}
+            badge={`sample of ${db[focusTable]?.rows.length ?? 0} rows`}
+          >
+            {focusMeta && <p className="preview-doc">{focusMeta.doc}</p>}
+            <p className="sample-warn">
+              This is raw sample data to show you the shape of the table. It is not your query
+              result.
+            </p>
+            {preview && <ResultTable table={preview} showTypes />}
+          </Collapsible>
         </div>
         </div>
       )}

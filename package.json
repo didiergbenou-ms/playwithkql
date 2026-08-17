@@ -11,6 +11,7 @@
     "serve:dist": "node scripts/serve.mjs 4173",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run.mjs scripts/testKql.ts",
+    "test:ui": "node scripts/run.mjs scripts/testUi.tsx",
     "fuzz": "node scripts/run.mjs scripts/fuzzKql.ts",
     "deploy": "node scripts/deploy.mjs",
     "server": "node server/index.js"
