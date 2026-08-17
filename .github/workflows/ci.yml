@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: node node_modules/typescript/bin/tsc --noEmit
+
+      - name: Tests
+        run: node scripts/run.mjs scripts/testKql.ts
+
+      # Adversarial input against the KQL parser. This is what caught the
+      # stack overflow on deeply nested parentheses.
+      - name: Fuzz
+        run: node scripts/run.mjs scripts/fuzzKql.ts
+
+      # Build with the Pages base path, since that is what actually ships -
+      # a build that only works at the domain root is not a passing build.
+      - name: Build
+        env:
+          PAGES_BASE: /kql-detective-play/
+        run: node node_modules/vite/bin/vite.js build
