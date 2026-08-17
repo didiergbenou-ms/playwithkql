@@ -10,6 +10,7 @@ import { buildHighlightSchema, highlightKql } from '../src/kql/highlight';
 import { formatKql, pipeNeedsNewline } from '../src/kql/format';
 import { parseLevel, TILE } from '../src/game/levels/heartbeatHills';
 import { jumpApex } from '../src/game/physics';
+import { analyse, buildGrid, reachableSpots } from '../src/game/reach';
 import { CHARACTERS } from '../src/game/characters';
 import { FLOOR_PROPS } from '../src/game/propSprites';
 import { bus } from '../src/game/bus';
@@ -739,7 +740,64 @@ check('content: each terminal adds at most one new idea', () => {
   }
 });
 
-// ---- report ----------------------------------------------------------------
+// ---- level reachability ----------------------------------------------------
+
+/**
+ * Characters have different jump multipliers, so a level that works as one
+ * recruit can be impossible as another. Sparky's apex is ~47px against Vell's
+ * ~66px, and the Data Center's final platform used to sit a 64px climb off the
+ * floor — reachable only as Vell, with no way to tell as anyone else.
+ */
+check('level: every collectible and terminal is reachable by every character', () => {
+  for (const c of CHARACTERS) {
+    const report = analyse(c.id, c.stats.jump, c.stats.speed);
+    assert(
+      report.unreachableItems.length === 0,
+      `${c.id} (apex ${jumpApex(c.stats.jump).toFixed(1)}px) cannot reach: ` +
+        report.unreachableItems.map((i) => i.label).join(', '),
+    );
+  }
+});
+
+check('level: reachability has margin, not pixel-perfect jumps', () => {
+  // "Technically reachable" is not good enough. Before this was fixed the level
+  // needed a 0.97 multiplier and Sparky shipped at exactly 0.97 — every climb
+  // was frame-perfect, which is why it felt broken rather than hard. Requiring
+  // a weaker-than-shipping character to clear it keeps real headroom.
+  const weakestShipped = Math.min(...CHARACTERS.map((c) => c.stats.jump));
+  const slowestShipped = Math.min(...CHARACTERS.map((c) => c.stats.speed));
+  const margin = 0.9;
+
+  const report = analyse('margin-probe', weakestShipped * margin, slowestShipped * margin);
+  assert(
+    report.unreachableItems.length === 0,
+    `no headroom: at ${(margin * 100).toFixed(0)}% of the weakest character these are unreachable: ` +
+      report.unreachableItems.map((i) => i.label).join(', '),
+  );
+});
+
+check('level: closed gates cannot be jumped, even by the best jumper', () => {
+  // The counterpart to the test above. Making things reachable must not make
+  // the locked doors optional — a player who can hop a gate skips the KQL
+  // challenge, which is the entire game.
+  const level = parseLevel();
+  const grid = buildGrid(level, false);
+  const firstGateX = Math.min(...level.gates.map((g) => g.x));
+  const bestJump = Math.max(...CHARACTERS.map((c) => c.stats.jump));
+  const bestSpeed = Math.max(...CHARACTERS.map((c) => c.stats.speed));
+
+  const reached = reachableSpots(grid, bestJump, bestSpeed, {
+    col: Math.floor(level.spawn.x / TILE),
+    row: Math.floor(level.spawn.y / TILE),
+    x: level.spawn.x,
+    y: level.spawn.y,
+  });
+
+  const past = [...reached]
+    .map((k) => Number(k.split(',')[0]) * TILE)
+    .filter((x) => x > firstGateX);
+  assert(past.length === 0, `${past.length} spots reachable beyond a closed gate`);
+});
 
 console.log(`\n  ${passed} passed, ${failures.length} failed\n`);
 if (failures.length) {

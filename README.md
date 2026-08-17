@@ -18,7 +18,7 @@ npm run dev            # http://localhost:5173
 Other commands:
 
 ```bash
-npm test               # 88 engine, content, level, formatting and music checks
+npm test               # 91 engine, content, level, reachability and music checks
 npm run test:ui        # 17 render checks — what the player actually sees on open
 npm run fuzz           # 268 adversarial probes — nothing may crash, hang or change meaning
 npm run typecheck      # tsc --noEmit
@@ -158,7 +158,6 @@ conclusion instead of reading it.
 ---
 
 ## Level design
-
 Levels are **ASCII**, so a designer can reshape the world without reading any
 engine code (`src/game/levels/heartbeatHills.ts`):
 
@@ -177,6 +176,40 @@ c  kusto crystal  E  enemy              n  lore board
 
 Four rooms scroll seamlessly: Customer Office → Monitoring Forest → Server
 Caverns → Data Center.
+
+### Reachability is verified, not eyeballed
+
+Characters have different jump multipliers, so a level that works as one recruit
+can be impossible as another — and the author never notices, because they test
+as whoever they picked. Sparky's apex is **47px** against Vell's **66px**, which
+is the difference between clearing a three-tile rise and not.
+
+`src/game/reach.ts` runs the real movement numbers (same gravity, jump velocity,
+air acceleration and body size as `GameScene`) over the tile grid and answers
+"what can this character actually stand on". Walking is a grid move rather than a
+simulation — a physics step stops the instant the body is grounded, so
+simulating a walk only ever advanced a few pixels — while jumps and falls use the
+full simulation, since those are where the multiplier decides the outcome.
+
+It found three genuinely unreachable pickups, including the Data Center's final
+platform sitting a **64px climb** off the floor, which **only Vell could reach**.
+The fix was structural: stepping platforms so no required climb exceeds 32px.
+
+Two tests guard it, and they are deliberately a pair:
+
+- every collectible, terminal, note and console is reachable **by every character**
+- **with margin** — the level must still be clearable at 90% of the weakest
+  shipped character
+
+The margin test exists because "technically reachable" is not good enough. Before
+the fix the level demanded a 0.97 jump multiplier and Sparky shipped at exactly
+0.97, so every climb was frame-perfect. That is why it felt broken rather than
+hard, and a pass/fail reachability check alone would have called it fine.
+
+A third test pulls the other way: with gates **closed**, even the best jumper must
+reach nothing beyond them. Making the world easier to traverse must not make the
+locked doors optional, or the KQL challenge becomes skippable — which is the
+whole game.
 
 ---
 
