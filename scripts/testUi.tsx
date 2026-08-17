@@ -9,7 +9,9 @@
  * that, so these assertions are about visible content, not about mounting.
  */
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { TerminalModal } from '../src/ui/TerminalModal';
+import { VerdictModal } from '../src/ui/VerdictModal';
 import { CHALLENGES } from '../src/data/case001';
 
 let passed = 0;
@@ -124,6 +126,46 @@ check('the worked example labels its output as the example result', () => {
     html.includes('What that example returns'),
     'the example output table is unlabelled, so it reads as the player result',
   );
+});
+
+// ---- verdict console -------------------------------------------------------
+
+const verdictHtml = () => renderToStaticMarkup(<VerdictModal onClose={noop} onResolved={noop} />);
+
+check('submit verdict is pinned, not floated at the end of a long scroll', () => {
+  const html = verdictHtml();
+  assert(html.includes('Submit verdict'), 'submit button missing');
+  assert(
+    html.includes('verdict-foot'),
+    'the footer is not the sticky variant, so it scrolls away with the evidence',
+  );
+});
+
+check('the sticky rule actually exists in the stylesheet', () => {
+  // The class name alone proves nothing if the rule was never written.
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const rule = /\.verdict-foot\s*\{[^}]*\}/.exec(css)?.[0] ?? '';
+  assert(rule !== '', '.verdict-foot has no rule at all');
+  assert(/position:\s*sticky/.test(rule), '.verdict-foot is not position: sticky');
+  assert(/bottom:/.test(rule), '.verdict-foot has no bottom offset to stick to');
+  assert(/background:/.test(rule), '.verdict-foot is transparent, content will show through it');
+});
+
+check('the verdict console says what to do before you scroll', () => {
+  const html = verdictHtml();
+  assert(html.includes('then submit'), 'no instruction at the top of the console');
+  assert(
+    html.includes('Choose a theory above to enable submit'),
+    'the disabled submit button does not explain why it is disabled',
+  );
+});
+
+check('evidence detail and the causal chain are collapsed by default', () => {
+  const html = verdictHtml();
+  assert(html.includes('titles-only'), 'evidence detail is expanded, which is what buried submit');
+  assert(html.includes('Chain so far'), 'chain section missing');
+  // Collapsible renders no body while closed, so no list items should exist.
+  assert(!html.includes('chain-list'), 'the causal chain is expanded by default');
 });
 
 console.log(`\n  ${passed} passed, ${failures.length} failed\n`);

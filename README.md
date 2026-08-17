@@ -19,6 +19,7 @@ Other commands:
 
 ```bash
 npm test               # 88 engine, content, level, formatting and music checks
+npm run test:ui        # 13 render checks — what the player actually sees on open
 npm run fuzz           # 268 adversarial probes — nothing may crash, hang or change meaning
 npm run typecheck      # tsc --noEmit
 npm run build          # production bundle into dist/
@@ -448,6 +449,18 @@ wrong*, and both times it hid a real bug:
 The rule that came out of it: when adding a regression test, first verify it
 **fails** against the old broken state. A green test proves nothing until you
 have seen it go red.
+
+That rule earned its keep immediately. When checking that the sticky-footer
+test worked, the first attempt to re-break the CSS silently did nothing — the
+stylesheet has CRLF line endings and the patch string did not match. The test
+"passed", which looked like the test was weak, when in fact it had never been
+challenged at all. Re-broken properly, it failed exactly as intended.
+
+`npm run test:ui` renders components to static HTML with `react-dom/server`
+and asserts **what a player actually sees on open** — no result table before
+you run anything, schema and hints collapsed, submit button pinned. A test that
+only checked "does it mount" would have passed while the terminal was showing
+sample data in the result slot, which is precisely the bug that shipped.
 
 ---
 

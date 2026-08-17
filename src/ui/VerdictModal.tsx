@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CAUSAL_CHAIN, EVIDENCE, ROOT_CAUSES } from '../data/case001';
 import { useStore } from '../state/store';
+import { Collapsible } from './Collapsible';
 
 interface Props {
   onClose: () => void;
@@ -12,8 +13,10 @@ export function VerdictModal({ onClose, onResolved }: Props) {
   const submitVerdict = useStore((s) => s.submitVerdict);
   const [picked, setPicked] = useState<string | null>(null);
   const [wrong, setWrong] = useState<string[]>([]);
+  const [showDetail, setShowDetail] = useState(false);
 
   const collected = EVIDENCE.filter((e) => run.evidence.includes(e.id));
+  const pickedOption = ROOT_CAUSES.find((o) => o.id === picked);
 
   const submit = () => {
     if (!picked) return;
@@ -40,23 +43,37 @@ export function VerdictModal({ onClose, onResolved }: Props) {
         </button>
       </header>
 
+      <p className="verdict-lede">
+        Pick the one theory your evidence cannot contradict, then submit. Wrong answers cost
+        nothing but time.
+      </p>
+
       <div className="verdict-body">
         <aside>
-          <h3>Evidence on file</h3>
-          <ul className="evidence-list compact">
+          <div className="evidence-head">
+            <h3>Evidence on file</h3>
+            <button className="ghost small" onClick={() => setShowDetail((s) => !s)}>
+              {showDetail ? 'Hide detail' : 'Show detail'}
+            </button>
+          </div>
+          {/* Titles are the part you scan while comparing theories; the detail
+              paragraphs are what pushed the submit button off screen. */}
+          <ul className={`evidence-list compact ${showDetail ? '' : 'titles-only'}`}>
             {collected.map((e) => (
               <li key={e.id}>
                 <strong>{e.title}</strong>
-                <p>{e.detail}</p>
+                {showDetail && <p>{e.detail}</p>}
               </li>
             ))}
           </ul>
-          <h3>Chain</h3>
-          <ol className="chain-list">
-            {CAUSAL_CHAIN.map((c) => (
-              <li key={c}>{c}</li>
-            ))}
-          </ol>
+
+          <Collapsible title="Chain so far" badge={`${CAUSAL_CHAIN.length} steps`}>
+            <ol className="chain-list">
+              {CAUSAL_CHAIN.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ol>
+          </Collapsible>
         </aside>
 
         <div className="options">
@@ -78,13 +95,21 @@ export function VerdictModal({ onClose, onResolved }: Props) {
         </div>
       </div>
 
-      <footer className="modal-foot">
+      {/* Sticky, because this modal scrolls and the button used to sit below
+          six evidence cards and a causal chain - far past the fold. */}
+      <footer className="modal-foot verdict-foot">
         <span className="muted">
-          {wrong.length > 0
-            ? `${wrong.length} theor${wrong.length === 1 ? 'y' : 'ies'} ruled out. Wrong answers cost you nothing but time.`
-            : 'Read the evidence. Pick the one theory the evidence cannot contradict.'}
+          {pickedOption ? (
+            <>
+              Selected: <strong className="picked-name">{pickedOption.label}</strong>
+            </>
+          ) : wrong.length > 0 ? (
+            `${wrong.length} theor${wrong.length === 1 ? 'y' : 'ies'} ruled out — pick another.`
+          ) : (
+            'Choose a theory above to enable submit.'
+          )}
         </span>
-        <button className="primary" onClick={submit} disabled={!picked}>
+        <button className="primary big" onClick={submit} disabled={!picked}>
           Submit verdict
         </button>
       </footer>
