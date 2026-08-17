@@ -12,10 +12,22 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
 import { TerminalModal } from '../src/ui/TerminalModal';
 import { VerdictModal } from '../src/ui/VerdictModal';
-import { CHALLENGES } from '../src/data/case001';
+import { CHALLENGES, ROOT_CAUSES } from '../src/data/case001';
+import { useStore } from '../src/state/store';
 
 let passed = 0;
 const failures: string[] = [];
+
+// Under `platform: 'node'` the bundler resolves a different zustand build than
+// the browser gets, and its persist middleware decides storage is unavailable
+// no matter what we put on globalThis. It is a harness artefact - the browser
+// build persists fine - but left alone it prints on every store write and
+// buries real failures. Filtered narrowly so any other warning still shows.
+const realWarn = console.warn;
+console.warn = (...args: unknown[]) => {
+  if (typeof args[0] === 'string' && args[0].includes('[zustand persist middleware]')) return;
+  realWarn(...args);
+};
 
 function check(name: string, fn: () => void) {
   try {
@@ -166,6 +178,61 @@ check('evidence detail and the causal chain are collapsed by default', () => {
   assert(html.includes('Chain so far'), 'chain section missing');
   // Collapsible renders no body while closed, so no list items should exist.
   assert(!html.includes('chain-list'), 'the causal chain is expanded by default');
+});
+
+// ---- dev shortcuts ---------------------------------------------------------
+
+check('the dev passphrase never ships as plaintext', () => {
+  const src = readFileSync(new URL('../src/dev/secret.ts', import.meta.url), 'utf8');
+  // Guard against someone "simplifying" the hash comparison back to a literal.
+  assert(!/bureau451/i.test(src), 'the passphrase is sitting in the source in plaintext');
+  assert(/[0-9a-f]{64}/.test(src), 'no sha-256 digest found to compare against');
+});
+
+check('dev shortcuts flag the run so scores stay honest', () => {
+  const store = useStore.getState();
+  store.startRun(10, 3);
+  assert(!useStore.getState().run.devUsed, 'a fresh run should not be flagged');
+
+  useStore.getState().devSolve('next');
+  const after = useStore.getState().run;
+  assert(after.devUsed, 'devSolve did not flag the run');
+  assert(
+    CHALLENGES.filter((c) => after.challenges[c.id].solved).length === 1,
+    'devSolve("next") should solve exactly one challenge',
+  );
+});
+
+check('a dev run never writes to the profile', () => {
+  useStore.getState().resetProfile();
+  useStore.getState().startRun(10, 3);
+  const before = useStore.getState().profile;
+
+  useStore.getState().devSolve('all');
+  const winner = ROOT_CAUSES.find((o) => o.correct);
+  assert(!!winner, 'case has no correct root cause');
+  useStore.getState().submitVerdict(winner!.id, true);
+
+  const after = useStore.getState().profile;
+  assert(after.casesClosed === before.casesClosed, 'a dev run incremented casesClosed');
+  assert(after.lifetimeScore === before.lifetimeScore, 'a dev run added to lifetime score');
+  assert(after.bestScore === before.bestScore, 'a dev run changed the best score');
+});
+
+check('a clean run still writes to the profile', () => {
+  // The guard above must be conditional on devUsed, not a blanket block.
+  useStore.getState().resetProfile();
+  useStore.getState().startRun(10, 3);
+  for (const c of CHALLENGES) {
+    useStore.getState().registerAttempt(c.id);
+    useStore.getState().solveChallenge(c.id, c.solution);
+  }
+  const winner = ROOT_CAUSES.find((o) => o.correct)!;
+  useStore.getState().submitVerdict(winner.id, true);
+
+  const after = useStore.getState().profile;
+  assert(after.casesClosed === 1, `expected a real run to close a case, got ${after.casesClosed}`);
+  assert(after.lifetimeScore > 0, 'a real run scored nothing');
 });
 
 console.log(`\n  ${passed} passed, ${failures.length} failed\n`);

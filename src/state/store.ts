@@ -34,6 +34,8 @@ export interface RunState {
   openGates: string[];
   verdictId: string | null;
   verdictCorrect: boolean;
+  /** Set when a dev shortcut was used, so the score is never mistaken for real. */
+  devUsed: boolean;
 }
 
 export interface Profile {
@@ -109,6 +111,7 @@ function emptyRun(totalFragments: number, totalCrystals: number): RunState {
     openGates: [],
     verdictId: null,
     verdictCorrect: false,
+    devUsed: false,
   };
 }
 
@@ -183,6 +186,9 @@ interface Store {
   pushToast: (text: string) => void;
   dismissToast: (id: string) => void;
   resetProfile: () => void;
+  /** Dev-only shortcuts. Every one of these marks the run as dev-tainted. */
+  devSolve: (which: 'next' | 'all') => void;
+  devGrant: (patch: Partial<RunState>) => void;
 }
 
 const initialProfile: Profile = {
@@ -300,13 +306,17 @@ export const useStore = create<Store>()(
         if (CHALLENGES.every((c) => run.challenges[c.id].solved)) award('kusto-master');
       },
 
-      submitVerdict: (optionId, correct) => {
-        set((s) => ({
+      submitVerdict: (optionId, correct) => {        set((s) => ({
           run: { ...s.run, verdictId: optionId, verdictCorrect: correct, finishedAt: Date.now() },
         }));
 
         const { run, award } = get();
         if (!correct) return;
+
+        // A run that used dev shortcuts must not touch the profile. Otherwise
+        // testing the debrief inflates lifetime score and silently unlocks
+        // achievements that were never earned.
+        if (run.devUsed) return;
 
         const score = scoreRun(run);
         award('case-closed');
@@ -348,6 +358,18 @@ export const useStore = create<Store>()(
       dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
       resetProfile: () => set({ profile: initialProfile }),
+
+      devSolve: (which) => {
+        const pending = CHALLENGES.filter((c) => !get().run.challenges[c.id].solved);
+        const target = which === 'all' ? pending : pending.slice(0, 1);
+        if (!target.length) return;
+        // Mark first: solveChallenge awards achievements, and devUsed is what
+        // stops those from reaching the profile.
+        set((s) => ({ run: { ...s.run, devUsed: true } }));
+        for (const c of target) get().solveChallenge(c.id, c.solution);
+      },
+
+      devGrant: (patch) => set((s) => ({ run: { ...s.run, ...patch, devUsed: true } })),
     }),
     {
       name: 'kql-detective-profile',

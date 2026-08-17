@@ -435,6 +435,7 @@ export class GameScene extends Phaser.Scene {
       }),
     );
     this.busOff.push(bus.on('ui:restartRoom', () => this.respawn()));
+    this.busOff.push(bus.on('ui:teleport', ({ roomIndex }) => this.teleportToRoom(roomIndex)));
     this.busOff.push(
       bus.on('ui:objective', ({ challengeId, finale }) => {
         this.objectiveTarget = this.findObjectiveX(challengeId, finale);
@@ -752,13 +753,37 @@ export class GameScene extends Phaser.Scene {
     this.player.setVelocity(130 * dir, -150);
   }
 
-  private respawn() {
-    this.health = this.maxHealth;
+  private respawn() {    this.health = this.maxHealth;
     this.invulnerableUntil = this.time.now + 900;
     this.player.setVelocity(0, 0);
     this.player.setPosition(this.checkpoint.x, this.checkpoint.y - 4);
     this.cameras.main.flash(220, 10, 20, 45);
     bus.emit('game:death');
+    this.emitHud();
+  }
+
+  /**
+   * Dev shortcut. Lands on a checkpoint inside the target room rather than the
+   * room's left edge, because the left edge is often mid-air or inside a gate
+   * recess — checkpoints are already known-safe standing spots.
+   */
+  private teleportToRoom(roomIndex: number) {
+    const room = this.level.rooms[roomIndex];
+    if (!room) return;
+
+    const inRoom = this.checkpointPoints.filter(
+      (p) => p.x >= room.startX && p.x <= room.endX,
+    );
+    const target = inRoom.length
+      ? inRoom.reduce((a, b) => (a.x <= b.x ? a : b))
+      : { x: room.startX + 32, y: this.level.spawn.y };
+
+    this.player.setVelocity(0, 0);
+    this.player.setPosition(target.x, target.y - 4);
+    this.checkpoint = { x: target.x, y: target.y };
+    this.health = this.maxHealth;
+    this.invulnerableUntil = this.time.now + 900;
+    this.cameras.main.flash(200, 40, 90, 140);
     this.emitHud();
   }
 

@@ -28,6 +28,8 @@ export type GameEvents = {
   'ui:objective': { challengeId?: string; finale: boolean };
   'ui:restartRoom': void;
   'ui:setPaused': { paused: boolean };
+  /** Dev shortcut: drop the player into a room without walking there. */
+  'ui:teleport': { roomIndex: number };
 };
 
 type Handler<T> = (payload: T) => void;

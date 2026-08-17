@@ -22,6 +22,8 @@ import { ReferenceCard } from './ui/ReferenceCard';
 import { OptionsModal } from './ui/OptionsModal';
 import { VerdictModal } from './ui/VerdictModal';
 import { Debrief } from './ui/Debrief';
+import { DevPanel } from './ui/DevPanel';
+import { devActive, initDevMode, onDevChange } from './dev/secret';
 
 type Overlay =
   | { kind: 'terminal'; challengeId: string }
@@ -30,6 +32,7 @@ type Overlay =
   | { kind: 'notebook' }
   | { kind: 'reference' }
   | { kind: 'options' }
+  | { kind: 'dev' }
   | null;
 
 const ROOM_NAMES = ['Customer Office', 'Monitoring Forest', 'Server Caverns', 'Data Center'];
@@ -51,6 +54,17 @@ export default function App() {
   const character = useStore((s) => s.profile.character);
 
   const [overlay, setOverlay] = useState<Overlay>(null);
+  const [dev, setDev] = useState(devActive());
+
+  useEffect(() => {
+    const teardown = initDevMode();
+    const off = onDevChange(setDev);
+    setDev(devActive());
+    return () => {
+      teardown();
+      off();
+    };
+  }, []);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
   const level = useMemo(() => parseLevel(), []);
 
@@ -125,6 +139,15 @@ export default function App() {
       // While a celebration is on screen, Escape only dismisses that — closing
       // the terminal too would whip the result away before it can be read.
       if (e.key === 'Escape' && overlay && !celebration) setOverlay(null);
+
+      // Dev panel is reachable from anywhere, including with an overlay open,
+      // so you can warp out of a terminal you opened by mistake.
+      if (dev && e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+        e.preventDefault();
+        setOverlay((o) => (o?.kind === 'dev' ? null : { kind: 'dev' }));
+        return;
+      }
+
       if (screen !== 'playing' || overlay) return;
       if (e.key === 'Tab') {
         e.preventDefault();
@@ -141,7 +164,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [overlay, screen, celebration]);
+  }, [overlay, screen, celebration, dev]);
 
   /** Keep the in-world waypoint pointed at whatever the player should do next. */
   const solvedIds = CHALLENGES.filter((c) => run.challenges[c.id]?.solved).map((c) => c.id);
@@ -225,6 +248,12 @@ export default function App() {
         </div>
       )}
 
+      {dev && (
+        <button className="dev-chip" onClick={() => setOverlay({ kind: 'dev' })}>
+          DEV · Ctrl+Shift+D
+        </button>
+      )}
+
       {screen === 'debrief' && (
         <Debrief onMenu={() => setScreen('menu')} onReplay={begin} />
       )}
@@ -303,6 +332,13 @@ export default function App() {
           )}
 
           {overlay.kind === 'notebook' && <Notebook onClose={() => setOverlay(null)} />}
+
+          {overlay.kind === 'dev' && (
+            <DevPanel
+              onClose={() => setOverlay(null)}
+              onOpenVerdict={() => setOverlay({ kind: 'verdict' })}
+            />
+          )}
 
           {overlay.kind === 'verdict' && (
             <VerdictModal

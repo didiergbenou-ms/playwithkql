@@ -19,7 +19,7 @@ Other commands:
 
 ```bash
 npm test               # 88 engine, content, level, formatting and music checks
-npm run test:ui        # 13 render checks — what the player actually sees on open
+npm run test:ui        # 17 render checks — what the player actually sees on open
 npm run fuzz           # 268 adversarial probes — nothing may crash, hang or change meaning
 npm run typecheck      # tsc --noEmit
 npm run build          # production bundle into dist/
@@ -461,6 +461,33 @@ and asserts **what a player actually sees on open** — no result table before
 you run anything, schema and hints collapsed, submit button pinned. A test that
 only checked "does it mount" would have passed while the terminal was showing
 sample data in the result slot, which is precisely the bug that shipped.
+
+---
+
+## Dev shortcuts
+
+Replaying five terminals to test the debrief gets old fast, so there is a
+shortcut panel behind a passphrase. Two ways in:
+
+- type the phrase anywhere in the game, or
+- append `?dev=<phrase>` to the URL, which survives reloads
+
+Then `Ctrl`+`Shift`+`D`, or the **DEV** chip in the corner. It offers: solve
+next / solve all, warp to any room, open the verdict console, finish the case
+straight to the debrief, and top up crystals and health.
+
+**Only the SHA-256 of the phrase ships**, so reading the bundle does not hand it
+over — there is a test asserting the plaintext appears in no built asset. Be
+clear about what that is worth though: this is obscurity, not security. The game
+is entirely client-side, anyone can drive the store from the console, and the
+only thing being "protected" is which answers are right. The goal is just that a
+player on the public link cannot trip over it by accident.
+
+Anything the panel touches sets `run.devUsed`, which **blocks the run from
+writing to your profile** and prints a warning on the debrief. Without that,
+testing the end screen would quietly inflate lifetime score and unlock
+achievements that were never earned. Tests cover both halves: a dev run must not
+reach the profile, and a clean run still must.
 
 ---
 

@@ -20,6 +20,12 @@ export function Debrief({ onMenu, onReplay }: { onMenu: () => void; onReplay: ()
     <div className="screen debrief">
       <div className="panel debrief-main">
         <span className="tag tag-cyan">CASE 001 — CLOSED</span>
+        {run.devUsed && (
+          <p className="dev-warn">
+            Dev shortcuts were used on this run. The score below is not a real result and nothing
+            was written to your profile.
+          </p>
+        )}
         <h1>Proxy misconfiguration</h1>
         <p className="lede">
           The five machines never stopped running. At 09:02Z an agent proxy setting was pushed to{' '}
