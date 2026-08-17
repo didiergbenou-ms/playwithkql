@@ -597,6 +597,7 @@ check('music: every track parses and loops on a whole number of bars', () => {
       assert(steps % 16 === 0, `${id} channel is ${steps} steps — not a whole number of bars`);
       assert(events.length > 0, `${id} channel is silent`);
       for (const e of events) {
+        if (e.drum) continue; // percussion carries no pitch
         assert(e.midi >= 12 && e.midi <= 108, `${id} note ${e.midi} is outside a sane range`);
         assert(e.step + e.len <= steps + 1, `${id} note runs past the end of the loop`);
       }
@@ -606,15 +607,57 @@ check('music: every track parses and loops on a whole number of bars', () => {
 
 check('music: in-game loops are long enough not to grate', () => {
   // A four-bar loop at 128bpm repeats roughly every 7 seconds, which is what
-  // made the first version annoying. Eight bars still came round about three
-  // times a minute, so room tracks are 16 — an A section and a contrasting B.
+  // made the first version annoying. Bar count is the real guard — it is what
+  // measures how much distinct music exists. The seconds floor is secondary and
+  // deliberately loose, because a fast track legitimately has a shorter loop in
+  // wall-clock time while containing exactly as much material: the finale runs
+  // at 146bpm, so its 16 bars come round in 26s rather than 40.
   for (const id of ROOM_TRACKS) {
     const t = TRACKS[id];
     const steps = parsePattern(t.channels[0].pattern).steps;
     const bars = steps / 16;
     const seconds = (steps * 60) / t.bpm / 4;
     assert(bars >= 16, `${id} is only ${bars} bars`);
-    assert(seconds >= 28, `${id} loops every ${seconds.toFixed(1)}s — too short`);
+    assert(seconds >= 24, `${id} loops every ${seconds.toFixed(1)}s — too short`);
+  }
+});
+
+check('music: every track has drums', () => {
+  // The first version had no percussion at all, which is the main reason it
+  // sounded like a music box rather than a game soundtrack — on the NES the
+  // noise channel carries most of a track's energy.
+  for (const [id, t] of Object.entries(TRACKS)) {
+    const noise = t.channels.filter((c) => c.voice === 'noise');
+    assert(noise.length > 0, `${id} has no percussion channel`);
+    const hits = noise.flatMap((c) => parsePattern(c.pattern).events);
+    assert(hits.length > 0, `${id} has a drum channel but never hits anything`);
+    assert(
+      hits.every((h) => h.drum !== undefined),
+      `${id} has pitched notes on a noise channel`,
+    );
+  }
+});
+
+check('music: leads use the narrow pulse timbres, not just square', () => {
+  // A 50% square was the only lead tone before. The 12.5%/25% duty pulses are
+  // the recognisable NES lead colours, and having two lets parts separate.
+  for (const [id, t] of Object.entries(TRACKS)) {
+    const pulses = t.channels.filter((c) => c.voice === 'pulse12' || c.voice === 'pulse25');
+    assert(pulses.length > 0, `${id} uses no pulse voice`);
+  }
+});
+
+check('music: drum patterns only contain real drums', () => {
+  for (const [id, t] of Object.entries(TRACKS)) {
+    for (const c of t.channels) {
+      if (c.voice !== 'noise') continue;
+      for (const tok of c.pattern.trim().split(/\s+/)) {
+        assert(
+          ['k', 's', 'h', 'o', '.', '-'].includes(tok),
+          `${id} drum pattern has an unplayable token "${tok}"`,
+        );
+      }
+    }
   }
 });
 

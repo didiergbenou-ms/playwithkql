@@ -12,7 +12,15 @@
  *    `unlock()` must be called from a click or keypress handler.
  */
 
-import { TRACKS, midiToFreq, parsePattern, type NoteEvent, type TrackId } from './music';
+import {
+  TRACKS,
+  midiToFreq,
+  parsePattern,
+  type DrumName,
+  type MusicVoice,
+  type NoteEvent,
+  type TrackId,
+} from './music';
 
 type Wave = OscillatorType;
 
@@ -103,11 +111,28 @@ const SCHEDULE_AHEAD = 0.14;
 const DUCK = 0.35;
 
 interface Prepared {
-  wave: Wave;
+  voice: MusicVoice;
   gain: number;
   events: NoteEvent[];
   steps: number;
+  vibrato: boolean;
 }
+
+/**
+ * Percussion, built from filtered noise.
+ *
+ * The music had no drums at all, which is the main reason it read as a music
+ * box rather than a game soundtrack — an NES track gets most of its drive from
+ * the noise channel. Each drum is white noise through a different filter, and
+ * the kick additionally gets a pitch-dropping triangle underneath it, which is
+ * the trick that gives an 8-bit kick its thump; noise alone is just a hiss.
+ */
+const DRUM_SPEC: Record<DrumName, { type: BiquadFilterType; hz: number; q: number; dur: number; gain: number }> = {
+  kick: { type: 'lowpass', hz: 130, q: 1, dur: 0.11, gain: 0.9 },
+  snare: { type: 'bandpass', hz: 1750, q: 0.8, dur: 0.13, gain: 0.5 },
+  hat: { type: 'highpass', hz: 7500, q: 1, dur: 0.03, gain: 0.22 },
+  openHat: { type: 'highpass', hz: 6200, q: 1, dur: 0.17, gain: 0.16 },
+};
 
 class GameAudio {
   private ctx: AudioContext | null = null;
@@ -121,6 +146,9 @@ class GameAudio {
   private prepared: Prepared[] = [];
   private stepsPerLoop = 0;
   private stepDur = 0;
+  private swing = 0;
+  private noise: AudioBuffer | null = null;
+  private waveCache = new Map<number, PeriodicWave>();
   private nextStepTime = 0;
   private step = 0;
   private currentTrack: TrackId | null = null;
@@ -271,6 +299,137 @@ class GameAudio {
     osc.stop(at + dur + 0.02);
   }
 
+  // ---- music voices --------------------------------------------------------
+
+  /**
+   * Pulse wave at a given duty cycle.
+   *
+   * A plain `square` is a 50% pulse, and it was the only lead timbre here.
+   * Narrower duties (12.5% and 25%) are the thin, reedy tones most associated
+   * with NES leads, and having two of them lets one part sit clearly on top of
+   * another instead of the whole mix blurring together.
+   */
+  private pulseWave(duty: number): PeriodicWave | null {
+    const ctx = this.ctx;
+    if (!ctx) return null;
+    const cached = this.waveCache.get(duty);
+    if (cached) return cached;
+
+    const n = 24;
+    const real = new Float32Array(n);
+    const imag = new Float32Array(n);
+    for (let i = 1; i < n; i++) {
+      imag[i] = (2 / (i * Math.PI)) * Math.sin(i * Math.PI * duty);
+    }
+    const wave = ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+    this.waveCache.set(duty, wave);
+    return wave;
+  }
+
+  private noiseBuffer(): AudioBuffer | null {
+    const ctx = this.ctx;
+    if (!ctx) return null;
+    if (this.noise) return this.noise;
+    const len = Math.floor(ctx.sampleRate * 0.4);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    this.noise = buf;
+    return buf;
+  }
+
+  private drum(name: DrumName, at: number, level: number, out: GainNode) {
+    const ctx = this.ctx;
+    const buf = this.noiseBuffer();
+    if (!ctx || !buf) return;
+    const spec = DRUM_SPEC[name];
+
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filter = ctx.createBiquadFilter();
+    filter.type = spec.type;
+    filter.frequency.setValueAtTime(spec.hz, at);
+    filter.Q.setValueAtTime(spec.q, at);
+
+    const gain = ctx.createGain();
+    const peak = Math.max(0.0002, level * spec.gain);
+    gain.gain.setValueAtTime(peak, at);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + spec.dur);
+
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(out);
+    src.start(at);
+    src.stop(at + spec.dur + 0.02);
+
+    // Pitch-dropping body under the kick. Without this the kick is a click.
+    if (name === 'kick') {
+      const osc = ctx.createOscillator();
+      const og = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(150, at);
+      osc.frequency.exponentialRampToValueAtTime(42, at + 0.09);
+      og.gain.setValueAtTime(Math.max(0.0002, level * 1.1), at);
+      og.gain.exponentialRampToValueAtTime(0.0001, at + 0.11);
+      osc.connect(og);
+      og.connect(out);
+      osc.start(at);
+      osc.stop(at + 0.13);
+    }
+  }
+
+  /** One pitched music note, with optional vibrato on longer notes. */
+  private musicNote(
+    freq: number,
+    at: number,
+    dur: number,
+    v: MusicVoice,
+    peak: number,
+    out: GainNode,
+    vibrato: boolean,
+  ) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    if (v === 'pulse12' || v === 'pulse25') {
+      const w = this.pulseWave(v === 'pulse12' ? 0.125 : 0.25);
+      if (w) osc.setPeriodicWave(w);
+      else osc.type = 'square';
+    } else if (v !== 'noise') {
+      osc.type = v;
+    }
+
+    osc.frequency.setValueAtTime(freq, at);
+
+    // Delayed vibrato on sustained notes — a held chip note is otherwise dead
+    // flat, and this is how the era added expression with no extra channel.
+    let lfo: OscillatorNode | null = null;
+    if (vibrato && dur > 0.28) {
+      lfo = ctx.createOscillator();
+      const depth = ctx.createGain();
+      lfo.frequency.setValueAtTime(5.5, at);
+      depth.gain.setValueAtTime(0, at);
+      depth.gain.setValueAtTime(0, at + 0.16);
+      depth.gain.linearRampToValueAtTime(freq * 0.012, at + 0.3);
+      lfo.connect(depth);
+      depth.connect(osc.frequency);
+      lfo.start(at);
+      lfo.stop(at + dur + 0.02);
+    }
+
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), at + 0.004);
+    gain.gain.setValueAtTime(Math.max(0.0002, peak), at + Math.max(0.005, dur * 0.7));
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+
+    osc.connect(gain);
+    gain.connect(out);
+    osc.start(at);
+    osc.stop(at + dur + 0.02);
+  }
+
   // ---- music ---------------------------------------------------------------
 
   playTrack(id: TrackId) {
@@ -281,11 +440,12 @@ class GameAudio {
     this.currentTrack = id;
     this.prepared = track.channels.map((c) => {
       const { events, steps } = parsePattern(c.pattern);
-      return { wave: c.wave, gain: c.gain, events, steps };
+      return { voice: c.voice, gain: c.gain, events, steps, vibrato: c.vibrato ?? false };
     });
     this.stepsPerLoop = Math.max(...this.prepared.map((p) => p.steps), 1);
     // 16 steps to the bar, four beats to the bar => a step is a 16th note
     this.stepDur = 60 / track.bpm / 4;
+    this.swing = track.swing ?? 0;
 
     this.stopScheduler();
     this.step = 0;
@@ -321,13 +481,22 @@ class GameAudio {
     if (!ctx || !bus || ctx.state !== 'running') return;
 
     while (this.nextStepTime < ctx.currentTime + SCHEDULE_AHEAD) {
+      // Swing: push every odd 16th later so pairs play long-short. The step
+      // clock itself stays rigid, so this never accumulates drift.
+      const swung = this.step % 2 === 1 ? this.stepDur * this.swing * 0.5 : 0;
+      const at = this.nextStepTime + swung;
+
       for (const ch of this.prepared) {
         const local = this.step % ch.steps;
         for (const ev of ch.events) {
           if (ev.step !== local) continue;
+          if (ev.drum) {
+            this.drum(ev.drum, at, ch.gain, bus);
+            continue;
+          }
           // slight gap at the end so repeated notes re-articulate
           const dur = Math.max(0.05, ev.len * this.stepDur * 0.92);
-          this.voice(midiToFreq(ev.midi), this.nextStepTime, dur, ch.wave, ch.gain, bus);
+          this.musicNote(midiToFreq(ev.midi), at, dur, ch.voice, ch.gain, bus, ch.vibrato);
         }
       }
       this.nextStepTime += this.stepDur;

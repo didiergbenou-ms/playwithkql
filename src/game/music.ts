@@ -1,15 +1,19 @@
 /**
  * Original chiptune music, written as tracker-style patterns.
  *
- * These are compositions of my own in the 8-bit idiom — pulse lead, triangle
- * bass, arpeggiated chords. They are deliberately NOT transcriptions of any
- * existing game music, which would be someone else's copyright. The
- * familiarity comes from the conventions of the era, not from the tunes.
+ * These are compositions of my own in the 8-bit idiom. They are deliberately
+ * NOT transcriptions of, or variations on, any existing game music — copying a
+ * melody and altering it is a derivative work, and "changed it enough" has no
+ * bright line in law. What actually makes this music feel familiar is not any
+ * borrowed tune but the shared vocabulary of the era, none of which is
+ * protectable: chord progressions, scales and modes, rhythms, song forms and
+ * the pulse/triangle/noise palette itself.
  *
  * Notation, one token per 16th step:
  *   a4  c#5  bb2   play that note
- *   -             hold the previous note for another step
- *   .             silence
+ *   k s h o        kick, snare, closed hat, open hat  (noise channels)
+ *   -              hold the previous note for another step
+ *   .              silence
  *
  * Backing parts are GENERATED from a chord progression rather than typed out.
  * A 16-bar channel is 256 tokens; hand-typing that is how you get a bar with
@@ -18,18 +22,34 @@
  * which pads to exactly 16 steps.
  */
 
+/** Timbres. `pulse12`/`pulse25` are the thin NES lead tones; square is 50%. */
+export type MusicVoice = 'pulse12' | 'pulse25' | 'square' | 'triangle' | 'sawtooth' | 'noise';
+
+export type DrumName = 'kick' | 'snare' | 'hat' | 'openHat';
+
+const DRUM_TOKENS: Record<string, DrumName> = {
+  k: 'kick',
+  s: 'snare',
+  h: 'hat',
+  o: 'openHat',
+};
+
 export interface Channel {
-  wave: OscillatorType;
+  voice: MusicVoice;
   /** Relative level within the track. */
   gain: number;
   /** 16th-step tokens; whitespace between bars is ignored. */
   pattern: string;
+  /** Adds delayed vibrato to sustained notes. Leads only. */
+  vibrato?: boolean;
 }
 
 export interface Track {
   id: string;
   title: string;
   bpm: number;
+  /** 0 = straight, ~0.5 = a hard shuffle. Delays every odd 16th. */
+  swing?: number;
   channels: Channel[];
 }
 
@@ -69,11 +89,16 @@ export interface NoteEvent {
   midi: number;
   /** Length in steps, including any '-' holds. */
   len: number;
+  /** Set instead of a pitch on noise channels. */
+  drum?: DrumName;
 }
 
 /**
  * Expands a pattern into note events, resolving '-' holds into note lengths so
  * the scheduler never has to reason about sustain.
+ *
+ * Drum letters (k s h o) cannot collide with note names, which only use a-g,
+ * so pitched and percussion patterns share one parser and one hold rule.
  */
 export function parsePattern(pattern: string): { events: NoteEvent[]; steps: number } {
   const tokens = pattern.trim().split(/\s+/);
@@ -87,6 +112,13 @@ export function parsePattern(pattern: string): { events: NoteEvent[]; steps: num
     }
     current = null;
     if (tok === '.') return;
+
+    const drum = DRUM_TOKENS[tok];
+    if (drum) {
+      events.push({ step, midi: 0, len: 1, drum });
+      return;
+    }
+
     const midi = noteToMidi(tok);
     if (midi === null) return;
     current = { step, midi, len: 1 };
@@ -111,9 +143,6 @@ const bar = (s: string): string => {
 };
 
 const lead = (...bars: string[]): string => bars.map(bar).join(' ');
-
-/** A silent bar. */
-const REST = '.';
 
 /** Shifts a note token by whole octaves. */
 const shift = (token: string, octaves: number): string => {
@@ -153,46 +182,146 @@ const chord = (name: string): ChordShape => {
   return c;
 };
 
-/** One bar of walking bass per chord. */
-const bassLine = (progression: string[], octaves = 0): string =>
-  progression
-    .map((name) => {
-      const [r, f] = chord(name).bass.map((n) => shift(n, octaves));
-      return bar(`${r} - . . ${r} - . . ${r} - . . ${f} - . .`);
-    })
-    .join(' ');
+// ---- bass styles -----------------------------------------------------------
+//
+// The old music had exactly one bass rhythm and used it in every bar of every
+// track, which is a large part of why it wore thin. These are the idiomatic
+// NES patterns; picking a different one per section changes the whole feel
+// without touching a single melody note.
 
-/** One bar of rolling arpeggio per chord. */
-const arpLine = (progression: string[], octaves = 0): string =>
-  progression
-    .map((name) => {
-      const [a, b, c] = chord(name).arp.map((n) => shift(n, octaves));
+type BassStyle = 'rootFifth' | 'octave' | 'drive' | 'arp' | 'pedal';
+
+const bassBar = (name: string, style: BassStyle, octaves: number): string => {
+  const shape = chord(name);
+  const r = shift(shape.bass[0], octaves);
+  const f = shift(shape.bass[1], octaves);
+  const hi = shift(r, 1);
+  const third = shift(shape.arp[1], octaves - 1);
+
+  switch (style) {
+    // steady quarter-note pulse, the workhorse
+    case 'rootFifth':
+      return bar(`${r} - - . ${f} - - . ${r} - - . ${f} - - .`);
+    // low note answered an octave up: punchy, more forward motion
+    case 'octave':
+      return bar(`${r} - - . ${hi} - . . ${r} - - . ${f} - ${hi} .`);
+    // relentless 8ths for the sections that need urgency
+    case 'drive':
+      return bar(`${r} - ${r} - ${r} - ${r} - ${f} - ${f} - ${r} - ${r} -`);
+    // walks the chord tones, fills space when little else is playing
+    case 'arp':
+      return bar(`${r} - ${third} - ${f} - ${third} - ${r} - ${third} - ${f} - ${hi} -`);
+    // static root under moving harmony: floating and tense
+    case 'pedal':
+      return bar(`${r} - - - - - - - ${r} - - - - - - -`);
+  }
+};
+
+const bassLine = (progression: string[], style: BassStyle = 'rootFifth', octaves = 0): string =>
+  progression.map((name) => bassBar(name, style, octaves)).join(' ');
+
+// ---- arpeggios -------------------------------------------------------------
+
+type ArpStyle = 'roll' | 'fast' | 'offbeat' | 'stab';
+
+const arpBar = (name: string, style: ArpStyle, octaves: number): string => {
+  const [a, b, c] = chord(name).arp.map((n) => shift(n, octaves));
+  switch (style) {
+    case 'roll':
       return bar(`${a} . ${b} . ${c} . ${b} . ${a} . ${b} . ${c} . ${b} .`);
-    })
-    .join(' ');
+    // 16th-note arpeggio: the classic trick for implying a full chord
+    case 'fast':
+      return bar(`${a} ${b} ${c} ${b} ${a} ${b} ${c} ${b} ${a} ${b} ${c} ${b} ${a} ${b} ${c} ${b}`);
+    // off the beat, so it locks with the drums rather than the bass
+    case 'offbeat':
+      return bar(`. . ${a} - . . ${b} - . . ${c} - . . ${b} -`);
+    // short chord stabs on the backbeat
+    case 'stab':
+      return bar(`. . . . ${a} ${b} ${c} . . . . . ${a} ${b} ${c} .`);
+  }
+};
+
+const arpLine = (progression: string[], style: ArpStyle = 'roll', octaves = 0): string =>
+  progression.map((name) => arpBar(name, style, octaves)).join(' ');
+
+// ---- percussion ------------------------------------------------------------
+//
+// There were no drums at all before this. On the NES the noise channel carries
+// most of a track's energy, and its absence is why everything felt like a
+// music box.
+
+const BEATS = {
+  /** Straight rock beat, hats on 8ths. */
+  basic: 'k . h . s . h . k . h . s . h .',
+  /** Busier: hats on every 16th. */
+  busy: 'k h h h s h h h k h h k s h h h',
+  /** Half-time, roomy — for calmer sections. */
+  half: 'k . . . h . . . s . . . h . . o',
+  /** Driving, for the finale. */
+  drive: 'k . h . s . h k k . h . s . h h',
+  /** Shuffle: hats on the swung 8ths only. */
+  shuffle: 'k . . h s . . h k . . h s . . h',
+  /** Bar of fill that signals a phrase ending. */
+  fill: 'k . h . s . s . s s . s o . s s',
+  /** Nothing — silence is a texture too. */
+  none: '.',
+} as const;
+
+/**
+ * Builds a drum track of `bars` bars from a base beat, swapping in a fill on
+ * the last bar of each 4-bar phrase. Phrase-end fills are what stop a loop
+ * from feeling like wallpaper.
+ */
+const drums = (beat: keyof typeof BEATS, bars: number, fillEvery = 4): string => {
+  const out: string[] = [];
+  for (let i = 0; i < bars; i++) {
+    const isFill = fillEvery > 0 && i % fillEvery === fillEvery - 1 && i > 0;
+    out.push(bar(isFill ? BEATS.fill : BEATS[beat]));
+  }
+  return out.join(' ');
+};
+
+/** Repeats a pattern fragment, for sections that share a groove. */
+export const repeatPattern = (pattern: string, times: number): string =>
+  Array.from({ length: times }, () => pattern).join(' ');
 
 // ---- the soundtrack --------------------------------------------------------
 //
-// Room tracks are 16 bars: an A section and a contrasting B section. A single
-// 8-bar loop came round roughly three times a minute, which is what made the
-// first version wear thin.
+// Each room track is 16 bars in an A / A' / B / A form, which is the shape most
+// NES loops use: state the hook, restate it with a change, go somewhere else,
+// come home. The B section deliberately contrasts in register, rhythm and
+// often mode, because the ear stops hearing a repeat once it has been taken
+// somewhere and brought back.
+//
+// Hooks are built the way catchy chip melodies are built: a short 3-6 note
+// motif, restated at a different pitch (a sequence), then answered by a
+// contrasting phrase. Pickup notes lead into downbeats and syncopation keeps
+// the line off the grid.
 
+/** Menus. Dorian and swung — the mode game music reaches for when it wants
+ *  "detective" rather than "heroic". */
 const BUREAU: Track = {
   id: 'bureau',
   title: 'Bureau Nights',
-  bpm: 92,
+  bpm: 104,
+  swing: 0.34,
   channels: [
     {
-      wave: 'square',
-      gain: 0.085,
+      voice: 'pulse25',
+      gain: 0.07,
+      vibrato: true,
       pattern: lead(
-        'a4 - - . c5 - - . b4 - - -',
-        'e4 - - . g4 - - . a4 - - -',
-        'c5 - - . b4 - - . a4 - - . g4 - -',
-        'a4 - - - - -',
+        // motif: a rising 4th then a lazy fall back
+        'a4 . . . d5 . c5 . a4 . . . g4 . . .',
+        'a4 . . . d5 . c5 . e5 - - . . . . .',
+        // the same shape a step higher: a sequence
+        'b4 . . . e5 . d5 . b4 . . . a4 . . .',
+        'g4 . . . a4 . . . e4 - - - . . . .',
       ),
     },
-    { wave: 'triangle', gain: 0.15, pattern: bassLine(['Am', 'F', 'G', 'Am']) },
+    { voice: 'triangle', gain: 0.14, pattern: bassLine(['Am', 'Am', 'Dm', 'Dm'], 'octave') },
+    { voice: 'pulse12', gain: 0.028, pattern: arpLine(['Am', 'Am', 'Dm', 'Dm'], 'offbeat') },
+    { voice: 'noise', gain: 0.1, pattern: drums('shuffle', 4) },
   ],
 };
 
@@ -200,182 +329,284 @@ const BUREAU: Track = {
 const OFFICE: Track = {
   id: 'office',
   title: 'Office Hours',
-  bpm: 96,
+  bpm: 108,
+  swing: 0.2,
   channels: [
     {
-      wave: 'triangle',
-      gain: 0.15,
-      pattern: bassLine([
-        'Am', 'Am', 'F', 'F', 'C', 'C', 'G', 'G',
-        'Dm', 'Dm', 'Am', 'Am', 'E', 'E', 'Am', 'Am',
-      ]),
-    },
-    {
-      wave: 'square',
-      gain: 0.045,
-      pattern: arpLine([
-        'Am', 'Am', 'F', 'F', 'C', 'C', 'G', 'G',
-        'Dm', 'Dm', 'Am', 'Am', 'E', 'E', 'Am', 'Am',
-      ]),
-    },
-    {
-      wave: 'square',
-      gain: 0.06,
+      voice: 'pulse25',
+      gain: 0.062,
+      vibrato: true,
       pattern: lead(
-        REST, '. . . . a4 - - . c5 - - -',
-        REST, '. . . . c5 - - . a4 - - -',
-        REST, '. . . . e5 - - . d5 - - -',
-        REST, '. . . . d5 - - . b4 - - -',
-        // B section: the lead answers itself an octave up
-        REST, '. . . . a5 - - . g5 - - -',
-        REST, '. . . . e5 - - . c5 - - -',
-        REST, '. . . . b4 - - . g#4 - - -',
-        REST, 'a4 - - - - - - -',
+        // A — a 4-note cell, stated then answered
+        '. . . . e4 . a4 . c5 - - . b4 - - .',
+        'a4 - - . g4 . e4 . a4 - - - . . . .',
+        '. . . . f4 . a4 . c5 - - . a4 - - .',
+        'g4 - - . f4 . e4 . f4 - - - . . . .',
+        // A' — the same shape moved to the new chords: a sequence
+        '. . . . e4 . g4 . c5 - - . e5 - - .',
+        'd5 - - . c5 . g4 . e4 - - - . . . .',
+        '. . . . d4 . g4 . b4 - - . d5 - - .',
+        'c5 - - . b4 . a4 . g4 - - - . . . .',
+        // B — higher, sparser, sits back and lets the drums come forward
+        'd5 . . . f5 - - . e5 - - . d5 - - .',
+        'a4 - - . d5 - - - - - . . . . . .',
+        'c5 . . . e5 - - . d5 - - . c5 - - .',
+        'a4 - - . e4 - - - - - . . . . . .',
+        // back home, with a turnaround that leads into the loop point
+        'f4 . a4 . c5 - - . a4 . c5 . f5 - - .',
+        'e5 . d5 . b4 - - . g4 . b4 . d5 - - .',
+        'c5 - - . b4 . a4 . e4 - - - . . . .',
+        'a4 - - - - - - - . . . . e4 . g4 .',
       ),
+    },
+    {
+      voice: 'triangle',
+      gain: 0.14,
+      pattern:
+        bassLine(['Am', 'Am', 'F', 'F'], 'rootFifth') +
+        ' ' +
+        bassLine(['C', 'C', 'G', 'G'], 'octave') +
+        ' ' +
+        bassLine(['Dm', 'Dm', 'Am', 'Am'], 'arp') +
+        ' ' +
+        bassLine(['F', 'G', 'Am', 'Am'], 'rootFifth'),
+    },
+    {
+      voice: 'pulse12',
+      gain: 0.024,
+      pattern:
+        arpLine(['Am', 'Am', 'F', 'F'], 'offbeat') +
+        ' ' +
+        arpLine(['C', 'C', 'G', 'G'], 'offbeat') +
+        ' ' +
+        arpLine(['Dm', 'Dm', 'Am', 'Am'], 'stab') +
+        ' ' +
+        arpLine(['F', 'G', 'Am', 'Am'], 'roll'),
+    },
+    {
+      voice: 'noise',
+      gain: 0.085,
+      // drums sit out the first phrase, so their entry lifts the second
+      pattern: drums('none', 2, 0) + ' ' + drums('basic', 6) + ' ' + drums('busy', 8),
     },
   ],
 };
 
-/** Room 2 — Monitoring Forest. Brighter and moving; the platforming stretch. */
+/** Room 2 — Monitoring Forest. Bright major pentatonic; the platforming room. */
 const FOREST: Track = {
   id: 'forest',
   title: 'Telemetry Pines',
-  bpm: 118,
+  bpm: 132,
   channels: [
     {
-      wave: 'triangle',
-      gain: 0.16,
-      pattern: bassLine([
-        'Dm', 'Dm', 'Bb', 'Bb', 'C', 'C', 'Am', 'Am',
-        'Gm', 'Gm', 'Bb', 'Bb', 'C', 'C', 'Dm', 'Dm',
-      ]),
-    },
-    {
-      wave: 'square',
-      gain: 0.05,
-      pattern: arpLine([
-        'Dm', 'Dm', 'Bb', 'Bb', 'C', 'C', 'Am', 'Am',
-        'Gm', 'Gm', 'Bb', 'Bb', 'C', 'C', 'Dm', 'Dm',
-      ]),
-    },
-    {
-      wave: 'square',
-      gain: 0.065,
+      voice: 'pulse12',
+      gain: 0.06,
+      vibrato: true,
       pattern: lead(
-        '. . . . d5 - . f5 - . e5 - -', REST,
-        '. . . . f5 - - . d5 - - -', REST,
-        '. . . . e5 - . g5 - . f5 - -', REST,
-        '. . . . a4 - - - -', REST,
-        // B section: longer phrases, sits higher
-        '. . . . g5 - . bb5 - . a5 - -', REST,
-        '. . . . f5 - - . d5 - - -', REST,
-        '. . . . e5 - . g5 - . a5 - -', REST,
-        '. . . . d5 - - - -', REST,
+        // A — pentatonic hook with a pickup into each bar
+        '. . . g4 c5 - . e5 d5 - . c5 g4 - - .',
+        'a4 - . c5 g4 - - . e4 - - - . . . .',
+        '. . . a4 c5 - . e5 c5 - . a4 e4 - - .',
+        'g4 - . a4 e4 - - - - - . . . . . .',
+        // A' — the same figure a fourth up
+        '. . . a4 f5 - . a5 g5 - . f5 c5 - - .',
+        'a4 - . c5 f5 - - . a4 - - - . . . .',
+        '. . . b4 g5 - . b5 a5 - . g5 d5 - - .',
+        'b4 - . d5 g5 - - - - - . . . . . .',
+        // B — a descending run, the highest point of the track
+        'a5 . g5 . f5 . e5 . f5 - - . a5 - - .',
+        'c5 - - . f5 - - - - - . . . . . .',
+        'g5 . e5 . c5 . e5 . g5 - - . c6 - - .',
+        'b5 . a5 . g5 - - - - - . . . . . .',
+        // home
+        '. . . d5 g5 - . b5 a5 - . g5 d5 - - .',
+        'e5 . d5 . b4 - - . d5 - - - . . . .',
+        'c5 . e5 . g5 - - . e5 . c5 . g4 - - .',
+        'c5 - - - - - - - . . . . . . . .',
       ),
     },
+    {
+      voice: 'triangle',
+      gain: 0.13,
+      pattern:
+        bassLine(['C', 'C', 'Am', 'Am'], 'octave') +
+        ' ' +
+        bassLine(['F', 'F', 'G', 'G'], 'octave') +
+        ' ' +
+        bassLine(['F', 'F', 'C', 'C'], 'drive') +
+        ' ' +
+        bassLine(['G', 'G', 'C', 'C'], 'rootFifth'),
+    },
+    {
+      voice: 'pulse25',
+      gain: 0.022,
+      pattern:
+        arpLine(['C', 'C', 'Am', 'Am'], 'fast', -1) +
+        ' ' +
+        arpLine(['F', 'F', 'G', 'G'], 'fast', -1) +
+        ' ' +
+        arpLine(['F', 'F', 'C', 'C'], 'offbeat') +
+        ' ' +
+        arpLine(['G', 'G', 'C', 'C'], 'fast', -1),
+    },
+    { voice: 'noise', gain: 0.09, pattern: drums('basic', 8) + ' ' + drums('busy', 8) },
   ],
 };
 
-/** Room 3 — Server Caverns. Darker and slower, more space between notes. */
+/** Room 3 — Server Caverns. Natural minor, sparse, colder. */
 const CAVERNS: Track = {
   id: 'caverns',
   title: 'Cold Aisle',
-  bpm: 104,
+  bpm: 112,
   channels: [
     {
-      wave: 'triangle',
-      gain: 0.17,
-      pattern: bassLine([
-        'Em', 'Em', 'C', 'C', 'Am', 'Am', 'Bm', 'Bm',
-        'Am', 'Am', 'Em', 'Em', 'C', 'C', 'Bm', 'Bm',
-      ]),
-    },
-    {
-      wave: 'square',
-      gain: 0.04,
-      pattern: arpLine([
-        'Em', 'Em', 'C', 'C', 'Am', 'Am', 'Bm', 'Bm',
-        'Am', 'Am', 'Em', 'Em', 'C', 'C', 'Bm', 'Bm',
-      ]),
-    },
-    {
-      wave: 'square',
-      gain: 0.055,
+      voice: 'pulse25',
+      gain: 0.058,
+      vibrato: true,
       pattern: lead(
-        REST, REST,
-        '. . . . b4 - - - g4 - - -', REST,
-        REST, '. . . . a4 - - - e4 - - -',
-        REST, '. . . . f#4 - - - b4 - - -',
-        // B section
-        REST, '. . . . c5 - - - a4 - - -',
-        REST, '. . . . b4 - - - e5 - - -',
-        REST, REST,
-        '. . . . d5 - - - b4 - - -', REST,
+        // A — long, cold intervals; nothing hurries down here
+        'e4 - - . a4 - - . b4 - - . c5 - - -',
+        'b4 - - . a4 - - - - - . . . . . .',
+        'e4 - - . g4 - - . b4 - - . a4 - - -',
+        'g4 - - . e4 - - - - - . . . . . .',
+        'f4 - - . a4 - - . c5 - - . d5 - - -',
+        'c5 - - . a4 - - - - - . . . . . .',
+        'd5 - - . f5 - - . e5 - - . d5 - - -',
+        'a4 - - . d5 - - - - - . . . . . .',
+        // B — the lead drops out entirely and the arpeggio carries it. The
+        // silence is the contrast; when the tune returns it lands.
+        '. . . . . . . . . . . . . . . .',
+        '. . . . . . . . . . . . . . . .',
+        '. . . . . . . . f5 - - . e5 - - .',
+        'c5 - - - - - . . . . . . . . . .',
+        // return, higher and with more urgency than it left
+        'd5 . . . g5 - - . f5 - - . d5 - - .',
+        'b4 - - . d5 - - - - - . . . . . .',
+        'a5 . g5 . e5 . d5 . c5 - - . b4 - - .',
+        'a4 - - - - - - - . . . . . . . .',
       ),
+    },
+    {
+      voice: 'triangle',
+      gain: 0.14,
+      pattern:
+        bassLine(['Am', 'Am', 'Em', 'Em'], 'rootFifth') +
+        ' ' +
+        bassLine(['F', 'F', 'Dm', 'Dm'], 'rootFifth') +
+        ' ' +
+        bassLine(['Am', 'Am', 'F', 'F'], 'pedal') +
+        ' ' +
+        bassLine(['G', 'G', 'Am', 'Am'], 'arp'),
+    },
+    {
+      voice: 'pulse12',
+      gain: 0.026,
+      pattern:
+        arpLine(['Am', 'Am', 'Em', 'Em'], 'roll') +
+        ' ' +
+        arpLine(['F', 'F', 'Dm', 'Dm'], 'roll') +
+        ' ' +
+        arpLine(['Am', 'Am', 'F', 'F'], 'fast') +
+        ' ' +
+        arpLine(['G', 'G', 'Am', 'Am'], 'offbeat'),
+    },
+    {
+      voice: 'noise',
+      gain: 0.075,
+      pattern: drums('half', 4) + ' ' + drums('basic', 4) + ' ' + drums('busy', 8),
     },
   ],
 };
 
-/** Room 4 — Data Center. Driving and a little urgent; the case is closing. */
+/** Room 4 — Data Center. Mixolydian and driving: the finale. */
 const CORE: Track = {
   id: 'core',
   title: 'Core Ingestion',
-  bpm: 134,
+  bpm: 146,
   channels: [
     {
-      wave: 'triangle',
-      gain: 0.17,
-      pattern: bassLine(
-        [
-          'Am', 'G', 'F', 'E', 'Am', 'G', 'F', 'E',
-          'Dm', 'C', 'Bb', 'Am', 'Dm', 'E', 'Am', 'Am',
-        ],
-        -1,
-      ),
-    },
-    {
-      wave: 'square',
-      gain: 0.05,
-      pattern: arpLine([
-        'Am', 'G', 'F', 'E', 'Am', 'G', 'F', 'E',
-        'Dm', 'C', 'Bb', 'Am', 'Dm', 'E', 'Am', 'Am',
-      ]),
-    },
-    {
-      wave: 'square',
-      gain: 0.07,
+      voice: 'pulse12',
+      gain: 0.062,
+      vibrato: true,
       pattern: lead(
-        '. . . . a4 - . c5 - . b4 - -', REST,
-        '. . . . c5 - . e5 - . d5 - -', REST,
-        '. . . . e5 - . a5 - - -', REST,
-        '. . . . g4 - . b4 - . a4 - -', '. . . . a4 - - - - - -',
-        // B section: the melody climbs
-        '. . . . d5 - . f5 - . e5 - -', REST,
-        '. . . . c5 - . e5 - . g5 - -', REST,
-        '. . . . bb4 - . d5 - . c5 - -', REST,
-        '. . . . e5 - . g#5 - . a5 - -', 'a5 - - - - - -',
+        // A — a repeated-note motif, insistent, built for speed
+        'd5 . d5 . c5 . d5 . f5 - - . d5 - - .',
+        'c5 . c5 . a4 . c5 . d5 - - - . . . .',
+        'c5 . c5 . bb4 . c5 . e5 - - . c5 - - .',
+        'g4 . a4 . c5 - - . g4 - - - . . . .',
+        // A' — same motif over the flat-VI, which is the "heroic" turn
+        'bb4 . bb4 . a4 . bb4 . d5 - - . bb4 - - .',
+        'f5 . d5 . bb4 - - . d5 - - - . . . .',
+        'c5 . e5 . g5 . e5 . c5 - - . g4 - - .',
+        'a4 . c5 . e5 - - - - - . . . . . .',
+        // B — held notes over the busiest drums in the game
+        'a5 - - - - - - - g5 - - - - - - -',
+        'f5 - - - - - - - e5 - - - - - - -',
+        'd5 - - - - - - - f5 - - - - - - -',
+        'a5 - - - - - - - - - - - - - - .',
+        // final run
+        'g5 . a5 . g5 . e5 . c5 - - . e5 - - .',
+        'g5 . e5 . c5 - - . g4 - - - . . . .',
+        'd5 . e5 . f5 . g5 . a5 . g5 . f5 . e5 .',
+        'd5 - - - - - - - - - - - - - - .',
       ),
     },
+    {
+      voice: 'triangle',
+      gain: 0.135,
+      pattern:
+        bassLine(['Dm', 'Dm', 'C', 'C'], 'drive') +
+        ' ' +
+        bassLine(['Bb', 'Bb', 'C', 'C'], 'drive') +
+        ' ' +
+        bassLine(['Dm', 'Dm', 'Bb', 'Bb'], 'octave') +
+        ' ' +
+        bassLine(['C', 'C', 'Dm', 'Dm'], 'drive'),
+    },
+    {
+      voice: 'pulse25',
+      gain: 0.022,
+      pattern:
+        arpLine(['Dm', 'Dm', 'C', 'C'], 'fast', -1) +
+        ' ' +
+        arpLine(['Bb', 'Bb', 'C', 'C'], 'fast', -1) +
+        ' ' +
+        arpLine(['Dm', 'Dm', 'Bb', 'Bb'], 'stab') +
+        ' ' +
+        arpLine(['C', 'C', 'Dm', 'Dm'], 'fast', -1),
+    },
+    { voice: 'noise', gain: 0.095, pattern: drums('drive', 8) + ' ' + drums('busy', 8) },
   ],
 };
 
-/** Debrief — short major resolution. */
+/** Debrief. Short, major, and unambiguously a win. */
 const CLOSED: Track = {
   id: 'closed',
   title: 'Case Closed',
-  bpm: 104,
+  bpm: 120,
   channels: [
     {
-      wave: 'square',
-      gain: 0.095,
+      voice: 'pulse25',
+      gain: 0.075,
+      vibrato: true,
       pattern: lead(
-        'c5 - . e5 - . g5 - . c6 - - -',
-        'g5 - . e5 - . g5 - - -',
-        'a4 - . c5 - . e5 - . a5 - - -',
-        'g5 - - . e5 - - . c5 - - -',
+        'c5 . e5 . g5 - - . c6 - - - . . . .',
+        'a5 . g5 . e5 . g5 . c6 - - - - - . .',
+        'f5 . g5 . a5 - - . g5 - - . e5 - - .',
+        'c5 - - - - - - - - - - - - - - .',
       ),
     },
-    { wave: 'triangle', gain: 0.15, pattern: bassLine(['C', 'F', 'Am', 'G']) },
+    {
+      voice: 'triangle',
+      gain: 0.14,
+      pattern: bassLine(['C', 'Am', 'F', 'G'], 'octave'),
+    },
+    {
+      voice: 'pulse12',
+      gain: 0.026,
+      pattern: arpLine(['C', 'Am', 'F', 'G'], 'fast', -1),
+    },
+    { voice: 'noise', gain: 0.09, pattern: drums('basic', 4) },
   ],
 };
 
@@ -390,11 +621,8 @@ export const TRACKS: Record<string, Track> = {
 
 export type TrackId = keyof typeof TRACKS;
 
-/**
- * Which track plays in which room. Music doubles as orientation — the score
- * changing tells you that you have crossed into somewhere new.
- */
-export const ROOM_TRACKS: TrackId[] = ['office', 'forest', 'caverns', 'core'];
+/** Room index -> track. Keeps App from knowing track ids. */
+export const ROOM_TRACKS = ['office', 'forest', 'caverns', 'core'] as const;
 
-export const trackForRoom = (index: number): TrackId =>
+export const trackForRoom = (index: number): string =>
   ROOM_TRACKS[Math.max(0, Math.min(ROOM_TRACKS.length - 1, index))];

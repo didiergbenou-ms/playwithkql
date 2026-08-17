@@ -18,7 +18,7 @@ npm run dev            # http://localhost:5173
 Other commands:
 
 ```bash
-npm test               # 91 engine, content, level, reachability and music checks
+npm test               # 94 engine, content, level, reachability and music checks
 npm run test:ui        # 17 render checks — what the player actually sees on open
 npm run fuzz           # 268 adversarial probes — nothing may crash, hang or change meaning
 npm run typecheck      # tsc --noEmit
@@ -344,38 +344,65 @@ patterns and sequenced at runtime. **The in-game track changes with the room**,
 so the score doubles as orientation — you can hear that you have crossed into
 somewhere new.
 
-| Track | Where | Loop |
-|---|---|---|
-| **Bureau Nights** | menus | 10s |
-| **Office Hours** | Customer Office | 40s |
-| **Telemetry Pines** | Monitoring Forest | 33s |
-| **Cold Aisle** | Server Caverns | 37s |
-| **Core Ingestion** | Data Center | 29s |
-| **Case Closed** | debrief | 9s |
+| Track | Where | Loop | Mode / feel |
+|---|---|---|---|
+| **Bureau Nights** | menus | 9s | Dorian, shuffled — detective, not heroic |
+| **Office Hours** | Customer Office | 36s | A minor, light swing |
+| **Telemetry Pines** | Monitoring Forest | 29s | C major pentatonic, bright |
+| **Cold Aisle** | Server Caverns | 34s | Natural minor, sparse |
+| **Core Ingestion** | Data Center | 26s | Driving, flat-VI turn |
+| **Case Closed** | debrief | 8s | Major, unambiguously a win |
 
-The first version had a single 4-bar in-game loop repeating every 7.5 seconds.
-Room tracks are now **16 bars — an A section and a contrasting B section** — so
-there is ~138 seconds of distinct in-game music. The lead also sits out roughly
-half the bars, because a wall-to-wall melody is the most fatiguing part of any
-short loop.
+The first version was repetitive for three structural reasons, and the melodies
+were the least of them.
 
-Music also **fades out entirely after 25 seconds in a terminal**. Ducking to
-35% is not enough when you are reading and typing for minutes; that is exactly
-when a repeating loop starts to grate. It fades back in when you return to the
-world.
+**There were no drums at all.** On the NES the noise channel carries most of a
+track's energy, and we had none — which is why it read as a music box rather
+than a game soundtrack. There is now a percussion channel with kick, snare and
+open/closed hats built from filtered noise. The kick also gets a
+pitch-dropping triangle underneath it, which is the trick that gives an 8-bit
+kick its thump; noise alone is a click.
 
-These are compositions of my own in the 8-bit idiom — pulse lead, triangle
-bass, arpeggiated chords. They are deliberately *not* transcriptions of any
-existing game music, which would be someone else's copyright; the familiarity
-comes from the conventions of the era rather than from the tunes.
+**The bass played one rhythm forever** — root-root-root-fifth, in every bar of
+every track. There are now five bass styles (root-fifth, octave jump, driving
+8ths, arpeggiated, pedal point) and sections switch between them.
+
+**Every lead was a 50% square wave.** The narrow 12.5% and 25% duty pulses are
+the recognisable NES lead colours, and having two distinct ones lets the lead
+and the arpeggio occupy different space instead of blurring together. Sustained
+lead notes also get delayed vibrato, which is how the era added expression
+without spending a channel.
+
+On top of that: swing on the two slower tracks, fills on the last bar of every
+four-bar phrase, and arrangement dynamics — the Office drums sit out the first
+phrase so their entry lifts the second, and the Caverns lead drops out entirely
+for two bars so its return lands.
+
+Hooks are built the way catchy chip melodies are built: a short motif, restated
+at a different pitch (a sequence), answered by a contrasting phrase, with
+pickup notes leading into downbeats.
+
+### On not copying
+
+These are compositions of my own. They are deliberately **not** transcriptions
+of, or variations on, any existing game music — copying a melody and altering
+it produces a derivative work, and "changed it enough" has no bright line in
+law; it is decided case by case, from the perspective of an ordinary listener.
+
+That restriction costs nothing, because the familiarity people actually respond
+to does not live in any particular tune. It lives in the shared vocabulary of
+the era, none of which is protectable: chord progressions, scales and modes,
+rhythms and grooves, song forms, and the pulse/triangle/noise palette itself.
+A track feels instantly like an NES track because of a driving triangle bass, a
+noise backbeat and a bright pentatonic hook — not because it borrowed one.
 
 Bass lines and arpeggios are **generated from a chord table**, not typed out. A
 16-bar channel is 256 tokens, and hand-typing that is how you get a bar with 15
 steps in it, which silently drifts that part out of phase with the rest of the
 band. Hand-written leads go through a `bar()` helper that pads to exactly 16.
 Tests then check that every channel in a track is the same whole number of
-bars, and that the two halves of a room track actually differ — doubling the
-length achieves nothing if the B section just repeats the A.
+bars, that the two halves of a room track differ, that every track has
+percussion, and that no noise channel contains a pitched note.
 
 Notes are scheduled with a lookahead loop against the AudioContext clock, so
 `setInterval` jitter never accumulates into audible drift. Music sits on its own
