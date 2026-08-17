@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run.mjs scripts/testKql.ts",
     "fuzz": "node scripts/run.mjs scripts/fuzzKql.ts",
+    "deploy": "node scripts/deploy.mjs",
     "server": "node server/index.js"
   },
   "dependencies": {

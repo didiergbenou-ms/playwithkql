@@ -18,7 +18,7 @@ npm run dev            # http://localhost:5173
 Other commands:
 
 ```bash
-npm test               # 68 engine, content, level and formatting checks
+npm test               # 88 engine, content, level, formatting and music checks
 npm run fuzz           # 268 adversarial probes — nothing may crash, hang or change meaning
 npm run typecheck      # tsc --noEmit
 npm run build          # production bundle into dist/
@@ -26,7 +26,17 @@ npm run serve:dist     # serve the built bundle on :4173 (plain node, no deps)
 npm run server         # optional progress/leaderboard API on :3001
 ```
 
-**Controls** — `A`/`D` move · `Space` jump · `E` interact · `Tab` notebook · `R` respawn
+**Controls**
+
+| Key | Action |
+|---|---|
+| `A`/`D` or `←`/`→` | Move |
+| `Space` / `W` / `↑` | Jump |
+| `E` | Use terminal |
+| `Tab` | Notebook |
+| `K` | KQL reference card |
+| `O` | Options (music and SFX volume) |
+| `R` | Respawn |
 
 ---
 
@@ -115,8 +125,6 @@ contains deliberate red herrings:
 
 Each wrong theory at the verdict console is rebutted with the specific evidence
 that disproves it — that is where the actual teaching happens.
-
-### The five terminals
 
 ### The five terminals
 
@@ -418,7 +426,7 @@ separate surfaces with narrow interfaces between them.
 
 ## Testing
 
-`npm test` runs 39 checks covering engine semantics (`has` is token-based while
+`npm test` runs 88 checks covering engine semantics (`has` is token-based while
 `contains` is substring; `sort by` defaults to descending; `bin()` keeps the
 source column name; `arg_max(*)` does not duplicate the `by` column), error
 quality, and **content validation** — every authored challenge is verified to be
@@ -427,6 +435,53 @@ working query, and its starter query is verified *not* to already be the answer.
 
 That last group matters: it means a content designer cannot ship a broken
 terminal.
+
+Twice during development a test was *technically passing but conceptually
+wrong*, and both times it hid a real bug:
+
+- The gate-height test only modelled a jump from the **floor**, so it passed
+  while three of five gates were still clearable from a platform.
+- The challenge tests only checked that each reference solution *ran*, not that
+  its output actually showed the evidence the terminal claimed to prove. Two
+  terminals were asserting a conclusion the query never projected.
+
+The rule that came out of it: when adding a regression test, first verify it
+**fails** against the old broken state. A green test proves nothing until you
+have seen it go red.
+
+---
+
+## Deployment
+
+The source lives in a **private** repo; the playable build lives in a separate
+**public** one:
+
+| Repo | Visibility | Contents |
+|---|---|---|
+| `kql-detective` | private | source, tests, CI |
+| `kql-detective-play` | public | build output only |
+
+**Play: https://petarivanov-msft.github.io/kql-detective-play/**
+
+They are split because GitHub Pages on a private repo is a paid feature *and*
+the published site is access-restricted to people with repo access — so a
+single private repo cannot produce a link that anyone can open. Publishing only
+compiled assets keeps the source closed while the game stays public.
+
+```bash
+npm run deploy         # build with the Pages base path, publish, restore local build
+```
+
+The one non-obvious part is `PAGES_BASE`. A Pages *project* site is served from
+`/<repo>/`, not the domain root, so asset URLs need that prefix — but the dev
+server and `serve:dist` both run at the root. `vite.config.ts` switches on the
+env var, and CI builds with it set, because a build that only works at the
+domain root is not a passing build.
+
+`scripts/deploy.mjs` also writes `.nojekyll` (without it Pages runs the output
+through Jekyll, which silently drops paths beginning with an underscore) and
+copies `index.html` to `404.html` so a refresh on an unknown path lands in the
+game rather than on GitHub's 404.
 
 ---
 
@@ -438,6 +493,6 @@ called for a fun prototype, and every hour went into the game loop instead.
 ## Next
 
 1. Cases 002–005 — the case format is data, so a new case is a new file plus a new ASCII level.
-2. Audio (Phaser's WebAudio is already wired, just unused).
-3. Wire the React client to `server/` for shared leaderboards.
-4. Mobile touch controls.
+2. Wire the React client to `server/` for shared leaderboards.
+3. Mobile touch controls.
+4. Code-split Phaser (1.2 MB / 319 kB gzipped) — fine for a prototype, worth doing before this is used in anger.
