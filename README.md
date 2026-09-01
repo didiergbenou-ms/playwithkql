@@ -1,5 +1,7 @@
 # KQL Quest: Kingdom of Signals
 
+![KQL Detective prototype showing a pixel-art investigation case and player progress](assets/kql-detective-prototype.png)
+
 KQL Quest is a pixel-art platform adventure that helps anyone learn Kusto Query Language (KQL) through exploration, puzzles, and real query-writing challenges.
 
 Players explore the Kingdom of Signals, collect evidence, and use KQL in terminal-based encounters to defeat anomalies. Instead of memorizing syntax in isolation, learners apply each operator to a practical investigation.
