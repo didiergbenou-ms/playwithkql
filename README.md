@@ -60,7 +60,17 @@ The experience uses a polished retro fantasy style with pixel art, an emerald CR
 
 ## Project status
 
-Early prototype and hackathon planning.
+A playable prototype now lives in this repository: one complete investigation
+(five KQL terminals and a final verdict), a real KQL interpreter, four
+characters and four rooms.
+
+```bash
+npm install
+npm run dev
+```
+
+See **[docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)** for how it is built and
+why, and for what is deliberately not built yet.
 
 ## Contributing
 

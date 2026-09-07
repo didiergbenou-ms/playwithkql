@@ -1,0 +1,58 @@
+name: CI
+
+# Runs on the shared branches and on every PR into them. Deployment is
+# deliberately not handled here: Azure CI/CD is being set up separately
+# (develop -> test, main -> prod), so this workflow only proves the code is
+# sound and leaves publishing alone.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: node node_modules/typescript/bin/tsc --noEmit
+
+      - name: Tests
+        run: node scripts/run.mjs scripts/testKql.ts
+
+      # Renders the terminal to static HTML and asserts what a player actually
+      # sees on open. A mount-only test would not have caught the sample-data
+      # panel masquerading as a query result.
+      - name: UI tests
+        run: node scripts/run.mjs scripts/testUi.tsx
+
+      # Adversarial input against the KQL parser. This is what caught the
+      # stack overflow on deeply nested parentheses.
+      - name: Fuzz
+        run: node scripts/run.mjs scripts/fuzzKql.ts
+
+      # Built at the domain root, which is how Azure Static Web Apps serves it.
+      # If it is ever hosted under a sub-path instead, set BASE_PATH to that
+      # prefix (see vite.config.ts) or every asset URL will 404.
+      - name: Build
+        run: node node_modules/vite/bin/vite.js build
+
+      # Lets a reviewer download and open the actual build for a PR without
+      # having to check the branch out and install anything.
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 7
