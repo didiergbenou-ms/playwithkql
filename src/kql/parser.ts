@@ -84,8 +84,29 @@ class Parser {
   private depth = 0;
   private static readonly MAX_DEPTH = 120;
 
+  /**
+   * Total token budget.
+   *
+   * The depth guard only covers *recursive* descent. A flat chain like
+   * `1 + 1 + 1 + ...` parses iteratively but builds a left-deep tree, and the
+   * evaluator then recurses down that spine — so a long enough chain still
+   * overflowed the stack with a raw RangeError. Capping tokens catches that
+   * whole class at the door.
+   *
+   * The longest reference solution in the game is around twenty tokens, so
+   * this is orders of magnitude more room than any teaching query needs.
+   */
+  private static readonly MAX_TOKENS = 2000;
+
   constructor(src: string) {
     this.toks = tokenize(src);
+    if (this.toks.length > Parser.MAX_TOKENS) {
+      throw new KqlError(
+        `That query is too long to run (${this.toks.length} pieces, limit ${Parser.MAX_TOKENS}).`,
+        0,
+        'Real queries are short. If this was not deliberate, try starting again from the table name.',
+      );
+    }
   }
 
   private enter(pos: number) {
@@ -397,11 +418,24 @@ class Parser {
     const t = this.peek();
     if (t.kind === 'punc' && t.value === '-') {
       this.next();
-      return { k: 'un', op: '-', e: this.parseUnary() };
+      // enter/leave here too: a chain of thousands of unary operators recurses
+      // just as deep as nested parentheses, and without the guard it escaped as
+      // a raw RangeError instead of a friendly message.
+      this.enter(t.pos);
+      try {
+        return { k: 'un', op: '-', e: this.parseUnary() };
+      } finally {
+        this.leave();
+      }
     }
     if (t.kind === 'punc' && t.value === '!') {
       this.next();
-      return { k: 'un', op: 'not', e: this.parseUnary() };
+      this.enter(t.pos);
+      try {
+        return { k: 'un', op: 'not', e: this.parseUnary() };
+      } finally {
+        this.leave();
+      }
     }
     return this.parsePostfix();
   }

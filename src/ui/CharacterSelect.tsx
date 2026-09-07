@@ -19,7 +19,13 @@ function SpritePreview({ def, animate }: { def: CharacterDef; animate: boolean }
     return () => clearInterval(t);
   }, [frames, animate]);
 
-  return <img className="sprite-preview" src={frames[i]} alt={def.name} />;
+  // Clamp on render, not just in the effect. When a card stops being hovered
+  // `frames` shrinks from four entries to two, and React renders with the old
+  // index before the effect resets it — so an index of 2 or 3 briefly produced
+  // an undefined src and a broken-image flicker.
+  const frame = frames[i % frames.length] ?? frames[0];
+
+  return <img className="sprite-preview" src={frame} alt={def.name} />;
 }
 
 export function CharacterSelect({ onPick, onBack }: { onPick: () => void; onBack: () => void }) {

@@ -10,6 +10,29 @@ import {
   type Table,
 } from './types';
 
+/**
+ * Guards for the user-supplied regex in `matches`.
+ *
+ * Both the pattern and the subject come from the player, so a catastrophically
+ * backtracking pattern can lock the browser tab solid — the game freezes with
+ * no error and no way back.
+ *
+ * Exponential blowup needs a *quantified group*: something like `(a+)+$` or
+ * `(a|aa)+$`, where the group can match the same input more than one way and
+ * the outer quantifier multiplies those choices. So rather than chase
+ * individual bad shapes — an earlier attempt caught `(a+)+` but not the
+ * alternation form, and hung the test run — the rule here is simply that a
+ * group may not be quantified at all.
+ *
+ * Quantified *atoms* stay allowed, so ordinary patterns are unaffected:
+ * `^CONTOSO-\d+$` and `WEB-0[12]$` both work. Only `(...)+`, `(...)*` and
+ * `(...){n,}` are refused, which no query in a KQL teaching game needs.
+ * Remaining polynomial cases are bounded by the subject length cap.
+ */
+const MAX_REGEX_PATTERN = 200;
+const MAX_REGEX_SUBJECT = 2000;
+const QUANTIFIED_GROUP = /\)\s*[+*{]/;
+
 const AGGREGATES = new Set([
   'count',
   'countif',
@@ -343,8 +366,21 @@ function evalBinary(e: Extract<Expr, { k: 'bin' }>, row: Row, ctx: Ctx): KValue 
     case 'endswith':
       return s(l).toLowerCase().endsWith(s(r).toLowerCase());
     case 'matches': {
+      // Both the pattern and the subject come from the player, so a
+      // catastrophically backtracking pattern like `(a+)+$` against a long
+      // near-match can lock the browser tab solid — the game would simply
+      // freeze with no error and no way back.
+      //
+      // Rather than ship a second regex engine, the inputs are bounded. A
+      // teaching query matches short machine names and error strings, so a
+      // pattern or subject beyond these lengths is not a query anyone meant
+      // to write, and refusing it costs nothing real.
+      const pattern = s(r);
+      const subject = s(l);
+      if (pattern.length > MAX_REGEX_PATTERN || subject.length > MAX_REGEX_SUBJECT) return false;
+      if (QUANTIFIED_GROUP.test(pattern)) return false;
       try {
-        return new RegExp(s(r)).test(s(l));
+        return new RegExp(pattern).test(subject);
       } catch {
         return false;
       }

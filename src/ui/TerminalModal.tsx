@@ -4,7 +4,7 @@ import { gradeChallenge, type GradeResult } from '../kql/challenge';
 import { buildDatabase, CASE_NOW, EVIDENCE, TABLE_META, tableMeta } from '../data/case001';
 import { toDisplayString } from '../kql/evaluator';
 import { runQuery } from '../kql/index';
-import { formatKql } from '../kql/format';
+import { formatKql, withSourceTable } from '../kql/format';
 import type { Table } from '../kql/types';
 import { KqlEditor } from './KqlEditor';
 import { Collapsible } from './Collapsible';
@@ -13,6 +13,11 @@ import { audio } from '../game/audio';
 interface Props {
   spec: ChallengeSpec;
   alreadySolved: boolean;
+  /**
+   * Hints already revealed for this challenge, however they were paid for.
+   * Seeded from the store rather than local state alone, or closing the
+   * terminal would spend a crystal and then hide the hint it bought.
+   */
   hintsUsed: number;
   crystalsLeft: number;
   onAttempt: () => void;
@@ -247,7 +252,7 @@ export function TerminalModal({
           {focusMeta && (
             <div className="focus-cols">
               <span className="focus-cols-label">
-                Columns in <button className="schema-name" onClick={() => setQuery((q) => formatKql(`${focusTable}\n${q}`))}>{focusTable}</button>
+                Columns in <button className="schema-name" onClick={() => setQuery((q) => withSourceTable(q, focusTable))}>{focusTable}</button>
               </span>
               <div className="schema-cols">
                 {focusMeta.columns.map((c) => (
@@ -263,7 +268,7 @@ export function TerminalModal({
             {TABLE_META.map((t) => (
               <div key={t.name} className={`schema-table ${t.name === focusTable ? 'focus' : ''}`}>
                 <div className="schema-head">
-                  <button className="schema-name" onClick={() => setQuery((q) => formatKql(`${t.name}\n${q}`))}>
+                  <button className="schema-name" onClick={() => setQuery((q) => withSourceTable(q, t.name))}>
                     {t.name}
                   </button>
                   <span className="schema-rows">{db[t.name]?.rows.length ?? 0} rows</span>

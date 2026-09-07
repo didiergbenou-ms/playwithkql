@@ -124,11 +124,15 @@ export function Celebration({ data, onDone }: { data: CelebrationData; onDone: (
     };
   }, [data, onDone, reduced]);
 
-  const particles = reduced ? 6 : data.tier === 3 ? 46 : data.tier === 2 ? 26 : 14;
+  const particles = data.tier === 3 ? 46 : data.tier === 2 ? 26 : 14;
 
   return (
     <div className={`celebrate tier-${data.tier} ${leaving ? 'out' : ''} ${reduced ? 'calm' : ''}`}>
-      {data.tier >= 2 && <Confetti count={particles} reduced={reduced} />}
+      {/* Not mounted at all under reduced motion. Slowing the confetti to six
+          drifting particles still puts moving objects on screen, which is what
+          the Options screen promises not to do. The card itself carries the
+          reward, so nothing informational is lost. */}
+      {data.tier >= 2 && !reduced && <Confetti count={particles} reduced={false} />}
 
       <div className="celebrate-card" role="status" aria-live="polite">
         <div className="stamp">{TIER_LABEL[data.tier]}</div>

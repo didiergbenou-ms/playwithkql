@@ -2230,3 +2230,16 @@ table.result td.wrap {
 table.result td {
   vertical-align: top;
 }
+
+/* Wrapper that carries the dialog semantics and the focus trap.
+
+   Deliberately a real box rather than `display: contents`: an element with no
+   box is at the mercy of how each browser exposes it to assistive tech, and the
+   whole point of this wrapper is to be announced. Mirroring .scrim's own grid
+   centring means .modal still resolves `min(100%, 1000px)` against the full
+   scrim width, so the layout is unchanged. */
+.scrim-dialog {
+  display: grid;
+  place-items: center;
+  width: 100%;
+}

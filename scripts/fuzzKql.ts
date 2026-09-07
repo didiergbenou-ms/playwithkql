@@ -17,6 +17,23 @@ const db = buildDatabase();
 const opts = { now: CASE_NOW };
 const schema = buildHighlightSchema(TABLE_META);
 
+/**
+ * Queries whose meaning lives inside a string literal.
+ *
+ * The corpus had none of these, which is why a formatter that collapsed
+ * whitespace inside quotes went unnoticed: every generated probe compared
+ * equal because the literals had no internal runs of spaces to destroy.
+ */
+const STRING_LITERAL_PROBES = [
+  'Heartbeat | extend M = "a  b" | where M == "a  b"',
+  'Heartbeat | extend M = "a  b" | where M == "a b"',
+  'Heartbeat | extend M = "  lead" | where M == "  lead"',
+  'Heartbeat | extend M = "trail  " | where M == "trail  "',
+  'Heartbeat | extend M = "tab\tsep" | where M == "tab\tsep"',
+  'Heartbeat | extend M = "pipe | inside" | where M == "pipe | inside"',
+  'Heartbeat | extend M = "two  spaces" | project M',
+];
+
 let ok = 0;
 const problems: string[] = [];
 
@@ -247,21 +264,27 @@ for (const f of fragments) {
 }
 
 // Formatting must never change what a query does.
-for (const q of [...odd, ...wrong]) {
-  let before: string;
-  let after: string;
+//
+// This originally compared only column names and row count, which is a summary
+// rather than the behaviour. A formatter bug that rewrote the inside of string
+// literals — turning `== "a  b"` into `== "a b"` — returned zero rows both
+// before and after, so the signatures matched and the check passed while the
+// bug was live. The signature now includes the actual cell values.
+const signature = (q: string): string => {
   try {
     const t = runQuery(q, db, opts).table;
-    before = `${t.columns.join(',')}|${t.rows.length}`;
+    const body = t.rows
+      .map((r) => t.columns.map((c) => String((r as Record<string, unknown>)[c])).join('\u0001'))
+      .join('\u0002');
+    return `${t.columns.join(',')}|${t.rows.length}|${body}`;
   } catch (e) {
-    before = `err:${(e as Error).message}`;
+    return `err:${(e as Error).message}`;
   }
-  try {
-    const t = runQuery(formatKql(q), db, opts).table;
-    after = `${t.columns.join(',')}|${t.rows.length}`;
-  } catch (e) {
-    after = `err:${(e as Error).message}`;
-  }
+};
+
+for (const q of [...odd, ...wrong, ...STRING_LITERAL_PROBES]) {
+  const before = signature(q);
+  const after = signature(formatKql(q));
   if (before !== after) problems.push(`FORMAT CHANGED BEHAVIOUR :: ${q}\n    ${before}\n    ${after}`);
   else ok++;
 }

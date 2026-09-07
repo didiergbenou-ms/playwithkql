@@ -741,7 +741,10 @@ export class GameScene extends Phaser.Scene {
     if (this.time.now < this.invulnerableUntil) return;
     this.health = Math.max(0, this.health - 1);
     bus.emit('game:damage', { health: this.health });
-    this.cameras.main.shake(140, 0.01);
+    // Flashes are a colour fade rather than movement, so they stay; shake is
+    // the part that has to respect the reduced-motion preference the Options
+    // screen promises to honour.
+    if (!this.reducedMotion) this.cameras.main.shake(140, 0.01);
     this.emitHud();
 
     if (fatal || this.health === 0) {

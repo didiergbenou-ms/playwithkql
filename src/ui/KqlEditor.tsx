@@ -226,6 +226,9 @@ export function KqlEditor({ value, onChange, onRun, meta, autoFocus }: Props) {
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
+          // Without a name a screen reader announces only "edit text", giving
+          // no clue that this is where the query goes.
+          aria-label="KQL query editor"
           value={value}
           onChange={onInput}
           onKeyDown={onKeyDown}

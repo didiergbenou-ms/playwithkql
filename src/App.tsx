@@ -8,6 +8,7 @@ import {
   currentObjective,
   solveTier,
   useStore,
+  hintsSeen,
 } from './state/store';
 import { audio } from './game/audio';
 import { trackForRoom } from './game/music';
@@ -23,6 +24,7 @@ import { OptionsModal } from './ui/OptionsModal';
 import { VerdictModal } from './ui/VerdictModal';
 import { Debrief } from './ui/Debrief';
 import { DevPanel } from './ui/DevPanel';
+import { ModalScrim } from './ui/ModalScrim';
 import { devActive, initDevMode, onDevChange } from './dev/secret';
 
 type Overlay =
@@ -36,6 +38,17 @@ type Overlay =
   | null;
 
 const ROOM_NAMES = ['Customer Office', 'Monitoring Forest', 'Server Caverns', 'Data Center'];
+
+/** Accessible names for each overlay, announced when the dialog opens. */
+const OVERLAY_LABELS: Record<NonNullable<Overlay>['kind'], string> = {
+  terminal: 'KQL terminal',
+  note: 'Field note',
+  verdict: 'Verdict console',
+  notebook: 'Notebook',
+  reference: 'KQL reference card',
+  options: 'Options',
+  dev: 'Developer shortcuts',
+};
 
 export default function App() {
   const screen = useStore((s) => s.screen);
@@ -259,18 +272,17 @@ export default function App() {
       )}
 
       {overlay && (
-        <div
-          className="scrim"
-          onClick={(e) => {
-            if (celebration) return;
-            if (e.target === e.currentTarget) setOverlay(null);
-          }}
+        <ModalScrim
+          label={OVERLAY_LABELS[overlay.kind]}
+          // A celebration sits on top of the terminal; dismissing the terminal
+          // underneath it would whip the result away before it can be read.
+          onDismiss={celebration ? undefined : () => setOverlay(null)}
         >
           {activeSpec && overlay.kind === 'terminal' && (
             <TerminalModal
               spec={activeSpec}
               alreadySolved={run.challenges[activeSpec.id]?.solved ?? false}
-              hintsUsed={run.challenges[activeSpec.id]?.hintsUsed ?? 0}
+              hintsUsed={hintsSeen(run.challenges[activeSpec.id])}
               crystalsLeft={run.crystals - run.crystalsSpent}
               onAttempt={() => {
                 registerAttempt(activeSpec.id);
@@ -304,7 +316,7 @@ export default function App() {
                     tier === 3
                       ? 'First attempt, no hints. You reached for the right operator straight away.'
                       : tier === 2
-                        ? prog.hintsUsed === 0
+                        ? hintsSeen(prog) === 0
                           ? 'Solved without a single hint.'
                           : 'Got it first try.'
                         : activeSpec.teaches,
@@ -350,7 +362,7 @@ export default function App() {
               }}
             />
           )}
-        </div>
+        </ModalScrim>
       )}
 
       {celebration && (

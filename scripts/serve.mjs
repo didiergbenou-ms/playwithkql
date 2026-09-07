@@ -17,11 +17,23 @@ const MIME = {
 };
 
 createServer(async (req, res) => {
-  const url = decodeURIComponent((req.url ?? '/').split('?')[0]);
-  const rel = normalize(url).replace(/^([/\\])+/, '');
-  let file = join(root, rel || 'index.html');
-
   try {
+    // decodeURIComponent throws URIError on a malformed target such as `/%`.
+    // This used to sit outside the try, and because the handler is async the
+    // rejection was unhandled — a single bad request took the whole preview
+    // server down rather than returning a client error.
+    let url;
+    try {
+      url = decodeURIComponent((req.url ?? '/').split('?')[0]);
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Bad request URL');
+      return;
+    }
+
+    const rel = normalize(url).replace(/^([/\\])+/, '');
+    let file = join(root, rel || 'index.html');
+
     let body;
     try {
       body = await readFile(file);

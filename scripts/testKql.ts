@@ -7,7 +7,7 @@ import { runQuery, KqlError, toDisplayString } from '../src/kql/index';
 import { gradeChallenge } from '../src/kql/challenge';
 import { applyCompletion, completionsFor } from '../src/kql/complete';
 import { buildHighlightSchema, highlightKql } from '../src/kql/highlight';
-import { formatKql, pipeNeedsNewline } from '../src/kql/format';
+import { formatKql, pipeNeedsNewline, withSourceTable } from '../src/kql/format';
 import { parseLevel, TILE } from '../src/game/levels/heartbeatHills';
 import { jumpApex } from '../src/game/physics';
 import { analyse, buildGrid, reachableSpots } from '../src/game/reach';
@@ -25,7 +25,9 @@ import {
   PROXY_HOST,
   CULPRIT,
   TABLE_META,
+  ROOT_CAUSES,
 } from '../src/data/case001';
+import { useStore, hintsSeen, solveTier } from '../src/state/store';
 
 const db = buildDatabase();
 const opts = { now: CASE_NOW };
@@ -842,6 +844,148 @@ check('level: closed gates cannot be jumped, even by the best jumper', () => {
   assert(past.length === 0, `${past.length} spots reachable beyond a closed gate`);
 });
 
+
+// ---- regressions from code review -----------------------------------------
+
+check('format: string literals survive formatting untouched', () => {
+  // A blanket whitespace collapse also rewrote the inside of quotes, so
+  // pressing Format silently changed which rows a query matched.
+  for (const [src, keep] of [
+    ['Heartbeat | where C == "a  b"', '"a  b"'],
+    ['Heartbeat | where C has "x   y"', '"x   y"'],
+    ['Heartbeat|where C == "p  |  q"', '"p  |  q"'],
+    ['Heartbeat | where C == "  edges  "', '"  edges  "'],
+  ] as const) {
+    const out = formatKql(src);
+    assert(out.includes(keep), `formatting ${src} lost the literal ${keep} -> ${out}`);
+  }
+});
+
+check('format: switching source table replaces it rather than prepending', () => {
+  // The schema buttons used to produce `Heartbeat Heartbeat | take 10`, which
+  // cannot parse - a baffling thing to hand a learner.
+  //
+  // Only the *parse* is asserted. Pointing a query at a table that lacks the
+  // columns it references is a legitimate outcome of switching source, and the
+  // engine is right to complain about that; what must never happen is a query
+  // with two table names in it.
+  for (const spec of CHALLENGES) {
+    for (const table of TABLE_META.map((t) => t.name)) {
+      const out = withSourceTable(formatKql(spec.starter), table);
+      assert(out.startsWith(table), `${spec.id}: expected source ${table}, got ${out}`);
+      try {
+        runQuery(out, db, opts);
+      } catch (err) {
+        const msg = (err as Error).message;
+        assert(
+          !/after the query/i.test(msg),
+          `${spec.id} + ${table}: produced an unparseable query (${msg}) -> ${out}`,
+        );
+      }
+    }
+  }
+  eq(withSourceTable('', 'Heartbeat'), 'Heartbeat', 'empty query takes the table');
+  assert(
+    withSourceTable('| take 5', 'Heartbeat').startsWith('Heartbeat'),
+    'a leading pipe means there is no source yet, so one is added',
+  );
+});
+
+check('engine: absurdly long queries fail friendly, not with a RangeError', () => {
+  // The depth guard only covered recursive descent. Flat chains build a
+  // left-deep tree the evaluator recurses down, and unary chains bypassed the
+  // guard entirely, so both escaped as a raw RangeError.
+  const nasty = [
+    `Heartbeat | where ${'!'.repeat(5000)}true`,
+    `Heartbeat | where Version == ${'-'.repeat(5000)}1`,
+    `Heartbeat | where 1 == ${Array(20000).fill('1').join(' + ')}`,
+    `Heartbeat | where ${Array(20000).fill('true').join(' and ')}`,
+    `Heartbeat | where ${'('.repeat(5000)}1${')'.repeat(5000)} == 1`,
+  ];
+  for (const q of nasty) {
+    try {
+      runQuery(q, db, opts);
+    } catch (err) {
+      assert(
+        err instanceof KqlError,
+        `expected a friendly error, got ${(err as Error).constructor.name}`,
+      );
+    }
+  }
+});
+
+check('engine: the token budget leaves room for real queries', () => {
+  // A guard that also refuses real queries is worse than no guard, so prove
+  // there is headroom rather than assuming it.
+  for (const spec of CHALLENGES) runQuery(spec.solution, db, opts);
+  runQuery(`Heartbeat | where 1 == ${Array(500).fill('1').join(' + ')} | take 1`, db, opts);
+});
+
+check('engine: catastrophic regex is refused, ordinary regex still works', () => {
+  // Pattern and subject are both player-supplied, so a backtracking blow-up
+  // freezes the tab with no error and no way out.
+  const subject = 'a'.repeat(46) + '!';
+  for (const p of ['(a+)+$', '(a*)*$', '(a|aa)+$', '([a-z]+)*$', '((a)*)*$']) {
+    const started = Date.now();
+    runQuery(`Heartbeat | extend X = "${subject}" | where X matches "${p}" | take 1`, db, opts);
+    const ms = Date.now() - started;
+    assert(ms < 500, `pattern ${p} took ${ms}ms - backtracking is not bounded`);
+  }
+  const hits = runQuery('Heartbeat | where Computer matches "WEB-0[12]$" | distinct Computer', db, opts);
+  assert(hits.table.rows.length > 0, 'an ordinary anchored pattern stopped matching');
+});
+
+check('scoring: a crystal-bought hint still counts as a hint', () => {
+  // A crystal buys the hint free of *score*, not free of consequence - the
+  // player still read it, so clean-solve and No Hints Needed must not apply.
+  useStore.getState().resetProfile();
+  useStore.getState().startRun(10, 3);
+  // Crystals have to be picked up in the world; a fresh run has none.
+  useStore.getState().setHud({ crystals: 3 });
+
+  const id = CHALLENGES[0].id;
+  useStore.getState().registerAttempt(id);
+  assert(useStore.getState().spendCrystal(id), 'crystal should have been available');
+
+  const prog = useStore.getState().run.challenges[id];
+  eq(prog.hintsUsed, 0, 'score must not be penalised for a crystal hint');
+  eq(prog.crystalHints, 1, 'the crystal hint must persist so it survives reopening');
+  eq(hintsSeen(prog), 1, 'the player has seen a hint');
+  assert(solveTier(prog) < 3, 'a hinted solve cannot be a perfect solve');
+});
+
+check('dev shortcuts: a dev run unlocks no achievements at all', () => {
+  // devUsed guarded the verdict path only, but solving a challenge awards
+  // achievements too, so dev solves still unlocked first-try and kusto-master.
+  useStore.getState().resetProfile();
+  useStore.getState().startRun(10, 3);
+  useStore.getState().devSolve('all');
+
+  const winner = ROOT_CAUSES.find((o) => o.correct);
+  assert(!!winner, 'case has no correct root cause');
+  useStore.getState().submitVerdict(winner!.id, true);
+
+  const profile = useStore.getState().profile;
+  eq(profile.achievements.length, 0, `dev run unlocked ${profile.achievements.join(', ')}`);
+  eq(profile.casesClosed, 0, 'dev run closed a case');
+  eq(profile.lifetimeScore, 0, 'dev run scored');
+});
+
+check('a clean run still earns achievements', () => {
+  // The guard above must be conditional, not a blanket block.
+  useStore.getState().resetProfile();
+  useStore.getState().startRun(10, 3);
+  for (const c of CHALLENGES) {
+    useStore.getState().registerAttempt(c.id);
+    useStore.getState().solveChallenge(c.id, c.solution);
+  }
+  const winner = ROOT_CAUSES.find((o) => o.correct)!;
+  useStore.getState().submitVerdict(winner.id, true);
+
+  const profile = useStore.getState().profile;
+  assert(profile.achievements.length > 0, 'a real run earned nothing');
+  eq(profile.casesClosed, 1, 'a real run should close the case');
+});
 console.log(`\n  ${passed} passed, ${failures.length} failed\n`);
 if (failures.length) {
   for (const f of failures) console.error(`  FAIL  ${f}`);

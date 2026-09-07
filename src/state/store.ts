@@ -7,6 +7,14 @@ export type Screen = 'menu' | 'select' | 'briefing' | 'playing' | 'debrief';
 export interface ChallengeProgress {
   attempts: number;
   hintsUsed: number;
+  /**
+   * Hints bought with a Kusto crystal. Tracked apart from `hintsUsed` because
+   * a crystal buys the hint free of *score*, not free of consequence: the
+   * player still saw a hint, so this must not leave them eligible for
+   * "No Hints Needed" or a clean-solve streak. It also has to persist, or
+   * closing the terminal spends the crystal and hides the hint again.
+   */
+  crystalHints: number;
   solved: boolean;
   /** The query that finally worked — replayed in the debrief. */
   winningQuery?: string;
@@ -105,7 +113,7 @@ function emptyRun(totalFragments: number, totalCrystals: number): RunState {
     queriesRun: 0,
     cleanStreak: 0,
     challenges: Object.fromEntries(
-      CHALLENGES.map((c) => [c.id, { attempts: 0, hintsUsed: 0, solved: false }]),
+      CHALLENGES.map((c) => [c.id, { attempts: 0, hintsUsed: 0, crystalHints: 0, solved: false }]),
     ),
     evidence: [],
     openGates: [],
@@ -122,10 +130,18 @@ function emptyRun(totalFragments: number, totalCrystals: number): RunState {
  * reward, so it teaches rather than manipulating. Deliberately not a random
  * (variable-ratio) bonus, which is the engagement-farming pattern.
  */
+/**
+ * Any hint the player actually read, however it was paid for. Score only
+ * penalises `hintsUsed`, but "did you see a hint" has to count crystals too.
+ */
+export const hintsSeen = (p: ChallengeProgress | undefined): number =>
+  p ? p.hintsUsed + p.crystalHints : 0;
+
 export function solveTier(p: ChallengeProgress | undefined): 1 | 2 | 3 {
   if (!p) return 1;
-  if (p.attempts <= 1 && p.hintsUsed === 0) return 3;
-  if (p.attempts <= 1 || p.hintsUsed === 0) return 2;
+  const hinted = hintsSeen(p) > 0;
+  if (p.attempts <= 1 && !hinted) return 3;
+  if (p.attempts <= 1 || !hinted) return 2;
   return 1;
 }
 
@@ -265,7 +281,10 @@ export const useStore = create<Store>()(
               ...st.run.challenges,
               [challengeId]: {
                 ...st.run.challenges[challengeId],
-                // deliberately does NOT increment hintsUsed, so score is untouched
+                // Deliberately does NOT increment hintsUsed, so score is
+                // untouched — but it is recorded, so the hint stays revealed
+                // on reopen and the player is not still "hint-free".
+                crystalHints: st.run.challenges[challengeId].crystalHints + 1,
               },
             },
           },
@@ -293,7 +312,7 @@ export const useStore = create<Store>()(
                 [challengeId]: { ...c, solved: true, winningQuery: query },
               },
               cleanStreak:
-                c.hintsUsed === 0 && c.attempts <= 1 ? s.run.cleanStreak + 1 : 0,
+                hintsSeen(c) === 0 && c.attempts <= 1 ? s.run.cleanStreak + 1 : 0,
               evidence,
               openGates,
             },
@@ -302,7 +321,7 @@ export const useStore = create<Store>()(
 
         const { run, award } = get();
         const progress = run.challenges[challengeId];
-        if (progress.attempts <= 1 && progress.hintsUsed === 0) award('first-try');
+        if (progress.attempts <= 1 && hintsSeen(progress) === 0) award('first-try');
         if (CHALLENGES.every((c) => run.challenges[c.id].solved)) award('kusto-master');
       },
 
@@ -324,7 +343,7 @@ export const useStore = create<Store>()(
         if (run.crystals >= run.totalCrystals) award('crystallographer');
         if (run.notesRead.length >= 3) award('librarian');
         if (run.deaths === 0) award('flawless');
-        if (Object.values(run.challenges).every((c) => c.hintsUsed === 0)) award('no-hints');
+        if (Object.values(run.challenges).every((c) => hintsSeen(c) === 0)) award('no-hints');
         if ((run.finishedAt ?? Date.now()) - run.startedAt < 8 * 60_000) award('quickdraw');
 
         set((s) => ({
@@ -339,6 +358,11 @@ export const useStore = create<Store>()(
 
       award: (id) =>
         set((s) => {
+          // Single choke point for every achievement write, which is why the
+          // dev-run guard lives here rather than at each call site: solving a
+          // challenge awards achievements too, so guarding only the verdict
+          // path let dev shortcuts unlock "first-try" and "kusto-master".
+          if (s.run.devUsed) return s;
           if (s.profile.achievements.includes(id)) return s;
           const def = ACHIEVEMENTS.find((a) => a.id === id);
           return {
