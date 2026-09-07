@@ -6,7 +6,7 @@ export function ReferenceCard({ onClose }: { onClose: () => void }) {
     <div className="modal reference-modal">
       <header className="modal-head">
         <div>
-          <span className="tag tag-cyan">BUREAU FIELD CARD</span>
+          <span className="tag tag-cyan">FIELD CARD</span>
           <h2>KQL quick reference</h2>
         </div>
         <button className="ghost" onClick={onClose}>

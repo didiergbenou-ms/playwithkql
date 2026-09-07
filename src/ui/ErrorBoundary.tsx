@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[KQL Detective] render error', error, info.componentStack);
+    console.error('[KQL Quest] render error', error, info.componentStack);
   }
 
   private reset = () => {
@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className="screen">
         <div className="panel" style={{ maxWidth: 720, margin: '0 auto' }}>
           <span className="tag tag-amber">SOMETHING BROKE</span>
-          <h1>The Bureau lost the thread</h1>
+          <h1>The Kingdom lost the thread</h1>
           <p className="muted">
             An error stopped the page rendering. Your profile and achievements are safe.
           </p>

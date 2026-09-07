@@ -1,5 +1,5 @@
 /**
- * Optional progress API for KQL Detective.
+ * Optional progress API for KQL Quest.
  *
  * The game is fully playable without this — the React client persists to
  * localStorage. This exists so a team can move progress server-side later
@@ -109,5 +109,5 @@ app.get('/api/leaderboard', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`KQL Detective API on http://127.0.0.1:${PORT}`);
+  console.log(`KQL Quest API on http://127.0.0.1:${PORT}`);
 });

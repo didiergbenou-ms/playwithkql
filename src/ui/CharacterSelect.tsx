@@ -32,7 +32,7 @@ export function CharacterSelect({ onPick, onBack }: { onPick: () => void; onBack
   return (
     <div className="screen select">
       <div className="select-head">
-        <span className="tag tag-cyan">AZURE INVESTIGATION BUREAU</span>
+        <span className="tag tag-cyan">KINGDOM OF SIGNALS</span>
         <h1>Choose your recruit</h1>
         <p className="muted">
           Four investigators, four ways to cross Heartbeat Hills. The queries are the same — how you

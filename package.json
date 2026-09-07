@@ -1,9 +1,9 @@
 {
-  "name": "kql-detective",
+  "name": "kql-quest",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "KQL Detective: Azure Monitoring Academy — a 2D platformer that teaches KQL and Azure troubleshooting.",
+  "description": "KQL Quest: Kingdom of Signals — a 2D platformer that teaches KQL and Azure troubleshooting.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

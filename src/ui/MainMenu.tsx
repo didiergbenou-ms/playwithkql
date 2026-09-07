@@ -13,12 +13,12 @@ export function MainMenu({ onStart, onOptions }: { onStart: () => void; onOption
   return (
     <div className="screen menu">
       <div className="menu-hero">
-        <span className="tag tag-cyan">AZURE INVESTIGATION BUREAU</span>
+        <span className="tag tag-cyan">KINGDOM OF SIGNALS</span>
         <h1>
-          KQL <span className="accent">Detective</span>
+          KQL <span className="accent">Quest</span>
         </h1>
         <p className="tagline">
-          Azure Monitoring Academy — a platformer where the only key that opens a door is a
+          Kingdom of Signals — a platformer where the only key that opens a door is a
           correct query.
         </p>
 
@@ -58,7 +58,7 @@ export function MainMenu({ onStart, onOptions }: { onStart: () => void; onOption
 
       <aside className="menu-side">
         <section className="panel">
-          <h3>Detective file</h3>
+          <h3>Quest record</h3>
           <div className="rank-row">
             <strong>{rank.name}</strong>
             <span>{profile.lifetimeScore.toLocaleString()} pts</span>

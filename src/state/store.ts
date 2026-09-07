@@ -54,11 +54,11 @@ export interface Rank {
 }
 
 export const RANKS: Rank[] = [
-  { name: 'Intern Investigator', min: 0 },
-  { name: 'Support Engineer', min: 1200 },
-  { name: 'Senior Investigator', min: 3000 },
-  { name: 'Technical Advisor', min: 5500 },
-  { name: 'Principal Detective', min: 8500 },
+  { name: 'Apprentice of Signals', min: 0 },
+  { name: 'Signal Tracker', min: 1200 },
+  { name: 'Query Adept', min: 3000 },
+  { name: 'Signal Warden', min: 5500 },
+  { name: 'Grandmaster of Signals', min: 8500 },
 ];
 
 export interface AchievementDef {
@@ -197,7 +197,7 @@ const initialProfile: Profile = {
   casesClosed: 0,
   achievements: [],
   totalQueries: 0,
-  character: 'gumshoe',
+  character: 'quill',
 };
 
 export const useStore = create<Store>()(
@@ -372,7 +372,7 @@ export const useStore = create<Store>()(
       devGrant: (patch) => set((s) => ({ run: { ...s.run, ...patch, devUsed: true } })),
     }),
     {
-      name: 'kql-detective-profile',
+      name: 'kql-quest-profile',
       partialize: (s) => ({ profile: s.profile }),
     },
   ),

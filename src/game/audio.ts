@@ -104,7 +104,7 @@ export const DEFAULT_SETTINGS: AudioSettings = {
   musicVolume: 0.32,
 };
 
-const STORAGE_KEY = 'kql-detective-audio';
+const STORAGE_KEY = 'kql-quest-audio';
 const LOOKAHEAD_MS = 25;
 const SCHEDULE_AHEAD = 0.14;
 /** Music drops to this fraction while a modal is open, so reading is easier. */

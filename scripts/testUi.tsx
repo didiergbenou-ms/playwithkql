@@ -9,7 +9,8 @@
  * that, so these assertions are about visible content, not about mounting.
  */
 import { renderToStaticMarkup } from 'react-dom/server';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { TerminalModal } from '../src/ui/TerminalModal';
 import { VerdictModal } from '../src/ui/VerdictModal';
 import { CHALLENGES, ROOT_CAUSES } from '../src/data/case001';
@@ -121,6 +122,41 @@ check('the three steps are numbered so the flow is obvious', () => {
   for (const step of ['Step 1', 'Step 2', 'Step 3']) {
     assert(html.includes(step), `missing ${step} label`);
   }
+});
+
+// ---- branding --------------------------------------------------------------
+
+check('the retired brand does not creep back in', () => {
+  // The prototype shipped as "KQL Detective: Azure Monitoring Academy" before
+  // it was folded into KQL Quest. With several people adding missions it is
+  // easy to reintroduce the old vocabulary by copying an existing file, and
+  // ending up with two brands in one game is exactly the confusion the rename
+  // was meant to remove.
+  const RETIRED = [
+    'KQL Detective',
+    'Azure Monitoring Academy',
+    'AZURE INVESTIGATION BUREAU',
+    'Investigation Bureau',
+    'GUMSHOE',
+  ];
+
+  const root = new URL('../src/', import.meta.url);
+  const walk = (dir: URL): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const child = new URL(e.name + (e.isDirectory() ? '/' : ''), dir);
+      if (e.isDirectory()) return walk(child);
+      return /\.(ts|tsx|css|html)$/.test(e.name) ? [fileURLToPath(child)] : [];
+    });
+
+  const offenders: string[] = [];
+  for (const file of walk(root)) {
+    const text = readFileSync(file, 'utf8');
+    for (const term of RETIRED) {
+      if (text.includes(term)) offenders.push(`${file.split(/[\\/]/).pop()}: "${term}"`);
+    }
+  }
+
+  assert(offenders.length === 0, `retired brand strings found — ${offenders.join(', ')}`);
 });
 
 // ---- the learn pane still teaches -----------------------------------------

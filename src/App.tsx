@@ -131,7 +131,7 @@ export default function App() {
   useEffect(() => {
     if (screen === 'playing') audio.playTrack('office');
     else if (screen === 'debrief') audio.playTrack('closed');
-    else audio.playTrack('bureau');
+    else audio.playTrack('keep');
   }, [screen]);
 
   useEffect(() => {

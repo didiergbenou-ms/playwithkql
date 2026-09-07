@@ -190,12 +190,12 @@ export interface CharacterDef {
 
 export const CHARACTERS: CharacterDef[] = [
   {
-    id: 'gumshoe',
-    name: 'GUMSHOE',
+    id: 'quill',
+    name: 'QUILL',
     title: 'The Veteran',
     blurb:
       'Twenty years of on-call. Has read more agent logs than anyone alive and trusts none of them.',
-    homage: 'Every case is a haunted house if you read the logs at 3am.',
+    homage: 'Every outage is a haunted house if you read the logs at 3am.',
     perk: 'Balanced — no weaknesses, no excuses',
     colors: {
       K: '#0d0b1a',

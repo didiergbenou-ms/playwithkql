@@ -90,7 +90,7 @@ export function Debrief({ onMenu, onReplay }: { onMenu: () => void; onReplay: ()
 
         <footer className="brief-actions">
           <button className="ghost" onClick={onMenu}>
-            Bureau HQ
+            Kingdom HQ
           </button>
           <button className="primary big" onClick={onReplay}>
             Replay case

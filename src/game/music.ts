@@ -299,10 +299,10 @@ export const repeatPattern = (pattern: string, times: number): string =>
 // the line off the grid.
 
 /** Menus. Dorian and swung — the mode game music reaches for when it wants
- *  "detective" rather than "heroic". */
-const BUREAU: Track = {
-  id: 'bureau',
-  title: 'Bureau Nights',
+ *  watchful and nocturnal rather than heroic. */
+const KEEP: Track = {
+  id: 'keep',
+  title: 'Signal Keep',
   bpm: 104,
   swing: 0.34,
   channels: [
@@ -611,7 +611,7 @@ const CLOSED: Track = {
 };
 
 export const TRACKS: Record<string, Track> = {
-  bureau: BUREAU,
+  keep: KEEP,
   office: OFFICE,
   forest: FOREST,
   caverns: CAVERNS,

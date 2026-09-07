@@ -2,7 +2,7 @@
  * Level reachability analysis.
  *
  * Characters have different jump multipliers, so "I can reach that ledge" is
- * not a property of the level alone. Sparky's apex is ~47px against Gumshoe's
+ * not a property of the level alone. Sparky's apex is ~47px against Quill's
  * ~50px, which is the difference between clearing a three-tile rise and not —
  * and a collectible the weakest character physically cannot reach is a bug the
  * author will never notice while testing as someone else.

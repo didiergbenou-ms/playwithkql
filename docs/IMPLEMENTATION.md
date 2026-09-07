@@ -1,4 +1,4 @@
-# KQL Detective: Azure Monitoring Academy
+# KQL Quest: Kingdom of Signals
 
 A browser-based 2D platformer that teaches KQL and Azure troubleshooting.
 You play a support-engineer detective. Doors do not open for keys ΓÇö they open
@@ -51,7 +51,7 @@ cartridge, and it means a new character is about ten lines in
 
 | Recruit | Archetype nod | Trade-off |
 |---|---|---|
-| **Gumshoe** ΓÇö The Veteran | hard-boiled detective | balanced, 3 hearts |
+| **Quill** ΓÇö The Veteran | seen every outage twice | balanced, 3 hearts |
 | **Sparky** ΓÇö The Field Engineer | toolbelt platformer mascot | 4 hearts, slightly slower |
 | **Vell** ΓÇö The Pathfinder | hooded overworld adventurer | jumps ~15% higher |
 | **Circuit** ΓÇö The Specialist | sealed-suit sci-fi explorer | fastest, only 2 hearts |
@@ -346,7 +346,7 @@ somewhere new.
 
 | Track | Where | Loop | Mode / feel |
 |---|---|---|---|
-| **Bureau Nights** | menus | 9s | Dorian, shuffled ΓÇö detective, not heroic |
+| **Signal Keep** | menus | 9s | Dorian, shuffled, watchful rather than heroic |
 | **Office Hours** | Customer Office | 36s | A minor, light swing |
 | **Telemetry Pines** | Monitoring Forest | 29s | C major pentatonic, bright |
 | **Cold Aisle** | Server Caverns | 34s | Natural minor, sparse |

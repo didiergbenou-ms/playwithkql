@@ -102,7 +102,7 @@ export class GameScene extends Phaser.Scene {
   init(data: SceneInit) {
     this.solvedIds = new Set(data.solvedChallenges ?? []);
     this.initialOpenGates = new Set(data.openGates ?? []);
-    this.character = characterById(data.characterId ?? 'gumshoe');
+    this.character = characterById(data.characterId ?? 'quill');
   }
 
   private solvedIds = new Set<string>();

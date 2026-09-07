@@ -134,13 +134,13 @@ export const NOTES: LoreNote[] = [
   },
   {
     id: 'note-cheatsheet',
-    title: 'Bureau field card — KQL in six lines',
+    title: 'Field card — KQL in six lines',
     body: `Heartbeat                      <- pick a table\n| where TimeGenerated > ago(24h)  <- keep some rows\n| project Computer, Version       <- keep some columns\n| summarize count() by Computer   <- squash into groups\n| sort by count_ asc              <- default is desc!\n| take 10                         <- stop reading\n\nEvery query is a pipeline. Data flows left to right, one pipe at a time.`,
   },
   {
     id: 'note-plaque',
     title: 'Brass plaque, Data Center entrance',
-    body: `AZURE INVESTIGATION BUREAU\nRule 1 — a machine that writes logs is not a machine that is switched off.\nRule 2 — five things failing in the same minute is one thing failing.\nRule 3 — always ask what changed, then ask who changed it.`,
+    body: `KINGDOM OF SIGNALS\nRule 1 — a machine that writes logs is not a machine that is switched off.\nRule 2 — five things failing in the same minute is one thing failing.\nRule 3 — always ask what changed, then ask who changed it.`,
   },
 ];
 
