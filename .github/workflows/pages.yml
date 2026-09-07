@@ -1,0 +1,81 @@
+name: Deploy to GitHub Pages
+
+# This repository is public, so Pages can serve the built game directly and the
+# earlier two-repo split (private source + separate public build output) is no
+# longer needed.
+#
+# One manual step is required once, by someone with admin on this repository:
+#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
+# Until that is set, this workflow will fail at the deploy step.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Never publish a build that has not passed the same gates as CI.
+      - name: Typecheck
+        run: node node_modules/typescript/bin/tsc --noEmit
+
+      - name: Tests
+        run: node scripts/run.mjs scripts/testKql.ts
+
+      - name: UI tests
+        run: node scripts/run.mjs scripts/testUi.tsx
+
+      - name: Fuzz
+        run: node scripts/run.mjs scripts/fuzzKql.ts
+
+      # A Pages project site is served from /<repo>/, not the domain root, so
+      # asset URLs need that prefix. Derived from the repository name rather
+      # than hardcoded, so a rename or a fork does not silently break it.
+      - name: Build
+        env:
+          PAGES_BASE: /${{ github.event.repository.name }}/
+        run: node node_modules/vite/bin/vite.js build
+
+      # Single-screen app with no router, but a refresh on an unknown path
+      # should still land in the game rather than on GitHub's 404.
+      - name: SPA fallback
+        run: cp dist/index.html dist/404.html
+
+      # Without this, Pages runs the output through Jekyll, which silently
+      # drops any path segment beginning with an underscore.
+      - name: Disable Jekyll
+        run: touch dist/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
