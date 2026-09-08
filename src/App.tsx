@@ -9,6 +9,7 @@ import {
   solveTier,
   useStore,
   hintsSeen,
+  hintsRevealed,
 } from './state/store';
 import { audio } from './game/audio';
 import { trackForRoom } from './game/music';
@@ -150,6 +151,12 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A child control may legitimately consume a key — the completion popup
+      // calls preventDefault() on Escape to close itself. Without this check
+      // that same Escape also tore down the whole terminal, so dismissing the
+      // suggestions threw away the query with them.
+      if (e.defaultPrevented) return;
+
       // While a celebration is on screen, Escape only dismisses that — closing
       // the terminal too would whip the result away before it can be read.
       if (e.key === 'Escape' && overlay && !celebration) setOverlay(null);
@@ -283,7 +290,7 @@ export default function App() {
             <TerminalModal
               spec={activeSpec}
               alreadySolved={run.challenges[activeSpec.id]?.solved ?? false}
-              hintsUsed={hintsSeen(run.challenges[activeSpec.id])}
+              hintsUsed={hintsRevealed(run.challenges[activeSpec.id])}
               crystalsLeft={run.crystals - run.crystalsSpent}
               onAttempt={() => {
                 registerAttempt(activeSpec.id);
@@ -293,13 +300,11 @@ export default function App() {
               onSpendCrystal={() => spendCrystal(activeSpec.id)}
               solutionRevealed={run.challenges[activeSpec.id]?.solutionRevealed ?? false}
               onRevealSolution={() => {
-                // Costs score like a hint, because revealing the answer is at
-                // least as much help as one. revealSolution() is idempotent so
-                // toggling the panel cannot stack the penalty.
-                if (!run.challenges[activeSpec.id]?.solutionRevealed) {
-                  revealSolution(activeSpec.id);
-                  useHint(activeSpec.id);
-                }
+                // Only records the reveal. It must NOT also call useHint():
+                // that inflated the displayed hint count, so reopening the
+                // terminal exposed hints the player never unlocked. The score
+                // penalty is applied by scoreRun via solutionRevealed.
+                revealSolution(activeSpec.id);
               }}
               onSolved={(q) => {
                 solveChallenge(activeSpec.id, q);

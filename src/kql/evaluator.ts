@@ -11,27 +11,41 @@ import {
 } from './types';
 
 /**
- * Guards for the user-supplied regex in `matches`.
+ * Bounds on the player-supplied regex used by `matches` and `extract()`.
  *
- * Both the pattern and the subject come from the player, so a catastrophically
- * backtracking pattern can lock the browser tab solid — the game freezes with
- * no error and no way back.
+ * An earlier version blacklisted quantified groups, which stops *exponential*
+ * blowup but is not a bound: `a*a*a*a*a*a*a*a*a*a*b` contains no group at all,
+ * passes that check, and still backtracks polynomially until the tab freezes.
+ * A blacklist can only ever describe the bad shapes someone thought of.
  *
- * Exponential blowup needs a *quantified group*: something like `(a+)+$` or
- * `(a|aa)+$`, where the group can match the same input more than one way and
- * the outer quantifier multiplies those choices. So rather than chase
- * individual bad shapes — an earlier attempt caught `(a+)+` but not the
- * alternation form, and hung the test run — the rule here is simply that a
- * group may not be quantified at all.
+ * These limits come from measurement rather than theory. Against an adversarial
+ * all-matching subject, V8 costs roughly O(n^k) for k adjacent unbounded
+ * quantifiers:
  *
- * Quantified *atoms* stay allowed, so ordinary patterns are unaffected:
- * `^CONTOSO-\d+$` and `WEB-0[12]$` both work. Only `(...)+`, `(...)*` and
- * `(...){n,}` are refused, which no query in a KQL teaching game needs.
- * Remaining polynomial cases are bounded by the subject length cap.
+ *     k=2  n=256     5ms      k=3  n=128   148ms
+ *     k=2  n=512   255ms      k=3  n=512  5112ms
+ *
+ * So: at most two unbounded quantifiers, and a subject capped at 256 — still
+ * above the longest string in the case data (209 chars). That keeps the worst
+ * *accepted* pattern in single-digit milliseconds, and a test measures it
+ * rather than trusting this comment. 512 was tried first and a test caught it
+ * at 255ms, which is a visible stall.
+ *
+ * Ordinary patterns are unaffected: `^CONTOSO`, `WEB-0[12]$`, `DC-\d+` and
+ * `.*proxy.*` all pass. `.*a.*b.*` is refused, and `contains` is the idiomatic
+ * KQL for that anyway.
+ *
+ * The genuinely correct fix is a non-backtracking engine (RE2) or running the
+ * match in a terminable worker. Both are disproportionate here: the evaluator
+ * is synchronous and per-row, and this is a teaching game with a small fixed
+ * dataset. Bounded inputs are the honest middle.
  */
 const MAX_REGEX_PATTERN = 200;
-const MAX_REGEX_SUBJECT = 2000;
+const MAX_REGEX_SUBJECT = 256;
+const MAX_UNBOUNDED_QUANTIFIERS = 2;
 const QUANTIFIED_GROUP = /\)\s*[+*{]/;
+/** `*`, `+` and open-ended `{n,}` — the quantifiers with no upper limit. */
+const UNBOUNDED_QUANTIFIER = /(?<!\\)[*+]|(?<!\\)\{\d*,\}/g;
 
 /**
  * Compiles a player-supplied regex, or returns null if it is unsafe.
@@ -45,6 +59,7 @@ const QUANTIFIED_GROUP = /\)\s*[+*{]/;
 export function safeRegex(pattern: string, subject: string): RegExp | null {
   if (pattern.length > MAX_REGEX_PATTERN || subject.length > MAX_REGEX_SUBJECT) return null;
   if (QUANTIFIED_GROUP.test(pattern)) return null;
+  if ((pattern.match(UNBOUNDED_QUANTIFIER) ?? []).length > MAX_UNBOUNDED_QUANTIFIERS) return null;
   try {
     return new RegExp(pattern);
   } catch {
@@ -263,9 +278,16 @@ function callScalar(name: string, args: KValue[], ctx: Ctx, pos: number): KValue
       return Math.round(toNumber(a0) * f) / f;
     }
     case 'min_of':
-      return args.reduce((m, v) => (cmp(v, m) < 0 ? v : m));
-    case 'max_of':
-      return args.reduce((m, v) => (cmp(v, m) > 0 ? v : m));
+    case 'max_of': {
+      // reduce() on an empty array throws a raw TypeError, which escapes the
+      // friendly-error contract and reaches the player as an internal crash.
+      if (args.length === 0) {
+        throw new KqlError(`'${name}()' needs at least one value.`, pos, `Try ${name}(a, b).`);
+      }
+      return name === 'min_of'
+        ? args.reduce((m, v) => (cmp(v, m) < 0 ? v : m))
+        : args.reduce((m, v) => (cmp(v, m) > 0 ? v : m));
+    }
     default:
       throw new KqlError(
         `Unknown function '${name}()'.`,
@@ -499,6 +521,17 @@ function buildAggregate(
   }
 
   const argVals = (group: Row[], arg: Expr) => group.map((r) => evalExpr(arg, r, ctx));
+
+  // Every aggregate except count() needs a value to aggregate. Without this
+  // check, `summarize dcount()` reached evalExpr(undefined, ...) and surfaced
+  // a raw TypeError instead of a diagnostic message.
+  if (e.name !== 'count' && e.args.length === 0) {
+    throw new KqlError(
+      `'${e.name}()' needs a column to work on.`,
+      e.pos,
+      `Try ${e.name}(Computer). Only count() can be used with no arguments.`,
+    );
+  }
 
   // arg_max / arg_min expand into several columns
   if (e.name === 'arg_max' || e.name === 'arg_min') {

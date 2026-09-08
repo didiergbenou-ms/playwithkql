@@ -143,11 +143,23 @@ function emptyRun(totalFragments: number, totalCrystals: number): RunState {
  * (variable-ratio) bonus, which is the engagement-farming pattern.
  */
 /**
+ * Progressive hints the player has actually unlocked, for *display*.
+ *
+ * Deliberately not the same as `hintsSeen`. Seeding the terminal from the
+ * assistance count meant revealing the solution made a reopened terminal show
+ * two hints that were never purchased — the display count and the "did you get
+ * help" count answer different questions and must not be conflated.
+ */
+export const hintsRevealed = (p: ChallengeProgress | undefined): number =>
+  p ? p.hintsUsed + p.crystalHints : 0;
+
+/**
  * Any assistance the player actually received, however it was paid for.
  *
- * Score only penalises `hintsUsed`, but "did you get help" has to count
- * crystal-funded hints and a revealed answer too — otherwise the rewards for
- * an unaided solve can be collected without doing one.
+ * Score penalises hints and a revealed answer separately, but "did you get
+ * help at all" has to count crystal-funded hints and a revealed answer too —
+ * otherwise the rewards for an unaided solve can be collected without doing
+ * one. Use this for achievements and solve tiers, never for display.
  */
 export const hintsSeen = (p: ChallengeProgress | undefined): number =>
   p ? p.hintsUsed + p.crystalHints + (p.solutionRevealed ? 1 : 0) : 0;
@@ -174,8 +186,12 @@ export function scoreRun(run: RunState): ScoreBreakdown {  const completion = ru
     const p = run.challenges[c.id];
     if (!p?.solved) return t;
     const hintPenalty = 0.2 * p.hintsUsed;
+    // Revealing the answer is charged here rather than by faking a hint. Doing
+    // it by calling useHint() polluted the *displayed* hint count, so reopening
+    // a terminal showed progressive hints the player had never unlocked.
+    const revealPenalty = p.solutionRevealed ? 0.2 : 0;
     const attemptPenalty = 0.05 * Math.max(0, p.attempts - 1);
-    return t + c.points * Math.max(0.3, 1 - hintPenalty - attemptPenalty);
+    return t + c.points * Math.max(0.3, 1 - hintPenalty - revealPenalty - attemptPenalty);
   }, 0);
   const accuracy = totalWeight ? Math.round((earned / totalWeight) * 300) : 0;
 

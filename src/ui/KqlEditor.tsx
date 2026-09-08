@@ -187,7 +187,12 @@ export function KqlEditor({ value, onChange, onRun, meta, autoFocus }: Props) {
       return;
     }
 
-    if (e.key === 'Tab') {
+    // Tab is deliberately NOT captured for indentation. It is the only key a
+    // keyboard user has to leave a textarea, and combined with the modal focus
+    // trap, swallowing it meant they could reach the editor and then never get
+    // to Run, Reset, hints or Close — trapped in a dialog with no way out.
+    // Indentation is available on Ctrl+] for anyone who wants it.
+    if (e.key === ']' && e.ctrlKey) {
       e.preventDefault();
       const el = e.currentTarget;
       const start = el.selectionStart;

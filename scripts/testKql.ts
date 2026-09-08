@@ -28,7 +28,7 @@ import {
   TABLE_META,
   ROOT_CAUSES,
 } from '../src/data/case001';
-import { useStore, hintsSeen, solveTier } from '../src/state/store';
+import { useStore, hintsSeen, hintsRevealed, solveTier, scoreRun } from '../src/state/store';
 
 const db = buildDatabase();
 const opts = { now: CASE_NOW };
@@ -1096,6 +1096,89 @@ check('dev shortcuts: a tainted run does not raise profile.totalQueries', () => 
   useStore.getState().registerAttempt(CHALLENGES[0].id);
   eq(useStore.getState().profile.totalQueries, before, 'a dev run wrote to profile.totalQueries');
   eq(useStore.getState().run.queriesRun, 1, 'the run-local count should still move');
+});
+
+// ---- third review round -----------------------------------------------------
+
+check('engine: the regex bound is a bound, not a blacklist', () => {
+  // The previous guard rejected quantified groups, which stops exponential
+  // blowup but is not a bound: `a*a*a*...b` has no group at all and still
+  // backtracks polynomially until the tab freezes.
+  const subject = 'a'.repeat(512);
+  eq(safeRegex('a*a*a*a*a*a*a*a*a*a*b', subject), null, 'the polynomial case was accepted');
+  eq(safeRegex('a*a*a*b', subject), null, 'three unbounded quantifiers were accepted');
+
+  // Ordinary patterns must still work.
+  for (const p of ['^CONTOSO', 'WEB-0[12]$', 'DC-\\d+', '.*proxy.*', 'a{2,4}b']) {
+    assert(safeRegex(p, 'CONTOSO-WEB-01') !== null, `a safe pattern was refused: ${p}`);
+  }
+});
+
+check('engine: the worst ACCEPTED regex is actually fast', () => {
+  // The real proof of a bound: take the most expensive pattern the guard still
+  // allows - the maximum quantifiers against the maximum subject, all matching
+  // so it backtracks maximally - and measure it. If this is fast, everything
+  // weaker is too.
+  const worstPattern = 'a*a*b';
+  const worstSubject = 'a'.repeat(256);
+  assert(safeRegex(worstPattern, worstSubject) !== null, 'the worst case should be allowed');
+
+  const started = Date.now();
+  safeRegex(worstPattern, worstSubject)!.test(worstSubject);
+  const ms = Date.now() - started;
+  assert(ms < 250, `worst accepted regex took ${ms}ms - the bound is not tight enough`);
+});
+
+check('engine: malformed aggregate calls stay diagnostic', () => {
+  // These reached reduce() on an empty array, or evalExpr(undefined), and
+  // surfaced a raw TypeError instead of the promised friendly error.
+  for (const q of [
+    'Heartbeat | summarize dcount()',
+    'Heartbeat | summarize sum()',
+    'Heartbeat | summarize max()',
+    'Heartbeat | extend X = min_of()',
+    'Heartbeat | extend X = max_of()',
+  ]) {
+    try {
+      runQuery(q, db, opts);
+    } catch (err) {
+      assert(
+        err instanceof KqlError,
+        `${q} threw ${(err as Error).constructor.name}, not a friendly KqlError`,
+      );
+    }
+  }
+  // count() legitimately takes no argument and must keep working.
+  runQuery('Heartbeat | summarize count() by Computer', db, opts);
+});
+
+check('scoring: a revealed answer is charged without faking a hint', () => {
+  // Charging it via useHint() inflated the *displayed* hint count, so a
+  // reopened terminal offered hints the player had never unlocked. Display and
+  // assistance are different questions and now have different functions.
+  useStore.getState().resetProfile();
+  useStore.getState().startRun(10, 3);
+  const id = CHALLENGES[0].id;
+
+  useStore.getState().revealSolution(id);
+  const p = useStore.getState().run.challenges[id];
+
+  eq(hintsRevealed(p), 0, 'revealing the answer must not fabricate progressive hints');
+  eq(p.hintsUsed, 0, 'hintsUsed is for hints the player actually unlocked');
+  assert(hintsSeen(p) > 0, 'but it still counts as assistance');
+  assert(solveTier(p) < 3, 'and cannot still be a perfect solve');
+
+  // ...and it must actually cost score.
+  useStore.getState().registerAttempt(id);
+  useStore.getState().solveChallenge(id, CHALLENGES[0].solution);
+  const withReveal = scoreRun(useStore.getState().run).accuracy;
+
+  useStore.getState().startRun(10, 3);
+  useStore.getState().registerAttempt(id);
+  useStore.getState().solveChallenge(id, CHALLENGES[0].solution);
+  const clean = scoreRun(useStore.getState().run).accuracy;
+
+  assert(withReveal < clean, `revealing the answer did not cost score (${withReveal} vs ${clean})`);
 });
 console.log(`\n  ${passed} passed, ${failures.length} failed\n`);
 if (failures.length) {

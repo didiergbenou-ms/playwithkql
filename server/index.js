@@ -1,9 +1,24 @@
 /**
- * Optional progress API for KQL Quest.
+ * Optional progress API for KQL Quest — LOCAL DEVELOPMENT ONLY.
  *
- * The game is fully playable without this — the React client persists to
- * localStorage. This exists so a team can move progress server-side later
- * (shared leaderboards, cross-device profiles) without touching game code.
+ * The game is fully playable without this; the React client persists to
+ * localStorage and is not wired to this server at all. It exists so a team can
+ * move progress server-side later (shared leaderboards, cross-device profiles)
+ * without touching game code.
+ *
+ * ⚠️ It has NO AUTHENTICATION. Every write is anonymous and the profile key
+ * comes straight from the URL, so anyone who can reach it can overwrite any
+ * profile and post any leaderboard score. That is survivable on a developer's
+ * own machine and unacceptable anywhere else, so:
+ *
+ *   - it binds to 127.0.0.1, not 0.0.0.0
+ *   - CORS is restricted to localhost origins
+ *   - it refuses to start if NODE_ENV=production
+ *
+ * Before this is exposed to real users it needs an authenticated identity, the
+ * profile key derived from that identity rather than the URL, and leaderboard
+ * scores recomputed server-side from trusted run data instead of being taken
+ * from the client. Until then the safe move is to keep it local.
  *
  *   node server/index.js
  */
@@ -17,9 +32,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, 'data');
 const DB_FILE = join(DATA_DIR, 'profiles.json');
 const PORT = Number(process.env.PORT ?? 3001);
+const HOST = '127.0.0.1';
+
+if (process.env.NODE_ENV === 'production') {
+  console.error(
+    'server/index.js is an unauthenticated development tool and refuses to run in production.\n' +
+      'It needs real authentication and server-side score validation first — see the file header.',
+  );
+  process.exit(1);
+}
 
 const app = express();
-app.use(cors());
+// Only local origins. The default cors() allowed any site on the internet to
+// issue credentialed writes against a developer's running instance.
+app.use(
+  cors({
+    origin: [/^http:\/\/localhost(:\d+)?$/, /^http:\/\/127\.0\.0\.1(:\d+)?$/],
+  }),
+);
 app.use(express.json({ limit: '256kb' }));
 
 async function readDb() {
@@ -157,6 +187,6 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'storage unavailable' });
 });
 
-app.listen(PORT, () => {
-  console.log(`KQL Quest API on http://127.0.0.1:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`KQL Quest API (local dev only, unauthenticated) on http://${HOST}:${PORT}`);
 });

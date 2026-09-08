@@ -49,6 +49,11 @@ export function ModalScrim({
     (first ?? node)?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
+      // Bubble phase, and skipped when already handled. In capture phase this
+      // trap fired *before* the editor, so Tab-to-accept-a-completion could be
+      // stolen and turned into a focus jump. React's own handlers run earlier
+      // in the bubble, so checking defaultPrevented gives them priority.
+      if (e.defaultPrevented) return;
       if (e.key !== 'Tab' || !node) return;
       const items = [...node.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
         (el) => el.offsetParent !== null || el === document.activeElement,
@@ -70,9 +75,9 @@ export function ModalScrim({
       }
     };
 
-    document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('keydown', onKeyDown);
     return () => {
-      document.removeEventListener('keydown', onKeyDown, true);
+      document.removeEventListener('keydown', onKeyDown);
       // Returning focus matters as much as taking it: without this the caret
       // lands back at the top of the document on every close.
       previouslyFocused?.focus?.();
