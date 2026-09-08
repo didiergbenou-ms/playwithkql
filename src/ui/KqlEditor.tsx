@@ -30,6 +30,9 @@ const KIND_GLYPH: Record<Completion['kind'], string> = {
  * following a pipe, an operator that takes arguments, a comparison, or a
  * comma. Opening on every space would be noise.
  */
+/** Stable id so aria-controls and aria-activedescendant can point at it. */
+const LISTBOX_ID = 'kql-suggestions';
+
 const OPEN_AFTER_SPACE =
   /(\||\bwhere\b|\bsummarize\b|\bby\b|\bproject\b|\bextend\b|\bdistinct\b|\bsort\b|\border\b|\btop\b|\band\b|\bor\b|[=<>!+\-*/,(])\s*$/i;
 
@@ -236,13 +239,26 @@ export function KqlEditor({ value, onChange, onRun, meta, autoFocus }: Props) {
           onClick={syncCaret}
           onScroll={syncScroll}
           onBlur={() => setTimeout(() => setOpen(false), 120)}
+          // ARIA combobox pattern. Without these the popup is visual only:
+          // a screen reader never learns that suggestions appeared, how many
+          // there are, or which one the arrow keys are on.
+          role="combobox"
+          aria-expanded={open && items.length > 0}
+          aria-controls={LISTBOX_ID}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            open && items.length > 0 ? `${LISTBOX_ID}-opt-${active}` : undefined
+          }
         />
 
         {open && items.length > 0 && (
           <div className="kql-suggest" style={{ left: popupPos.left, top: popupPos.top }}>
-            <ul>
+            <ul id={LISTBOX_ID} role="listbox" aria-label="Query suggestions">
               {items.map((it, i) => (
                 <li
+                  id={`${LISTBOX_ID}-opt-${i}`}
+                  role="option"
+                  aria-selected={i === active}
                   key={`${it.kind}-${it.label}`}
                   className={i === active ? 'on' : ''}
                   onMouseDown={(e) => {

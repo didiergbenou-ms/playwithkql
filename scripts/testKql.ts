@@ -4,6 +4,7 @@
  * authored challenge in Case 001 is actually solvable by its own solution.
  */
 import { runQuery, KqlError, toDisplayString } from '../src/kql/index';
+import { safeRegex } from '../src/kql/evaluator';
 import { gradeChallenge } from '../src/kql/challenge';
 import { applyCompletion, completionsFor } from '../src/kql/complete';
 import { buildHighlightSchema, highlightKql } from '../src/kql/highlight';
@@ -924,12 +925,18 @@ check('engine: the token budget leaves room for real queries', () => {
 check('engine: catastrophic regex is refused, ordinary regex still works', () => {
   // Pattern and subject are both player-supplied, so a backtracking blow-up
   // freezes the tab with no error and no way out.
+  //
+  // The guard is asserted before the query runs, not by timing it. A timing
+  // assertion does not fail when the guard is removed — it *hangs*, taking the
+  // whole suite with it, which is a far worse signal than a red test. Timing
+  // is still checked afterwards, but only as a backstop once safeRegex has
+  // confirmed the pattern is rejected.
   const subject = 'a'.repeat(46) + '!';
   for (const p of ['(a+)+$', '(a*)*$', '(a|aa)+$', '([a-z]+)*$', '((a)*)*$']) {
+    eq(safeRegex(p, subject), null, `safeRegex accepted the catastrophic pattern ${p}`);
     const started = Date.now();
     runQuery(`Heartbeat | extend X = "${subject}" | where X matches "${p}" | take 1`, db, opts);
-    const ms = Date.now() - started;
-    assert(ms < 500, `pattern ${p} took ${ms}ms - backtracking is not bounded`);
+    assert(Date.now() - started < 500, `pattern ${p} was slow despite being rejected`);
   }
   const hits = runQuery('Heartbeat | where Computer matches "WEB-0[12]$" | distinct Computer', db, opts);
   assert(hits.table.rows.length > 0, 'an ordinary anchored pattern stopped matching');
@@ -985,6 +992,110 @@ check('a clean run still earns achievements', () => {
   const profile = useStore.getState().profile;
   assert(profile.achievements.length > 0, 'a real run earned nothing');
   eq(profile.casesClosed, 1, 'a real run should close the case');
+});
+
+// ---- second review round ----------------------------------------------------
+
+check('engine: every regex site is guarded, not just `matches`', () => {
+  // extract() compiled a player-supplied pattern with no protection at all -
+  // the same bug as `matches`, one function away. Both now go through
+  // safeRegex, so a third site cannot silently reintroduce it.
+  //
+  // Asserted against safeRegex directly rather than by timing the query: if
+  // the guard is ever removed, a timing check does not fail, it *hangs*, and a
+  // hung suite is a much worse signal than a red test.
+  const subject = 'a'.repeat(46) + '!';
+  for (const p of ['(a+)+$', '(a*)*$', '(a|aa)+$', '([a-z]+)*$', '((a)*)*$']) {
+    eq(safeRegex(p, subject), null, `safeRegex accepted the catastrophic pattern ${p}`);
+  }
+  assert(safeRegex('WEB-0[12]$', 'CONTOSO-WEB-01') !== null, 'a safe pattern was refused');
+  assert(safeRegex('x'.repeat(300), 'abc') === null, 'an over-long pattern was accepted');
+  assert(safeRegex('a', 'x'.repeat(5000)) === null, 'an over-long subject was accepted');
+
+  // And end to end, both operators stay fast — checked only after safeRegex
+  // has confirmed rejection, so this can never be the thing that hangs.
+  for (const q of [
+    `Heartbeat | extend X = "${subject}" | where X matches "(a+)+$" | take 1`,
+    `Heartbeat | extend X = extract("(a+)+$", 0, "${subject}") | take 1`,
+  ]) {
+    const started = Date.now();
+    runQuery(q, db, opts);
+    assert(Date.now() - started < 500, `${q.slice(0, 60)} - backtracking is not bounded`);
+  }
+
+  const r = runQuery('Heartbeat | extend X = extract("(WEB)", 1, Computer) | distinct X', db, opts);
+  assert(r.table.rows.length > 0, 'extract stopped working for ordinary patterns');
+});
+
+check('engine: an invalid date renders instead of throwing', () => {
+  // toISOString throws RangeError on an Invalid Date, which would escape the
+  // friendly-error path while merely rendering a result.
+  eq(toDisplayString(new Date(NaN) as never), 'Invalid datetime', 'invalid date must render');
+  assert(toDisplayString(new Date('2026-08-13T09:15:00Z') as never).startsWith('2026-08-13'),
+    'valid dates must still format normally');
+});
+
+check('scoring: revealing the solution counts as help', () => {
+  // Otherwise a player reveals the answer, submits it once, and still collects
+  // the clean-solve tier, full score and No Hints Needed.
+  useStore.getState().resetProfile();
+  useStore.getState().startRun(10, 3);
+  const id = CHALLENGES[0].id;
+
+  useStore.getState().revealSolution(id);
+  const prog = useStore.getState().run.challenges[id];
+  assert(prog.solutionRevealed, 'reveal was not recorded');
+  assert(hintsSeen(prog) > 0, 'a revealed answer must count as assistance');
+  assert(solveTier(prog) < 3, 'revealing the answer cannot still be a perfect solve');
+
+  useStore.getState().registerAttempt(id);
+  useStore.getState().solveChallenge(id, CHALLENGES[0].solution);
+  const winner = ROOT_CAUSES.find((o) => o.correct)!;
+  for (const c of CHALLENGES.slice(1)) {
+    useStore.getState().registerAttempt(c.id);
+    useStore.getState().solveChallenge(c.id, c.solution);
+  }
+  useStore.getState().submitVerdict(winner.id, true);
+  assert(
+    !useStore.getState().profile.achievements.includes('no-hints'),
+    'No Hints Needed was awarded despite the answer being revealed',
+  );
+});
+
+check('dev shortcuts: warping alone taints the run', () => {
+  // Warping skips traversal and flatters the time score, so it is assistance
+  // even though it solves nothing.
+  useStore.getState().resetProfile();
+  useStore.getState().startRun(10, 3);
+  useStore.getState().devTaint();
+  assert(useStore.getState().run.devUsed, 'devTaint did not flag the run');
+});
+
+check('dev shortcuts: finishing an already-solved run still taints it', () => {
+  // devSolve used to return early when nothing was pending, leaving a clean
+  // fully-solved run unflagged - so Finish Case wrote it to the profile.
+  useStore.getState().resetProfile();
+  useStore.getState().startRun(10, 3);
+  for (const c of CHALLENGES) {
+    useStore.getState().registerAttempt(c.id);
+    useStore.getState().solveChallenge(c.id, c.solution);
+  }
+  assert(!useStore.getState().run.devUsed, 'run should still be clean at this point');
+
+  useStore.getState().devSolve('all'); // nothing pending
+  assert(useStore.getState().run.devUsed, 'devSolve must flag even with nothing to solve');
+});
+
+check('dev shortcuts: a tainted run does not raise profile.totalQueries', () => {
+  // The profile has more than one writer, so guarding award() alone was not
+  // enough - registerAttempt was still incrementing totalQueries.
+  useStore.getState().resetProfile();
+  useStore.getState().startRun(10, 3);
+  useStore.getState().devTaint();
+  const before = useStore.getState().profile.totalQueries;
+  useStore.getState().registerAttempt(CHALLENGES[0].id);
+  eq(useStore.getState().profile.totalQueries, before, 'a dev run wrote to profile.totalQueries');
+  eq(useStore.getState().run.queriesRun, 1, 'the run-local count should still move');
 });
 console.log(`\n  ${passed} passed, ${failures.length} failed\n`);
 if (failures.length) {

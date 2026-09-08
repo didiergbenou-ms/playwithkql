@@ -25,8 +25,16 @@ app.use(express.json({ limit: '256kb' }));
 async function readDb() {
   try {
     return JSON.parse(await readFile(DB_FILE, 'utf8'));
-  } catch {
-    return { profiles: {}, runs: [] };
+  } catch (err) {
+    // Only a missing file means "no data yet". Treating *every* failure as an
+    // empty database was destructive: a permission problem or a transient I/O
+    // error returned {} and the next mutating request happily persisted that
+    // empty snapshot over every existing profile. Atomic writes do not help
+    // when the thing being written is already wrong.
+    if (err && typeof err === 'object' && err.code === 'ENOENT') {
+      return { profiles: {}, runs: [] };
+    }
+    throw err;
   }
 }
 
@@ -139,6 +147,14 @@ app.get('/api/leaderboard', async (req, res) => {
       .sort((a, b) => b.score - a.score || a.durationMs - b.durationMs)
       .slice(0, 50),
   );
+});
+
+// readDb now rethrows anything that is not a missing file, so a corrupt or
+// unreadable store surfaces as a 500 rather than being silently treated as
+// empty and then overwritten. Express 5 forwards async rejections here.
+app.use((err, _req, res, _next) => {
+  console.error('[api]', err);
+  res.status(500).json({ error: 'storage unavailable' });
 });
 
 app.listen(PORT, () => {

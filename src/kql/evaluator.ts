@@ -33,6 +33,25 @@ const MAX_REGEX_PATTERN = 200;
 const MAX_REGEX_SUBJECT = 2000;
 const QUANTIFIED_GROUP = /\)\s*[+*{]/;
 
+/**
+ * Compiles a player-supplied regex, or returns null if it is unsafe.
+ *
+ * Every regex built from player input must go through here. The guards were
+ * originally inlined at the `matches` operator, which left `extract()`
+ * compiling patterns with no protection at all — the same bug, one function
+ * away. A shared helper means adding a third regex site cannot silently
+ * reintroduce it.
+ */
+export function safeRegex(pattern: string, subject: string): RegExp | null {
+  if (pattern.length > MAX_REGEX_PATTERN || subject.length > MAX_REGEX_SUBJECT) return null;
+  if (QUANTIFIED_GROUP.test(pattern)) return null;
+  try {
+    return new RegExp(pattern);
+  } catch {
+    return null;
+  }
+}
+
 const AGGREGATES = new Set([
   'count',
   'countif',
@@ -75,7 +94,15 @@ function toNumber(v: KValue): number {
 
 export function toDisplayString(v: KValue): string {
   if (v === null || v === undefined) return '';
-  if (isDate(v)) return v.toISOString().replace('T', ' ').replace('.000Z', 'Z');
+  if (isDate(v)) {
+    // toISOString throws RangeError on an Invalid Date, which would escape the
+    // friendly-error path and surface as an internal crash while merely
+    // *rendering* an otherwise valid result. Guarded at the single point where
+    // dates get formatted rather than at every site that builds one.
+    return Number.isNaN(v.getTime())
+      ? 'Invalid datetime'
+      : v.toISOString().replace('T', ' ').replace('.000Z', 'Z');
+  }
   if (isTimespan(v)) return `${v.ms}ms`;
   if (typeof v === 'object') return JSON.stringify(v);
   return String(v);
@@ -211,8 +238,10 @@ function callScalar(name: string, args: KValue[], ctx: Ctx, pos: number): KValue
     }
     case 'extract': {
       try {
-        const re = new RegExp(s(a0));
-        const m = re.exec(s(args[2]));
+        const subject = s(args[2]);
+        const re = safeRegex(s(a0), subject);
+        if (!re) return null;
+        const m = re.exec(subject);
         if (!m) return null;
         return m[toNumber(args[1])] ?? null;
       } catch {
@@ -368,22 +397,10 @@ function evalBinary(e: Extract<Expr, { k: 'bin' }>, row: Row, ctx: Ctx): KValue 
     case 'matches': {
       // Both the pattern and the subject come from the player, so a
       // catastrophically backtracking pattern like `(a+)+$` against a long
-      // near-match can lock the browser tab solid — the game would simply
-      // freeze with no error and no way back.
-      //
-      // Rather than ship a second regex engine, the inputs are bounded. A
-      // teaching query matches short machine names and error strings, so a
-      // pattern or subject beyond these lengths is not a query anyone meant
-      // to write, and refusing it costs nothing real.
-      const pattern = s(r);
+      // near-match can lock the browser tab solid. See safeRegex.
       const subject = s(l);
-      if (pattern.length > MAX_REGEX_PATTERN || subject.length > MAX_REGEX_SUBJECT) return false;
-      if (QUANTIFIED_GROUP.test(pattern)) return false;
-      try {
-        return new RegExp(pattern).test(subject);
-      } catch {
-        return false;
-      }
+      const re = safeRegex(s(r), subject);
+      return re ? re.test(subject) : false;
     }
     case 'in':
       return Array.isArray(r) && r.some((v) => eq(l, v));

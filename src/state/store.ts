@@ -15,6 +15,15 @@ export interface ChallengeProgress {
    * closing the terminal spends the crystal and hides the hint again.
    */
   crystalHints: number;
+  /**
+   * Whether the reference answer was revealed for this challenge.
+   *
+   * Revealing the solution is more assistance than any hint, so it has to be
+   * recorded: without this a player could reveal the answer, paste it, submit
+   * once, and still collect the clean-solve tier, full score and the
+   * "No Hints Needed" achievement.
+   */
+  solutionRevealed: boolean;
   solved: boolean;
   /** The query that finally worked — replayed in the debrief. */
   winningQuery?: string;
@@ -113,7 +122,10 @@ function emptyRun(totalFragments: number, totalCrystals: number): RunState {
     queriesRun: 0,
     cleanStreak: 0,
     challenges: Object.fromEntries(
-      CHALLENGES.map((c) => [c.id, { attempts: 0, hintsUsed: 0, crystalHints: 0, solved: false }]),
+      CHALLENGES.map((c) => [
+        c.id,
+        { attempts: 0, hintsUsed: 0, crystalHints: 0, solutionRevealed: false, solved: false },
+      ]),
     ),
     evidence: [],
     openGates: [],
@@ -131,11 +143,14 @@ function emptyRun(totalFragments: number, totalCrystals: number): RunState {
  * (variable-ratio) bonus, which is the engagement-farming pattern.
  */
 /**
- * Any hint the player actually read, however it was paid for. Score only
- * penalises `hintsUsed`, but "did you see a hint" has to count crystals too.
+ * Any assistance the player actually received, however it was paid for.
+ *
+ * Score only penalises `hintsUsed`, but "did you get help" has to count
+ * crystal-funded hints and a revealed answer too — otherwise the rewards for
+ * an unaided solve can be collected without doing one.
  */
 export const hintsSeen = (p: ChallengeProgress | undefined): number =>
-  p ? p.hintsUsed + p.crystalHints : 0;
+  p ? p.hintsUsed + p.crystalHints + (p.solutionRevealed ? 1 : 0) : 0;
 
 export function solveTier(p: ChallengeProgress | undefined): 1 | 2 | 3 {
   if (!p) return 1;
@@ -204,6 +219,9 @@ interface Store {
   resetProfile: () => void;
   /** Dev-only shortcuts. Every one of these marks the run as dev-tainted. */
   devSolve: (which: 'next' | 'all') => void;
+  /** Marks the run dev-assisted without changing anything else. */
+  devTaint: () => void;
+  revealSolution: (challengeId: string) => void;
   devGrant: (patch: Partial<RunState>) => void;
 }
 
@@ -247,7 +265,9 @@ export const useStore = create<Store>()(
               queriesRun: s.run.queriesRun + 1,
               challenges: { ...s.run.challenges, [challengeId]: { ...c, attempts: c.attempts + 1 } },
             },
-            profile: { ...s.profile, totalQueries: s.profile.totalQueries + 1 },
+            profile: s.run.devUsed
+              ? s.profile
+              : { ...s.profile, totalQueries: s.profile.totalQueries + 1 },
           };
         }),
 
@@ -384,14 +404,33 @@ export const useStore = create<Store>()(
       resetProfile: () => set({ profile: initialProfile }),
 
       devSolve: (which) => {
+        // Flag first and unconditionally. Returning early when nothing was
+        // pending left a fully-solved clean run unflagged, so "Finish case"
+        // on it still wrote a dev-assisted completion to the profile.
+        set((s) => ({ run: { ...s.run, devUsed: true } }));
         const pending = CHALLENGES.filter((c) => !get().run.challenges[c.id].solved);
         const target = which === 'all' ? pending : pending.slice(0, 1);
-        if (!target.length) return;
-        // Mark first: solveChallenge awards achievements, and devUsed is what
-        // stops those from reaching the profile.
-        set((s) => ({ run: { ...s.run, devUsed: true } }));
         for (const c of target) get().solveChallenge(c.id, c.solution);
       },
+
+      /** Marks the run dev-assisted without changing anything else. */
+      devTaint: () => set((s) => ({ run: { ...s.run, devUsed: true } })),
+
+      /**
+       * Records that the reference answer was shown. Idempotent, so toggling
+       * the panel cannot stack penalties.
+       */
+      revealSolution: (challengeId) =>
+        set((s) => {
+          const c = s.run.challenges[challengeId];
+          if (c.solved || c.solutionRevealed) return s;
+          return {
+            run: {
+              ...s.run,
+              challenges: { ...s.run.challenges, [challengeId]: { ...c, solutionRevealed: true } },
+            },
+          };
+        }),
 
       devGrant: (patch) => set((s) => ({ run: { ...s.run, ...patch, devUsed: true } })),
     }),

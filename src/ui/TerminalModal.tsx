@@ -23,6 +23,10 @@ interface Props {
   onAttempt: () => void;
   onHint: () => void;
   onSpendCrystal: () => boolean;
+  /** Records that the reference answer was revealed, so it counts as help. */
+  onRevealSolution: () => void;
+  /** True when it was already revealed on a previous visit. */
+  solutionRevealed: boolean;
   onSolved: (query: string) => void;
   onClose: () => void;
 }
@@ -88,6 +92,8 @@ export function TerminalModal({
   onAttempt,
   onHint,
   onSpendCrystal,
+  onRevealSolution,
+  solutionRevealed,
   onSolved,
   onClose,
 }: Props) {
@@ -301,8 +307,21 @@ export function TerminalModal({
               <button className="ghost small" onClick={() => setPane('learn')}>
                 Re-read the lesson
               </button>
-              <button className="ghost small" onClick={() => setShowSolution((s) => !s)}>
-                {showSolution ? 'Hide solution' : 'Show solution'}
+              <button
+                className="ghost small"
+                onClick={() => {
+                  // Record before showing. Revealing the answer is assistance,
+                  // and unrecorded it let a player reveal, paste and submit
+                  // while still collecting the unaided-solve rewards.
+                  if (!showSolution) onRevealSolution();
+                  setShowSolution((s) => !s);
+                }}
+              >
+                {showSolution
+                  ? 'Hide solution'
+                  : solutionRevealed
+                    ? 'Show solution'
+                    : 'Show solution — counts as help'}
               </button>
             </div>
 

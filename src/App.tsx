@@ -59,6 +59,7 @@ export default function App() {
   const readNote = useStore((s) => s.readNote);
   const registerAttempt = useStore((s) => s.registerAttempt);
   const useHint = useStore((s) => s.useHint);
+  const revealSolution = useStore((s) => s.revealSolution);
   const solveChallenge = useStore((s) => s.solveChallenge);
   const spendCrystal = useStore((s) => s.spendCrystal);
   const award = useStore((s) => s.award);
@@ -290,6 +291,16 @@ export default function App() {
               }}
               onHint={() => useHint(activeSpec.id)}
               onSpendCrystal={() => spendCrystal(activeSpec.id)}
+              solutionRevealed={run.challenges[activeSpec.id]?.solutionRevealed ?? false}
+              onRevealSolution={() => {
+                // Costs score like a hint, because revealing the answer is at
+                // least as much help as one. revealSolution() is idempotent so
+                // toggling the panel cannot stack the penalty.
+                if (!run.challenges[activeSpec.id]?.solutionRevealed) {
+                  revealSolution(activeSpec.id);
+                  useHint(activeSpec.id);
+                }
+              }}
               onSolved={(q) => {
                 solveChallenge(activeSpec.id, q);
                 if (activeSpec.unlocksGate) {

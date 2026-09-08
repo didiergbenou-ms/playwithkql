@@ -676,10 +676,21 @@ export class GameScene extends Phaser.Scene {
   // ---- interactions --------------------------------------------------------
 
   private interactLockUntil = 0;
-  /** Honour the OS "reduce motion" setting for shake and camera punch. */
-  private readonly reducedMotion =
-    typeof window !== 'undefined' &&
-    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  /**
+   * Honour the OS "reduce motion" setting for shake and camera punch.
+   *
+   * Read live rather than captured once at scene creation. The Options screen
+   * tells the player to turn the setting on in their OS while the game is
+   * open, and a value captured at construction stayed stale until the whole
+   * Phaser scene was rebuilt — so the game kept shaking while the UI claimed
+   * it had stopped.
+   */
+  private get reducedMotion(): boolean {
+    return (
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+    );
+  }
 
   private interact() {
     if (this.frozen || !this.nearest || this.time.now < this.interactLockUntil) return;

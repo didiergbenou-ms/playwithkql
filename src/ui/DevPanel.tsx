@@ -16,6 +16,7 @@ interface Props {
 export function DevPanel({ onClose, onOpenVerdict }: Props) {
   const run = useStore((s) => s.run);
   const devSolve = useStore((s) => s.devSolve);
+  const devTaint = useStore((s) => s.devTaint);
   const devGrant = useStore((s) => s.devGrant);
   const submitVerdict = useStore((s) => s.submitVerdict);
   const setScreen = useStore((s) => s.setScreen);
@@ -38,6 +39,9 @@ export function DevPanel({ onClose, onOpenVerdict }: Props) {
   };
 
   const finishCase = () => {
+    // Flag explicitly: on an already-complete run solveSome() has nothing to
+    // solve, and this is still a dev-assisted completion.
+    devTaint();
     solveSome('all');
     if (correct) submitVerdict(correct.id, true);
     setScreen('debrief');
@@ -45,6 +49,9 @@ export function DevPanel({ onClose, onOpenVerdict }: Props) {
   };
 
   const jump = (index: number) => {
+    // Warping skips traversal and shortens the run, which flatters the time
+    // score — so it is dev assistance like any other and has to flag the run.
+    devTaint();
     bus.emit('ui:teleport', { roomIndex: index });
     pushToast(`Warped to ${ROOMS[index]?.name ?? `room ${index}`}`);
     onClose();
