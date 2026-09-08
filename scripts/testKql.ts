@@ -28,7 +28,7 @@ import {
   TABLE_META,
   ROOT_CAUSES,
 } from '../src/data/case001';
-import { useStore, hintsSeen, hintsRevealed, solveTier, scoreRun } from '../src/state/store';
+import { useStore, hintsSeen, hintsRevealed, solveTier, scoreRun, challengeXp, challengeMultiplier } from '../src/state/store';
 
 const db = buildDatabase();
 const opts = { now: CASE_NOW };
@@ -1179,6 +1179,43 @@ check('scoring: a revealed answer is charged without faking a hint', () => {
   const clean = scoreRun(useStore.getState().run).accuracy;
 
   assert(withReveal < clean, `revealing the answer did not cost score (${withReveal} vs ${clean})`);
+});
+
+// ---- fourth review round ----------------------------------------------------
+
+check('engine: exponential blowup without any unbounded quantifier is refused', () => {
+  // Counting only `*`, `+` and `{n,}` missed this entirely: `a?a?a?...a` is
+  // built from *bounded* quantifiers, contains no group, sits inside the
+  // length limits, and still doubles in cost per repeat. Measured at 171ms for
+  // thirty repeats, so a pattern twice that long freezes the tab outright.
+  const evil = 'a?'.repeat(30) + 'a'.repeat(30) + 'b';
+  assert(evil.length < 200, 'the probe must be inside the length cap to be meaningful');
+  eq(safeRegex(evil, 'a'.repeat(30)), null, 'the bounded-quantifier blowup was accepted');
+
+  // Real patterns use one or two quantifiers and must be unaffected.
+  for (const p of ['^CONTOSO', 'WEB-0[12]$', 'DC-\\d+', '.*proxy.*', 'https?://', 'a{2,4}b']) {
+    assert(safeRegex(p, 'CONTOSO-WEB-01') !== null, `a safe pattern was refused: ${p}`);
+  }
+});
+
+check('scoring: displayed XP matches what the final score actually awards', () => {
+  // These were two copies of the same formula and they drifted - the reveal
+  // penalty was added to scoreRun but not to challengeXp, so a player could
+  // reveal the answer, see full "+XP" on the celebration, and then find fewer
+  // points in the total.
+  useStore.getState().resetProfile();
+  useStore.getState().startRun(10, 3);
+  const spec = CHALLENGES[0];
+
+  useStore.getState().revealSolution(spec.id);
+  useStore.getState().registerAttempt(spec.id);
+  useStore.getState().solveChallenge(spec.id, spec.solution);
+
+  const p = useStore.getState().run.challenges[spec.id];
+  const shown = challengeXp(spec.points, p);
+  const counted = Math.round(spec.points * challengeMultiplier(p));
+  eq(shown, counted, 'the celebration promised different XP than the score awards');
+  assert(shown < spec.points, 'revealing the answer must visibly cost XP');
 });
 console.log(`\n  ${passed} passed, ${failures.length} failed\n`);
 if (failures.length) {

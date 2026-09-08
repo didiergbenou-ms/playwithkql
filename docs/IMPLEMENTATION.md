@@ -18,8 +18,8 @@ npm run dev            # http://localhost:5173
 Other commands:
 
 ```bash
-npm test               # 94 engine, content, level, reachability and music checks
-npm run test:ui        # 17 render checks ΓÇö what the player actually sees on open
+npm test               # engine, content, level, reachability and music checks
+npm run test:ui        # render checks ΓÇö what the player actually sees on open
 npm run fuzz           # 268 adversarial probes ΓÇö nothing may crash, hang or change meaning
 npm run typecheck      # tsc --noEmit
 npm run build          # production bundle into dist/
@@ -487,7 +487,7 @@ separate surfaces with narrow interfaces between them.
 
 ## Testing
 
-`npm test` runs 88 checks covering engine semantics (`has` is token-based while
+`npm test` covers engine semantics (`has` is token-based while
 `contains` is substring; `sort by` defaults to descending; `bin()` keeps the
 source column name; `arg_max(*)` does not duplicate the `by` column), error
 quality, and **content validation** ΓÇö every authored challenge is verified to be

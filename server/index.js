@@ -183,6 +183,12 @@ app.get('/api/leaderboard', async (req, res) => {
 // unreadable store surfaces as a 500 rather than being silently treated as
 // empty and then overwritten. Express 5 forwards async rejections here.
 app.use((err, _req, res, _next) => {
+  // express.json() rejects malformed bodies before any route runs. Reporting
+  // that as "storage unavailable" blames the server for a client mistake and
+  // would send someone hunting a disk problem that does not exist.
+  if (err instanceof SyntaxError && 'body' in err) {
+    return res.status(400).json({ error: 'invalid JSON body' });
+  }
   console.error('[api]', err);
   res.status(500).json({ error: 'storage unavailable' });
 });

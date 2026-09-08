@@ -172,11 +172,26 @@ export function solveTier(p: ChallengeProgress | undefined): 1 | 2 | 3 {
   return 1;
 }
 
+/**
+ * The fraction of a challenge's points the player kept, after every penalty.
+ *
+ * Defined once because it was previously written out twice — in scoreRun and
+ * in challengeXp — and the two drifted: adding the reveal penalty to the score
+ * but not to the displayed XP meant a player could reveal the answer, see full
+ * "+XP" on the celebration, and then find fewer points in the final total.
+ */
+export function challengeMultiplier(p: ChallengeProgress | undefined): number {
+  if (!p) return 0;
+  const hintPenalty = 0.2 * p.hintsUsed;
+  const revealPenalty = p.solutionRevealed ? 0.2 : 0;
+  const attemptPenalty = 0.05 * Math.max(0, p.attempts - 1);
+  return Math.max(0.3, 1 - hintPenalty - revealPenalty - attemptPenalty);
+}
+
 /** Points this single challenge contributed, after hint/attempt penalties. */
 export function challengeXp(points: number, p: ChallengeProgress | undefined): number {
   if (!p) return 0;
-  const penalty = 0.2 * p.hintsUsed + 0.05 * Math.max(0, p.attempts - 1);
-  return Math.round(points * Math.max(0.3, 1 - penalty));
+  return Math.round(points * challengeMultiplier(p));
 }
 
 export function scoreRun(run: RunState): ScoreBreakdown {  const completion = run.verdictCorrect ? 500 : 0;
@@ -185,13 +200,7 @@ export function scoreRun(run: RunState): ScoreBreakdown {  const completion = ru
   const earned = CHALLENGES.reduce((t, c) => {
     const p = run.challenges[c.id];
     if (!p?.solved) return t;
-    const hintPenalty = 0.2 * p.hintsUsed;
-    // Revealing the answer is charged here rather than by faking a hint. Doing
-    // it by calling useHint() polluted the *displayed* hint count, so reopening
-    // a terminal showed progressive hints the player had never unlocked.
-    const revealPenalty = p.solutionRevealed ? 0.2 : 0;
-    const attemptPenalty = 0.05 * Math.max(0, p.attempts - 1);
-    return t + c.points * Math.max(0.3, 1 - hintPenalty - revealPenalty - attemptPenalty);
+    return t + c.points * challengeMultiplier(p);
   }, 0);
   const accuracy = totalWeight ? Math.round((earned / totalWeight) * 300) : 0;
 

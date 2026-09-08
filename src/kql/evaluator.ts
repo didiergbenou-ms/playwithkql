@@ -31,9 +31,15 @@ import {
  * rather than trusting this comment. 512 was tried first and a test caught it
  * at 255ms, which is a visible stall.
  *
- * Ordinary patterns are unaffected: `^CONTOSO`, `WEB-0[12]$`, `DC-\d+` and
- * `.*proxy.*` all pass. `.*a.*b.*` is refused, and `contains` is the idiomatic
- * KQL for that anyway.
+ * A *total* quantifier cap is needed as well, because exponential blowup does
+ * not require an unbounded quantifier at all: `a?a?a?…a` repeated thirty times
+ * against thirty characters already costs 171ms, and it doubles per repeat
+ * while staying inside the pattern-length limit. Counting only `*`, `+` and
+ * `{n,}` missed that entirely — `?` is bounded but still a branch point.
+ *
+ * Ordinary patterns are unaffected: `^CONTOSO`, `WEB-0[12]$`, `DC-\d+`,
+ * `https?://` and `.*proxy.*` all pass. `.*a.*b.*` is refused, and `contains`
+ * is the idiomatic KQL for that anyway.
  *
  * The genuinely correct fix is a non-backtracking engine (RE2) or running the
  * match in a terminable worker. Both are disproportionate here: the evaluator
@@ -43,9 +49,13 @@ import {
 const MAX_REGEX_PATTERN = 200;
 const MAX_REGEX_SUBJECT = 256;
 const MAX_UNBOUNDED_QUANTIFIERS = 2;
-const QUANTIFIED_GROUP = /\)\s*[+*{]/;
+/** Total branch points, whatever their form. Real patterns use one or two. */
+const MAX_QUANTIFIERS = 4;
+const QUANTIFIED_GROUP = /\)\s*[+*{?]/;
 /** `*`, `+` and open-ended `{n,}` — the quantifiers with no upper limit. */
 const UNBOUNDED_QUANTIFIER = /(?<!\\)[*+]|(?<!\\)\{\d*,\}/g;
+/** Every quantifier form, including `?` and bounded `{n,m}`. */
+const ANY_QUANTIFIER = /(?<!\\)[*+?]|(?<!\\)\{\d*(?:,\d*)?\}/g;
 
 /**
  * Compiles a player-supplied regex, or returns null if it is unsafe.
@@ -59,6 +69,7 @@ const UNBOUNDED_QUANTIFIER = /(?<!\\)[*+]|(?<!\\)\{\d*,\}/g;
 export function safeRegex(pattern: string, subject: string): RegExp | null {
   if (pattern.length > MAX_REGEX_PATTERN || subject.length > MAX_REGEX_SUBJECT) return null;
   if (QUANTIFIED_GROUP.test(pattern)) return null;
+  if ((pattern.match(ANY_QUANTIFIER) ?? []).length > MAX_QUANTIFIERS) return null;
   if ((pattern.match(UNBOUNDED_QUANTIFIER) ?? []).length > MAX_UNBOUNDED_QUANTIFIERS) return null;
   try {
     return new RegExp(pattern);
