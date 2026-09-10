@@ -66,6 +66,10 @@ A playable prototype now lives in this repository: one complete investigation
 (five KQL terminals and a final verdict), a real KQL interpreter, four
 characters and four rooms.
 
+**New to the project?** Follow the [local development guide](docs/LOCAL_DEVELOPMENT.md)
+for the full steps to install the tools, clone `develop`, and run the game on
+Windows, macOS, or Linux.
+
 ```bash
 npm install
 npm run dev

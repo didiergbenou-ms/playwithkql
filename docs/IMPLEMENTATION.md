@@ -10,6 +10,9 @@ Prototype status: **Case 001 "Heartbeat Hills" is complete and playable end to e
 
 ## Quick start
 
+For first-time setup, follow the [local development guide](LOCAL_DEVELOPMENT.md)
+to install the tools, clone `develop`, and start the game on your machine.
+
 ```bash
 npm install
 npm run dev            # http://localhost:5173
