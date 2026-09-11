@@ -15,12 +15,12 @@ Paths below are relative to the repository root.
 3. Work on a personal or feature branch based on current `develop`. Preserve uncommitted work. PRs normally target `develop`; do not merge into `main` or deploy without authorization. The team's intended promotion is `develop` to test, then approved `main` to production; inspect actual workflows before claiming deployment exists.
 4. Use the task map below to read the relevant implementation and tests before editing. Search consumers of any identifier, event, or field being changed.
 
-This map was checked against `develop` at `f2cab1b` on 2026-09-11, following merged PR #11 (the local development guide). Refresh paths and assumptions when the code changes.
+This map was updated alongside the multi-case scaffolds on 2026-09-11, after the local development guide and skill landed in `develop`. Refresh paths and assumptions when the code changes.
 
 ## What exists today
 
 - React + TypeScript owns screens and overlays; Phaser 3 owns the platformer; Zustand owns progression and the persisted profile.
-- One playable case, Heartbeat Hills, spans four rooms and five terminals. It uses synthetic Azure-support data and an in-browser KQL interpreter, not a live Kusto cluster.
+- Three selectable cases each span four rooms and five terminals: Heartbeat Hills (001), Signal Harbor (002), and Relay Ruins (003). The two new maps deliberately reuse Case 001 lessons and synthetic data; their new incident content is still pending.
 - The current lesson sequence is `take`, `distinct`, `where` with `ago()`, `summarize` with `max()`, then applying known syntax to a second table.
 - The README's AI coach, mastery dashboard, and broader mission roadmap are goals, not evidence those features exist.
 - No Azure account, credentials, backend, or database is needed to play locally. The optional API is not connected to the game.
@@ -29,8 +29,9 @@ This map was checked against `develop` at `f2cab1b` on 2026-09-11, following mer
 
 | Change | Start here | Also inspect |
 |---|---|---|
-| Room layout, platforms, pits, spikes, pickups | `src/game/levels/heartbeatHills.ts`: `RoomDef`, `ROOMS`, `parseLevel` | `GameScene.ts` terrain/props, `reach.ts`, level tests |
-| A terminal's lesson, query, hints, evidence or gate | `src/data/case001.ts`: `CHALLENGES`, `EVIDENCE` | Map digits, `ChallengeSpec`, `TerminalModal.tsx`, store and `App.tsx` |
+| Case registration, selection and shared contract | `src/data/cases/index.ts`, `types.ts` | `MainMenu.tsx`, `App.tsx`, `store.ts`: `selectCase`, `startRun` |
+| Room layout, platforms, pits, spikes, pickups | `src/game/levels/heartbeatHills.ts`, `signalHarbor.ts`, `relayRuins.ts` | `parseLevel(caseDef.level)`, `GameScene.ts`, `reach.ts`, case tests |
+| A terminal's lesson, query, hints, evidence or gate | `src/data/cases/case001.ts`, `case002.ts`, `case003.ts` | Original `src/data/case001.ts`, `placeholder.ts`, map digits, `ChallengeSpec`, terminal UI |
 | Synthetic logs or table columns | `src/data/case001.ts`: `buildDatabase`, `TABLE_META`, `CASE_NOW` | Every affected reference query, example, hint, completion and evidence assertion |
 | Query language behavior | `src/kql/lexer.ts`, `parser.ts`, `evaluator.ts`, `types.ts` | `index.ts`, `challenge.ts`, `complete.ts`, `highlight.ts`, `format.ts` |
 | Editor, autocomplete, schema buttons | `src/ui/KqlEditor.tsx`, `TerminalModal.tsx` | KQL helpers, `ModalScrim.tsx`, `App.tsx` keyboard handling, styles |
@@ -50,7 +51,7 @@ In this table, `GameScene.ts` means `src/game/scenes/GameScene.ts`; `store.ts` m
 
 ## Level maps: where and how
 
-Edit the ASCII row strings in `src/game/levels/heartbeatHills.ts`, not generated textures or `dist`.
+Edit the ASCII rows in the relevant map module: `heartbeatHills.ts`, `signalHarbor.ts`, or `relayRuins.ts` under `src/game/levels/`. Do not edit generated textures or `dist`. The common parser takes a `LevelDefinition` containing `rooms`, `notes`, and `gateChars`; `parseLevel()` without an argument still selects Heartbeat Hills for legacy callers.
 
 | Marker | Meaning |
 |---|---|
@@ -66,7 +67,7 @@ Edit the ASCII row strings in `src/game/levels/heartbeatHills.ts`, not generated
 | `n` | Lore board, assigned a `NOTES` entry during parsing |
 | `V` | Verdict console |
 
-Current dimensions: `TILE = 16`, `ROOM_WIDTH = 46`, `ROWS = 13`. Each room is 736 world pixels wide. `ROOMS` orders Customer Office, Monitoring Forest, Server Caverns, Data Center.
+Current dimensions: `TILE = 16`, `ROOM_WIDTH = 46`, `ROWS = 13`. Each room is 736 world pixels wide. Room ordering comes from the selected case's `level.rooms`; the original `ROOMS` export describes only Heartbeat Hills.
 
 - Coordinates are zero-based. `globalCol = roomIndex * ROOM_WIDTH + localCol`; cell centers are `x = globalCol * TILE + TILE / 2`, `y = row * TILE + TILE / 2`.
 - Keep every room at the expected row count and every row within `ROOM_WIDTH`. Short rows are padded. Longer rows warn and the parser reads only the first `ROOM_WIDTH` columns: do not hide objects past that boundary.
@@ -82,11 +83,11 @@ Current dimensions: `TILE = 16`, `ROOM_WIDTH = 46`, `ROWS = 13`. Each room is 73
 4. Check access before and after each gate opens. Full-height gates plus the world ceiling prevent bypassing terminals; a platform must not create a new bypass.
 5. Run the existing level checks, then exercise the affected route in Phaser with all recruits, especially Sparky and Vell. Confirm both landing on the platform and collecting/using the object.
 
-**Reachability caveat:** `src/game/reach.ts` is an approximation. `itemsReachable` uses apex height and a horizontal radius rather than a collision-checked trajectory to each item. It can certify an item behind a wall. Also, runtime movement constants are duplicated in `GameScene.ts` and `physics.ts`; do not assume changing the helper changes the game. Compare both when tuning physics. A green reachability test is not a complete playtest.
+**Reachability caveat:** `src/game/reach.ts` is an approximation. `itemsReachable` uses apex height and a horizontal radius rather than a collision-checked trajectory to each item. It can certify an item behind a wall. Runtime constants now come from `physics.ts`, but the solver is not a full reproduction of Phaser's drag, collision and input behavior. Test standing and running jumps in the browser; a green reachability test is not a complete playtest.
 
 ## Terminal authoring: connect the whole chain
 
-Current wiring:
+Case 001 wiring (the two placeholder factories prefix these IDs with `case002-` or `case003-`):
 
 | Map digit | Challenge ID | Room index | Gate marker / ID |
 |---|---|---|---|
@@ -96,16 +97,16 @@ Current wiring:
 | `4` | `t4-lastseen` | 2 | `K` / `gate-datacenter` |
 | `5` | `t5-why` | 3 | `L` / `gate-core` |
 
-`parseLevel` accepts **only digits 1-5** and stores `Number(char) - 1`. The scene uses that as an array index into `CHALLENGES`. Adding a sixth array entry or typing `6` into the map does not register a terminal. Reordering `CHALLENGES` changes what the existing map digits mean.
+`parseLevel` accepts **only digits 1-5** and stores `Number(char) - 1`. The scene uses that as an index into the selected case's `challenges`. Adding a sixth array entry or typing `6` into the map does not register a terminal. Reordering a case's challenges changes what its map digits mean.
 
 1. Read `src/kql/challenge.ts`: `ChallengeSpec` and `ChallengeConcept` define the contract.
-2. In `case001.ts`, author a stable ID, zero-based `room`, `points`, objective `prompt`, optional `flavour`, `starter`, reference `solution`, progressive `hints`, and post-success `teaches`.
+2. Author the selected case's challenge definition: stable ID, zero-based `room`, `points`, objective `prompt`, optional `flavour`, `starter`, reference `solution`, progressive `hints`, and post-success `teaches`. For 002/003, the current `createPlaceholderCase` call copies the original lessons; replace it with an independent `CaseDefinition` when writing bespoke content. Do not edit the shared source expecting only one placeholder case to change.
 3. Supply `concept.title`, `body`, `pattern`, and a working `example.query` with `example.explain`. Keep Level 1 to one new idea at a time.
 4. Set `requiredOperators` only for deliberate learning requirements; equivalent valid queries should otherwise pass. Use `ordered` when the lesson actually requires ordered output.
-5. Connect `evidenceId` to a real `EVIDENCE` entry. Put observable expected result text in `evidenceTokens`; never claim the query proves something it does not return.
-6. Match `unlocksGate` exactly to a `GATE_CHARS` value, place the corresponding gate cells, and position the terminal on the accessible side. Keep `room` consistent with its map location.
-7. If adding terminals beyond the current range, update parsing, scene lookup, progression/count assumptions, UI and tests together. Missing challenge entries are currently skipped by the scene rather than auto-created.
-8. Check the reference solution, worked example and final hint against `buildDatabase()` with `CASE_NOW`. Check starters are not already the answer, alternative valid answers, missing required operators, wrong results, malformed input, and visible evidence.
+5. Connect `evidenceId` to that case's `evidence`. Put observable expected result text in `evidenceTokens`; never claim the query proves something it does not return.
+6. Match `unlocksGate` exactly to a value in that case's `level.gateChars`, place corresponding gate cells, and position the terminal on the accessible side. Keep `room` consistent with its map location.
+7. If adding terminals beyond the current range, update parsing, scene lookup, progression/count assumptions, UI and tests together. A recognized terminal index with no challenge throws a map-content error; it is not auto-created.
+8. Check the reference solution, worked example and final hint against `caseDef.database()` with `caseDef.now`. Check starters are not already the answer, alternative valid answers, missing required operators, wrong results, malformed input, and visible evidence.
 9. Exercise open, type, run, hint, close/reopen, success and return-to-world. Results must remain readable after success, and the correct gate and waypoint must update.
 
 Runtime flow:
@@ -116,16 +117,16 @@ Runtime flow:
 
 ## Adding a room or another case
 
-**A new room:** update `ROOMS` and relevant map markers/challenges, then inspect the duplicated room-name arrays in `App.tsx` and `store.ts`, `roomProgress`, HUD markers, `ROOM_TRACKS`/`trackForRoom`, checkpoints and developer warp controls. Some consumers derive lengths; others clamp or assume four rooms. Verify every consumer instead of copying a room and assuming registration.
+**A new room:** update the selected map's rooms, markers and challenge room indices. Also update its `musicTracks` and inspect objectives, HUD, checkpoints, developer warp controls and tests. Placeholder authoring validation currently expects four rooms and the terminal sequence `0,1,2,2,3`; change that deliberately if expanding a scaffold.
 
-**A new case is currently a cross-file feature, not just a JSON file.** The app directly imports `case001` and `heartbeatHills` in several places. First search those imports and define how an active case is selected and passed to:
+**A new case uses the registry in `src/data/cases/index.ts`.** Add a `CaseDefinition` and a map, then register the case. The contract supplies:
 
 - Database/schema, deterministic time, challenges, evidence, root causes and causal chain.
 - Scene/map loading, gate IDs, room objectives, notes and music.
 - `MainMenu`, `Briefing`, `TerminalModal`, `VerdictModal`, `Debrief`, `DevPanel` and the store.
-- Run initialization, challenge progress, scoring and any persisted profile migration.
+- Run initialization, challenge progress and scoring. The store records `run.caseId` plus a monotonic `runId`, and changing cases or replaying initializes a fresh run.
 
-Do not report Case 002 complete until it can be selected, played through, solved and replayed without leaking Case 001 state. Preserve the existing case's behavior.
+`getCase` returns stable configuration; never mutate it as gameplay state. Each case's `database()` returns a separate snapshot. Keep case-local challenge, gate, evidence, root-cause and note IDs distinct. Do not report a case complete until it can be selected, played through, solved and replayed without leaking another case's state. Mark unfinished lesson/narrative content explicitly with `placeholder` and `placeholderNotice`.
 
 ## Query engine, assistance and state invariants
 
@@ -168,6 +169,8 @@ Run the following checks from the repository root, **sequentially**, stopping an
 node node_modules\typescript\bin\tsc --noEmit
 node scripts\run.mjs scripts\testKql.ts
 node scripts\run.mjs scripts\testUi.tsx
+node scripts\run.mjs scripts\testCaseContent.ts
+node scripts\run.mjs scripts\testCases.ts
 node scripts\run.mjs scripts\fuzzKql.ts
 node node_modules\vite\bin\vite.js build
 ```
@@ -175,7 +178,7 @@ node node_modules\vite\bin\vite.js build
 The test commands share `.tmp/test.mjs` and delete `.tmp`; running them concurrently races. Read current scripts before assuming isolation. No dependencies or builds are needed for documentation-only changes unless documentation-specific checks exist.
 
 - For code changes, establish the existing baseline, add focused regressions, run affected checks and the full existing suite before handoff.
-- `testKql.ts` covers engine/content/game helpers; `testUi.tsx` includes static rendering and state assertions; `fuzzKql.ts` probes robustness and formatting equivalence. Their passing does not prove browser interaction, audio quality or full physical reachability.
+- `testKql.ts` covers original engine/content/game helpers; `testUi.tsx` includes rendering/state assertions; `testCaseContent.ts` covers registry/maps/lessons; `testCases.ts` covers cross-case state, scoring and replay; `fuzzKql.ts` probes robustness and formatting equivalence. Their passing does not prove browser interaction, audio quality or full physical reachability.
 - Do not run known catastrophic regex or deliberately remove safety guards in the main process or working tree. Prefer isolated fixtures or child processes with enforced deadlines and reliable cleanup. A timing assertion after a blocking call cannot interrupt it.
 - For gameplay changes, test the real route and interaction, not only store mutations or presence of strings in a bundle. State explicitly when browser testing is unavailable.
 - Save text as UTF-8. Do not round-trip native `git show` output through an ambiguously decoded PowerShell text pipeline; this previously corrupted arrows and punctuation. Use byte-preserving reads/copies or explicit UTF-8, and inspect the diff.

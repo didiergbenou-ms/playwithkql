@@ -28,7 +28,15 @@ function SpritePreview({ def, animate }: { def: CharacterDef; animate: boolean }
   return <img className="sprite-preview" src={frame} alt={def.name} />;
 }
 
-export function CharacterSelect({ onPick, onBack }: { onPick: () => void; onBack: () => void }) {
+export function CharacterSelect({
+  caseTitle,
+  onPick,
+  onBack,
+}: {
+  caseTitle: string;
+  onPick: () => void;
+  onBack: () => void;
+}) {
   const chosen = useStore((s) => s.profile.character);
   const setCharacter = useStore((s) => s.setCharacter);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -41,7 +49,7 @@ export function CharacterSelect({ onPick, onBack }: { onPick: () => void; onBack
         <span className="tag tag-cyan">KINGDOM OF SIGNALS</span>
         <h1>Choose your recruit</h1>
         <p className="muted">
-          Four investigators, four ways to cross Heartbeat Hills. The queries are the same — how you
+          Four investigators, four ways to cross {caseTitle}. The queries are the same — how you
           survive the trip is not.
         </p>
       </div>

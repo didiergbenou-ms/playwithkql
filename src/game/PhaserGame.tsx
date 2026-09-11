@@ -3,18 +3,31 @@ import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
 import { bus } from './bus';
 import { GAME_HEIGHT, GAME_WIDTH } from './config';
+import { DEFAULT_CASE_ID } from '../data/cases';
+
+declare global {
+  interface Window {
+    __kql?: { game: Phaser.Game; bus: typeof bus };
+  }
+}
 
 interface Props {
   solvedChallenges: string[];
   openGates: string[];
   characterId: string;
+  caseId?: string;
 }
 
-export function PhaserGame({ solvedChallenges, openGates, characterId }: Props) {
+export function PhaserGame({
+  solvedChallenges,
+  openGates,
+  characterId,
+  caseId = DEFAULT_CASE_ID,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   // captured once — the scene is seeded on boot, then driven by the event bus
-  const seed = useRef({ solvedChallenges, openGates, characterId });
+  const seed = useRef({ solvedChallenges, openGates, characterId, caseId });
 
   useEffect(() => {
     if (!hostRef.current || gameRef.current) return;
@@ -43,11 +56,12 @@ export function PhaserGame({ solvedChallenges, openGates, characterId }: Props) 
     gameRef.current = game;
 
     // debug handle for level designers and automated playtests
-    (window as unknown as { __kql?: unknown }).__kql = { game, bus };
+    window.__kql = { game, bus };
 
     return () => {
       const g = gameRef.current;
       gameRef.current = null;
+      if (window.__kql?.game === g) delete window.__kql;
       // Guard the teardown: rapid navigation could destroy the game while a
       // scene callback was still in flight, throwing "Cannot set properties
       // of null" from Phaser's internals.

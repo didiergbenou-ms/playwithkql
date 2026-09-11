@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
+import type { CaseDefinition } from '../data/cases/types';
 import type { ChallengeSpec } from '../kql/challenge';
 import { gradeChallenge, type GradeResult } from '../kql/challenge';
-import { buildDatabase, CASE_NOW, EVIDENCE, TABLE_META, tableMeta } from '../data/case001';
 import { toDisplayString } from '../kql/evaluator';
 import { runQuery } from '../kql/index';
 import { formatKql, withSourceTable } from '../kql/format';
@@ -9,8 +9,10 @@ import type { Table } from '../kql/types';
 import { KqlEditor } from './KqlEditor';
 import { Collapsible } from './Collapsible';
 import { audio } from '../game/audio';
+import { DEFAULT_CASE_ID, getCase } from '../data/cases';
 
 interface Props {
+  caseDef?: CaseDefinition;
   spec: ChallengeSpec;
   alreadySolved: boolean;
   /**
@@ -33,9 +35,17 @@ interface Props {
 
 const MAX_ROWS_SHOWN = 50;
 
-function ResultTable({ table, showTypes }: { table: Table; showTypes?: boolean }) {
+function ResultTable({
+  table,
+  meta,
+  showTypes,
+}: {
+  table: Table;
+  meta: CaseDefinition['tableMeta'];
+  showTypes?: boolean;
+}) {
   const rows = table.rows.slice(0, MAX_ROWS_SHOWN);
-  const meta = tableMeta(table.name);
+  const tableMeta = meta.find((item) => item.name.toLowerCase() === table.name.toLowerCase());
 
   if (!table.rows.length) {
     return <p className="result-empty">0 rows. The query is valid — it just matched nothing.</p>;
@@ -52,7 +62,7 @@ function ResultTable({ table, showTypes }: { table: Table; showTypes?: boolean }
           <thead>
             <tr>
               {table.columns.map((c) => {
-                const col = meta?.columns.find((m) => m.name === c);
+                const col = tableMeta?.columns.find((m) => m.name === c);
                 return (
                   <th key={c}>
                     {c}
@@ -85,6 +95,7 @@ function ResultTable({ table, showTypes }: { table: Table; showTypes?: boolean }
 }
 
 export function TerminalModal({
+  caseDef = getCase(DEFAULT_CASE_ID),
   spec,
   alreadySolved,
   hintsUsed,
@@ -97,7 +108,7 @@ export function TerminalModal({
   onSolved,
   onClose,
 }: Props) {
-  const db = useMemo(() => buildDatabase(), []);
+  const db = useMemo(() => caseDef.database(), [caseDef]);
   const [query, setQuery] = useState(() => formatKql(spec.starter));
   const [result, setResult] = useState<GradeResult | null>(null);
   const [revealed, setRevealed] = useState(hintsUsed);
@@ -114,17 +125,19 @@ export function TerminalModal({
 
   const preview = useMemo(() => {
     try {
-      return runQuery(`${focusTable} | take 8`, db, { now: CASE_NOW }).table;
+      return runQuery(`${focusTable} | take 8`, db, { now: caseDef.now }).table;
     } catch {
       return null;
     }
-  }, [focusTable, db]);
+  }, [caseDef, focusTable, db]);
 
-  const focusMeta = tableMeta(focusTable);
-  const evidence = spec.evidenceId ? EVIDENCE.find((e) => e.id === spec.evidenceId) : undefined;
+  const focusMeta = caseDef.tableMeta.find((table) => table.name.toLowerCase() === focusTable.toLowerCase());
+  const evidence = spec.evidenceId
+    ? caseDef.evidence.find((item) => item.id === spec.evidenceId)
+    : undefined;
 
   const run = () => {
-    const graded = gradeChallenge(spec, query, db, CASE_NOW);
+    const graded = gradeChallenge(spec, query, db, caseDef.now);
     setResult(graded);
     onAttempt();
     if (graded.status === 'correct' && !solvedNow) {
@@ -146,20 +159,20 @@ export function TerminalModal({
   /** The worked example from the Learn tab, executed for real. */
   const exampleResult = useMemo(() => {
     try {
-      return runQuery(spec.concept.example.query, db, { now: CASE_NOW }).table;
+      return runQuery(spec.concept.example.query, db, { now: caseDef.now }).table;
     } catch {
       return null;
     }
-  }, [spec, db]);
+  }, [caseDef, spec, db]);
 
   // live check state, shown before the player runs anything
   const usedOps = useMemo(() => {
     try {
-      return runQuery(query, db, { now: CASE_NOW }).features;
+      return runQuery(query, db, { now: caseDef.now }).features;
     } catch {
       return new Set<string>();
     }
-  }, [query, db]);
+  }, [caseDef, query, db]);
 
   const checks = [
     ...(spec.requiredOperators ?? []).map((op) => ({
@@ -182,6 +195,9 @@ export function TerminalModal({
         <div>
           <span className="tag tag-amber">KQL TERMINAL</span>
           <h2>{spec.flavour ?? 'Query terminal'}</h2>
+          <p className="modal-subtitle">
+            CASE {caseDef.id} · {caseDef.title}
+          </p>
         </div>
         <button className="ghost" onClick={onClose}>
           Close (Esc)
@@ -196,6 +212,8 @@ export function TerminalModal({
           2 · Solve it
         </button>
       </div>
+
+      {caseDef.placeholderNotice && <p className="case-notice compact">{caseDef.placeholderNotice}</p>}
 
       {pane === 'learn' ? (
         <div className="learn-pane">
@@ -215,7 +233,7 @@ export function TerminalModal({
           {exampleResult && (
             <>
               <p className="example-caption">What that example returns:</p>
-              <ResultTable table={exampleResult} showTypes />
+              <ResultTable table={exampleResult} meta={caseDef.tableMeta} showTypes />
             </>
           )}
 
@@ -270,8 +288,8 @@ export function TerminalModal({
             </div>
           )}
 
-          <Collapsible title="Full schema" badge={`${TABLE_META.length} tables`}>
-            {TABLE_META.map((t) => (
+          <Collapsible title="Full schema" badge={`${caseDef.tableMeta.length} tables`}>
+            {caseDef.tableMeta.map((t) => (
               <div key={t.name} className={`schema-table ${t.name === focusTable ? 'focus' : ''}`}>
                 <div className="schema-head">
                   <button className="schema-name" onClick={() => setQuery((q) => withSourceTable(q, t.name))}>
@@ -349,7 +367,7 @@ export function TerminalModal({
 
         <div className="editor-col">
           <span className="step-label">Step 2 · Write the query</span>
-          <KqlEditor value={query} onChange={setQuery} onRun={run} meta={TABLE_META} autoFocus />
+          <KqlEditor value={query} onChange={setQuery} onRun={run} meta={caseDef.tableMeta} autoFocus />
 
           <div className="editor-actions">
             <button className="primary big" onClick={run}>
@@ -413,7 +431,7 @@ export function TerminalModal({
           <div className="step-block result-block">
             <span className="step-label">Step 3 · Your result</span>
             {result?.table ? (
-              <ResultTable table={result.table} showTypes />
+              <ResultTable table={result.table} meta={caseDef.tableMeta} showTypes />
             ) : (
               <p className="result-empty">
                 Nothing yet — press <strong>Run query</strong> and the rows land here.
@@ -430,7 +448,7 @@ export function TerminalModal({
               This is raw sample data to show you the shape of the table. It is not your query
               result.
             </p>
-            {preview && <ResultTable table={preview} showTypes />}
+            {preview && <ResultTable table={preview} meta={caseDef.tableMeta} showTypes />}
           </Collapsible>
         </div>
         </div>

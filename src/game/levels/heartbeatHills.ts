@@ -125,6 +125,42 @@ export interface LoreNote {
   body: string;
 }
 
+export interface LevelDefinition {
+  rooms: RoomDef[];
+  notes: LoreNote[];
+  gateChars: Record<string, string>;
+}
+
+export function assertLevelDefinition(name: string, definition: LevelDefinition): LevelDefinition {
+  if (definition.rooms.length === 0) throw new Error(`${name}: level must contain at least one room`);
+  if (definition.notes.length === 0) throw new Error(`${name}: level must contain at least one note`);
+
+  const noteIds = new Set<string>();
+  for (const note of definition.notes) {
+    if (noteIds.has(note.id)) throw new Error(`${name}: duplicate note id "${note.id}"`);
+    noteIds.add(note.id);
+  }
+
+  const gateIds = Object.values(definition.gateChars);
+  if (gateIds.length === 0) throw new Error(`${name}: level must define at least one gate`);
+  if (new Set(gateIds).size !== gateIds.length) throw new Error(`${name}: gate ids must be unique`);
+
+  definition.rooms.forEach((room, roomIndex) => {
+    if (room.rows.length !== ROWS) {
+      throw new Error(`${name}: room ${roomIndex + 1} "${room.name}" needs exactly ${ROWS} rows`);
+    }
+    room.rows.forEach((row, rowIndex) => {
+      if (row.length > ROOM_WIDTH) {
+        throw new Error(
+          `${name}: room ${roomIndex + 1} "${room.name}" row ${rowIndex} is ${row.length} chars, max ${ROOM_WIDTH}`,
+        );
+      }
+    });
+  });
+
+  return definition;
+}
+
 /** Lore boards, in world reading order (top-to-bottom, left-to-right). */
 export const NOTES: LoreNote[] = [
   {
@@ -143,6 +179,12 @@ export const NOTES: LoreNote[] = [
     body: `KINGDOM OF SIGNALS\nRule 1 — a machine that writes logs is not a machine that is switched off.\nRule 2 — five things failing in the same minute is one thing failing.\nRule 3 — always ask what changed, then ask who changed it.`,
   },
 ];
+
+export const HEARTBEAT_HILLS: LevelDefinition = assertLevelDefinition('Heartbeat Hills', {
+  rooms: ROOMS,
+  notes: NOTES,
+  gateChars: GATE_CHARS,
+});
 
 export interface ParsedCell {
   char: string;
@@ -175,9 +217,12 @@ export interface ParsedLevel {
 }
 
 /** Turns the ASCII rooms into typed world data. */
-export function parseLevel(): ParsedLevel {
+export function parseLevel(definition: LevelDefinition = HEARTBEAT_HILLS): ParsedLevel {
+  const rooms = definition.rooms;
+  const notes = definition.notes;
+  const gateChars = definition.gateChars;
   const level: ParsedLevel = {
-    width: ROOMS.length * ROOM_WIDTH * TILE,
+    width: rooms.length * ROOM_WIDTH * TILE,
     height: ROWS * TILE,
     solids: [],
     platforms: [],
@@ -191,7 +236,7 @@ export function parseLevel(): ParsedLevel {
     checkpoints: [],
     verdict: null,
     spawn: { x: TILE * 3, y: TILE * 8 },
-    rooms: ROOMS.map((r, i) => ({
+    rooms: rooms.map((r, i) => ({
       name: r.name,
       subtitle: r.subtitle,
       tint: r.tint,
@@ -205,11 +250,11 @@ export function parseLevel(): ParsedLevel {
   let noteCursor = 0;
 
   for (let row = 0; row < ROWS; row++) {
-    for (let roomIndex = 0; roomIndex < ROOMS.length; roomIndex++) {
-      const raw = ROOMS[roomIndex].rows[row] ?? '';
+    for (let roomIndex = 0; roomIndex < rooms.length; roomIndex++) {
+      const raw = rooms[roomIndex].rows[row] ?? '';
       if (raw.length > ROOM_WIDTH) {
         console.warn(
-          `[level] ${ROOMS[roomIndex].name} row ${row} is ${raw.length} chars, max ${ROOM_WIDTH}`,
+          `[level] ${rooms[roomIndex].name} row ${row} is ${raw.length} chars, max ${ROOM_WIDTH}`,
         );
       }
       const line = raw.padEnd(ROOM_WIDTH, ' ');
@@ -238,13 +283,13 @@ export function parseLevel(): ParsedLevel {
         else if (char === 'V') level.verdict = cell;
         else if (char === 'P') level.spawn = { x: cell.x, y: cell.y };
         else if (char === 'n') {
-          const note = NOTES[noteCursor] ?? NOTES[NOTES.length - 1];
+         const note = notes[noteCursor] ?? notes[notes.length - 1];
           noteCursor++;
           level.notes.push({ ...cell, noteId: note.id });
         } else if (char >= '1' && char <= '5') {
           level.terminals.push({ ...cell, challengeIndex: Number(char) - 1 });
-        } else if (char in GATE_CHARS) {
-          level.gates.push({ ...cell, gateId: GATE_CHARS[char] });
+        } else if (char in gateChars) {
+         level.gates.push({ ...cell, gateId: gateChars[char] });
         }
       }
     }

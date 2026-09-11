@@ -1,26 +1,27 @@
 import { useState } from 'react';
-import { CAUSAL_CHAIN, EVIDENCE, ROOT_CAUSES } from '../data/case001';
+import type { CaseDefinition } from '../data/cases/types';
 import { useStore } from '../state/store';
 import { Collapsible } from './Collapsible';
 
 interface Props {
+  caseDef: CaseDefinition;
   onClose: () => void;
   onResolved: () => void;
 }
 
-export function VerdictModal({ onClose, onResolved }: Props) {
+export function VerdictModal({ caseDef, onClose, onResolved }: Props) {
   const run = useStore((s) => s.run);
   const submitVerdict = useStore((s) => s.submitVerdict);
   const [picked, setPicked] = useState<string | null>(null);
   const [wrong, setWrong] = useState<string[]>([]);
   const [showDetail, setShowDetail] = useState(false);
 
-  const collected = EVIDENCE.filter((e) => run.evidence.includes(e.id));
-  const pickedOption = ROOT_CAUSES.find((o) => o.id === picked);
+  const collected = caseDef.evidence.filter((evidence) => run.evidence.includes(evidence.id));
+  const pickedOption = caseDef.rootCauses.find((option) => option.id === picked);
 
   const submit = () => {
     if (!picked) return;
-    const option = ROOT_CAUSES.find((o) => o.id === picked);
+    const option = caseDef.rootCauses.find((rootCause) => rootCause.id === picked);
     if (!option) return;
     if (option.correct) {
       submitVerdict(option.id, true);
@@ -37,11 +38,16 @@ export function VerdictModal({ onClose, onResolved }: Props) {
         <div>
           <span className="tag tag-magenta">VERDICT CONSOLE</span>
           <h2>Name the root cause</h2>
+          <p className="modal-subtitle">
+            CASE {caseDef.id} · {caseDef.title}
+          </p>
         </div>
         <button className="ghost" onClick={onClose}>
           Esc
         </button>
       </header>
+
+      {caseDef.placeholderNotice && <p className="case-notice compact">{caseDef.placeholderNotice}</p>}
 
       <p className="verdict-lede">
         Pick the one theory your evidence cannot contradict, then submit. Wrong answers cost
@@ -67,9 +73,9 @@ export function VerdictModal({ onClose, onResolved }: Props) {
             ))}
           </ul>
 
-          <Collapsible title="Chain so far" badge={`${CAUSAL_CHAIN.length} steps`}>
+          <Collapsible title="Chain so far" badge={`${caseDef.causalChain.length} steps`}>
             <ol className="chain-list">
-              {CAUSAL_CHAIN.map((c) => (
+              {caseDef.causalChain.map((c) => (
                 <li key={c}>{c}</li>
               ))}
             </ol>
@@ -77,7 +83,7 @@ export function VerdictModal({ onClose, onResolved }: Props) {
         </aside>
 
         <div className="options">
-          {ROOT_CAUSES.map((o) => {
+          {caseDef.rootCauses.map((o) => {
             const ruledOut = wrong.includes(o.id);
             return (
               <button

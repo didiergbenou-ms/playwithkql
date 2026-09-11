@@ -1,21 +1,18 @@
 import Phaser from 'phaser';
 import { bus } from '../bus';
-import { CHALLENGES } from '../../data/case001';
+import { DEFAULT_CASE_ID, getCase } from '../../data/cases';
+import type { CaseDefinition } from '../../data/cases/types';
 import { COLORS, PLAYER_H, PLAYER_W, generateTextures, registerAnimations } from '../textures';
 import { characterById, textureKey, type CharacterDef } from '../characters';
 import { TILE, parseLevel, type ParsedLevel } from '../levels/heartbeatHills';
 import { CAMERA_ZOOM, VIEW_WIDTH } from '../config';
 import { audio } from '../audio';
+import {
+  GRAVITY, RUN_SPEED, AIR_ACCEL, GROUND_ACCEL, JUMP_VELOCITY,
+  COYOTE_MS, BUFFER_MS, ENEMY_SPEED, MAX_FALL_SPEED,
+} from '../physics';
 
-const GRAVITY = 780;
-const RUN_SPEED = 118;
-const AIR_ACCEL = 900;
-const GROUND_ACCEL = 1500;
-const JUMP_VELOCITY = -280;
-const COYOTE_MS = 110;
-const BUFFER_MS = 140;
 const DEFAULT_MAX_HEALTH = 3;
-const ENEMY_SPEED = 26;
 
 type Interactable =
   | { kind: 'terminal'; challengeId: string; sprite: Phaser.GameObjects.Sprite; solved: boolean }
@@ -23,6 +20,7 @@ type Interactable =
   | { kind: 'verdict'; sprite: Phaser.GameObjects.Sprite };
 
 interface SceneInit {
+  caseId?: string;
   solvedChallenges?: string[];
   openGates?: string[];
   characterId?: string;
@@ -61,6 +59,7 @@ function mergeRuns(cells: { col: number; row: number }[]): Run[] {
 }
 
 export class GameScene extends Phaser.Scene {
+  private caseDef!: CaseDefinition;
   private level!: ParsedLevel;
   private player!: Phaser.Physics.Arcade.Sprite;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -100,6 +99,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   init(data: SceneInit) {
+    this.caseDef = getCase(data.caseId ?? DEFAULT_CASE_ID);
     this.solvedIds = new Set(data.solvedChallenges ?? []);
     this.initialOpenGates = new Set(data.openGates ?? []);
     this.character = characterById(data.characterId ?? 'quill');
@@ -115,7 +115,7 @@ export class GameScene extends Phaser.Scene {
     generateTextures(this);
     registerAnimations(this);
 
-    this.level = parseLevel();
+    this.level = parseLevel(this.caseDef.level);
     this.fragmentCount = 0;
     this.crystalCount = 0;
     this.maxHealth = this.character.stats.maxHealth;
@@ -124,6 +124,15 @@ export class GameScene extends Phaser.Scene {
     this.currentRoom = -1;
     this.gateSprites = [];
     this.interactables = [];
+    this.checkpointPoints = [];
+    this.nearest = null;
+    this.objectiveTarget = null;
+    this.frozen = false;
+    this.lastGroundedAt = -9999;
+    this.jumpQueuedAt = -9999;
+    this.invulnerableUntil = 0;
+    this.interactLockUntil = 0;
+    this.jumpHeld = false;
     this.solidLookup.clear();
 
     this.buildBackground();
@@ -264,8 +273,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const cell of this.level.terminals) {
-      const spec = CHALLENGES[cell.challengeIndex];
-      if (!spec) continue;
+      const spec = this.caseDef.challenges[cell.challengeIndex];
+      if (!spec) {
+        throw new Error(`Map "${this.caseDef.id}" references missing terminal ${cell.challengeIndex + 1}.`);
+      }
       const solved = this.solvedIds.has(spec.id);
       const sprite = this.add
         .sprite(cell.x, (cell.row + 1) * TILE, solved ? 'terminal_solved' : 'terminal_locked')
@@ -311,7 +322,7 @@ export class GameScene extends Phaser.Scene {
     const stats = this.character.stats;
     this.player = this.physics.add.sprite(x, y, textureKey(this.character.id, 'idle0'));
     this.player.setSize(PLAYER_W, PLAYER_H).setOffset(3, 4);
-    this.player.setMaxVelocity(200 * stats.speed, 460);
+    this.player.setMaxVelocity(200 * stats.speed, MAX_FALL_SPEED);
     this.player.setDragX(800);
     (this.player.body as Phaser.Physics.Arcade.Body).setGravityY(GRAVITY);
     this.player.setDepth(10);

@@ -2,17 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PhaserGame } from './game/PhaserGame';
 import { bus } from './game/bus';
 import { parseLevel } from './game/levels/heartbeatHills';
-import { CHALLENGES, EVIDENCE } from './data/case001';
 import {
   challengeXp,
-  currentObjective,
   solveTier,
   useStore,
   hintsSeen,
   hintsRevealed,
+  currentObjective,
 } from './state/store';
 import { audio } from './game/audio';
-import { trackForRoom } from './game/music';
 import { Celebration, type CelebrationData } from './ui/Celebration';
 import { MainMenu } from './ui/MainMenu';
 import { CharacterSelect } from './ui/CharacterSelect';
@@ -26,6 +24,7 @@ import { VerdictModal } from './ui/VerdictModal';
 import { Debrief } from './ui/Debrief';
 import { DevPanel } from './ui/DevPanel';
 import { ModalScrim } from './ui/ModalScrim';
+import { CASES, getCase } from './data/cases';
 import { devActive, initDevMode, onDevChange } from './dev/secret';
 
 type Overlay =
@@ -37,8 +36,6 @@ type Overlay =
   | { kind: 'options' }
   | { kind: 'dev' }
   | null;
-
-const ROOM_NAMES = ['Customer Office', 'Monitoring Forest', 'Server Caverns', 'Data Center'];
 
 /** Accessible names for each overlay, announced when the dialog opens. */
 const OVERLAY_LABELS: Record<NonNullable<Overlay>['kind'], string> = {
@@ -67,6 +64,8 @@ export default function App() {
   const toasts = useStore((s) => s.toasts);
   const dismissToast = useStore((s) => s.dismissToast);
   const character = useStore((s) => s.profile.character);
+  const selectedCaseId = useStore((s) => s.selectedCaseId);
+  const selectCaseFromStore = useStore((s) => s.selectCase);
 
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [dev, setDev] = useState(devActive());
@@ -81,7 +80,10 @@ export default function App() {
     };
   }, []);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
-  const level = useMemo(() => parseLevel(), []);
+
+  const selectedCaseDef = getCase(selectedCaseId);
+  const runCaseDef = getCase(run.caseId);
+  const selectedLevel = useMemo(() => parseLevel(selectedCaseDef.level), [selectedCaseDef]);
 
   // Unlock audio on the first real gesture — browsers keep the context
   // suspended until then.
@@ -104,12 +106,14 @@ export default function App() {
           crystals: h.crystals,
           health: h.health,
           maxHealth: h.maxHealth,
-          room: h.room || 'Customer Office',
+          room: h.room || runCaseDef.level.rooms[0].name,
         }),
       ),
       bus.on('game:terminal', ({ challengeId }) => setOverlay({ kind: 'terminal', challengeId })),
       // Music follows the room, so the score doubles as orientation.
-      bus.on('game:room', ({ index }) => audio.playTrack(trackForRoom(index))),
+      bus.on('game:room', ({ index }) =>
+        audio.playTrack(runCaseDef.musicTracks[index] ?? runCaseDef.musicTracks[0] ?? 'office'),
+      ),
       bus.on('game:note', ({ noteId }) => {
         readNote(noteId);
         setOverlay({ kind: 'note', noteId });
@@ -120,7 +124,7 @@ export default function App() {
       bus.on('game:death', () => setHud({ deaths: useStore.getState().run.deaths + 1 })),
     ];
     return () => offs.forEach((off) => off());
-  }, [setHud, readNote]);
+  }, [setHud, readNote, runCaseDef]);
 
   // --- ui -> game (pause while any overlay is up) --------------------------
   useEffect(() => {
@@ -144,10 +148,10 @@ export default function App() {
   // One track per phase of the game. In-game the room drives it instead
   // (see the game:room listener), so this only seeds the starting room.
   useEffect(() => {
-    if (screen === 'playing') audio.playTrack('office');
+    if (screen === 'playing') audio.playTrack(runCaseDef.musicTracks[0] ?? 'office');
     else if (screen === 'debrief') audio.playTrack('closed');
     else audio.playTrack('keep');
-  }, [screen]);
+  }, [screen, runCaseDef]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -188,13 +192,15 @@ export default function App() {
   }, [overlay, screen, celebration, dev]);
 
   /** Keep the in-world waypoint pointed at whatever the player should do next. */
-  const solvedIds = CHALLENGES.filter((c) => run.challenges[c.id]?.solved).map((c) => c.id);
+  const solvedIds = runCaseDef.challenges
+    .filter((challenge) => run.challenges[challenge.id]?.solved)
+    .map((challenge) => challenge.id);
   const solvedKey = solvedIds.join(',');
 
   const pushObjective = useCallback((ids: string[]) => {
-    const obj = currentObjective(ids);
+    const obj = currentObjective(ids, runCaseDef.id);
     bus.emit('ui:objective', { challengeId: obj.challengeId, finale: obj.finale });
-  }, []);
+  }, [runCaseDef]);
 
   useEffect(() => {
     if (screen !== 'playing') return;
@@ -206,11 +212,13 @@ export default function App() {
   useEffect(() => {
     const off = bus.on('game:ready', () =>
       pushObjective(
-        CHALLENGES.filter((c) => useStore.getState().run.challenges[c.id]?.solved).map((c) => c.id),
+        runCaseDef.challenges
+          .filter((challenge) => useStore.getState().run.challenges[challenge.id]?.solved)
+          .map((challenge) => challenge.id),
       ),
     );
     return off;
-  }, [pushObjective]);
+  }, [pushObjective, runCaseDef]);
 
   useEffect(() => {
     if (!toasts.length) return;
@@ -219,47 +227,67 @@ export default function App() {
   }, [toasts, dismissToast]);
 
   const begin = useCallback(() => {
-    startRun(level.totalFragments, level.totalCrystals);
+    startRun(selectedLevel.totalFragments, selectedLevel.totalCrystals, selectedCaseDef.id);
     setOverlay(null);
-  }, [startRun, level]);
+    setCelebration(null);
+  }, [startRun, selectedCaseDef, selectedLevel]);
+
+  const selectCase = useCallback(
+    (caseId: string) => {
+      selectCaseFromStore(caseId);
+      setOverlay(null);
+      setCelebration(null);
+    },
+    [selectCaseFromStore],
+  );
 
   const activeSpec =
     overlay?.kind === 'terminal'
-      ? CHALLENGES.find((c) => c.id === overlay.challengeId)
+      ? runCaseDef.challenges.find((challenge) => challenge.id === overlay.challengeId)
       : undefined;
 
   return (
     <div className="app">
       {screen === 'menu' && (
         <MainMenu
+          cases={CASES}
+          selectedCaseId={selectedCaseId}
+          onSelectCase={selectCase}
           onStart={() => setScreen('select')}
           onOptions={() => setOverlay({ kind: 'options' })}
         />
       )}
 
       {screen === 'select' && (
-        <CharacterSelect onPick={() => setScreen('briefing')} onBack={() => setScreen('menu')} />
+        <CharacterSelect
+          caseTitle={selectedCaseDef.title}
+          onPick={() => setScreen('briefing')}
+          onBack={() => setScreen('menu')}
+        />
       )}
 
-      {screen === 'briefing' && <Briefing onBegin={begin} onBack={() => setScreen('select')} />}
+      {screen === 'briefing' && (
+        <Briefing caseDef={selectedCaseDef} onBegin={begin} onBack={() => setScreen('select')} />
+      )}
 
       {screen === 'playing' && (
         <div className="stage">
           <Hud
+            caseDef={runCaseDef}
             onNotebook={() => setOverlay({ kind: 'notebook' })}
             onReference={() => setOverlay({ kind: 'reference' })}
             onOptions={() => setOverlay({ kind: 'options' })}
             onQuit={() => {
               setOverlay(null);
+              setCelebration(null);
               setScreen('menu');
             }}
           />
           <PhaserGame
-            key={`${run.startedAt}-${character}`}
+            key={`${run.runId}-${runCaseDef.id}-${character}`}
             characterId={character}
-            solvedChallenges={Object.entries(run.challenges)
-              .filter(([, p]) => p.solved)
-              .map(([id]) => id)}
+            caseId={runCaseDef.id}
+            solvedChallenges={solvedIds}
             openGates={run.openGates}
           />
           <p className="stage-hint">
@@ -276,7 +304,7 @@ export default function App() {
       )}
 
       {screen === 'debrief' && (
-        <Debrief onMenu={() => setScreen('menu')} onReplay={begin} />
+        <Debrief caseDef={runCaseDef} onMenu={() => setScreen('menu')} onReplay={begin} />
       )}
 
       {overlay && (
@@ -288,6 +316,8 @@ export default function App() {
         >
           {activeSpec && overlay.kind === 'terminal' && (
             <TerminalModal
+              key={`${runCaseDef.id}-${activeSpec.id}`}
+              caseDef={runCaseDef}
               spec={activeSpec}
               alreadySolved={run.challenges[activeSpec.id]?.solved ?? false}
               hintsUsed={hintsRevealed(run.challenges[activeSpec.id])}
@@ -318,8 +348,8 @@ export default function App() {
                 const st = useStore.getState().run;
                 const prog = st.challenges[activeSpec.id];
                 const tier = solveTier(prog);
-                const next = CHALLENGES.find(
-                  (c) => c.id !== activeSpec.id && !st.challenges[c.id]?.solved,
+                const next = runCaseDef.challenges.find(
+                  (challenge) => challenge.id !== activeSpec.id && !st.challenges[challenge.id]?.solved,
                 );
                 // Deliberately do NOT close the terminal here. The player needs
                 // to see the table their correct query returned — that result
@@ -340,10 +370,10 @@ export default function App() {
                   streak:
                     st.cleanStreak >= 2 ? `${st.cleanStreak} clean in a row` : undefined,
                   evidence: activeSpec.evidenceId
-                    ? EVIDENCE.find((e) => e.id === activeSpec.evidenceId)?.title
+                    ? runCaseDef.evidence.find((evidence) => evidence.id === activeSpec.evidenceId)?.title
                     : undefined,
                   nextHint: next
-                    ? `Gate open — head to ${ROOM_NAMES[next.room]}`
+                    ? `Gate open — head to ${runCaseDef.level.rooms[next.room].name}`
                     : 'All terminals solved — reach the verdict console',
                 });
               }}
@@ -356,13 +386,14 @@ export default function App() {
           {overlay.kind === 'options' && <OptionsModal onClose={() => setOverlay(null)} />}
 
           {overlay.kind === 'note' && (
-            <NoteModal noteId={overlay.noteId} onClose={() => setOverlay(null)} />
+            <NoteModal caseDef={runCaseDef} noteId={overlay.noteId} onClose={() => setOverlay(null)} />
           )}
 
-          {overlay.kind === 'notebook' && <Notebook onClose={() => setOverlay(null)} />}
+          {overlay.kind === 'notebook' && <Notebook caseDef={runCaseDef} onClose={() => setOverlay(null)} />}
 
           {overlay.kind === 'dev' && (
             <DevPanel
+              caseDef={screen === 'playing' ? runCaseDef : selectedCaseDef}
               onClose={() => setOverlay(null)}
               onOpenVerdict={() => setOverlay({ kind: 'verdict' })}
             />
@@ -370,6 +401,7 @@ export default function App() {
 
           {overlay.kind === 'verdict' && (
             <VerdictModal
+              caseDef={runCaseDef}
               onClose={() => setOverlay(null)}
               onResolved={() => {
                 setOverlay(null);

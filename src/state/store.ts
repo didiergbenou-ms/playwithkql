@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CHALLENGES, EVIDENCE } from '../data/case001';
+import { DEFAULT_CASE_ID, getCase } from '../data/cases';
+import { parseLevel } from '../game/levels/heartbeatHills';
 
 export type Screen = 'menu' | 'select' | 'briefing' | 'playing' | 'debrief';
 
@@ -30,6 +31,8 @@ export interface ChallengeProgress {
 }
 
 export interface RunState {
+  caseId: string;
+  runId: number;
   startedAt: number;
   finishedAt: number | null;
   fragments: number;
@@ -105,8 +108,17 @@ export interface ScoreBreakdown {
   total: number;
 }
 
-function emptyRun(totalFragments: number, totalCrystals: number): RunState {
+let nextRunId = 0;
+
+function emptyRun(
+  totalFragments: number,
+  totalCrystals: number,
+  caseId = DEFAULT_CASE_ID,
+): RunState {
+  const caseDef = getCase(caseId);
   return {
+    caseId,
+    runId: ++nextRunId,
     startedAt: Date.now(),
     finishedAt: null,
     fragments: 0,
@@ -116,13 +128,13 @@ function emptyRun(totalFragments: number, totalCrystals: number): RunState {
     totalCrystals,
     health: 3,
     maxHealth: 3,
-    room: 'Customer Office',
+    room: caseDef.level.rooms[0].name,
     notesRead: [],
     deaths: 0,
     queriesRun: 0,
     cleanStreak: 0,
     challenges: Object.fromEntries(
-      CHALLENGES.map((c) => [
+      caseDef.challenges.map((c) => [
         c.id,
         { attempts: 0, hintsUsed: 0, crystalHints: 0, solutionRevealed: false, solved: false },
       ]),
@@ -194,10 +206,12 @@ export function challengeXp(points: number, p: ChallengeProgress | undefined): n
   return Math.round(points * challengeMultiplier(p));
 }
 
-export function scoreRun(run: RunState): ScoreBreakdown {  const completion = run.verdictCorrect ? 500 : 0;
+export function scoreRun(run: RunState): ScoreBreakdown {
+  const completion = run.verdictCorrect ? 500 : 0;
+  const challenges = getCase(run.caseId).challenges;
 
-  const totalWeight = CHALLENGES.reduce((t, c) => t + c.points, 0);
-  const earned = CHALLENGES.reduce((t, c) => {
+  const totalWeight = challenges.reduce((t, c) => t + c.points, 0);
+  const earned = challenges.reduce((t, c) => {
     const p = run.challenges[c.id];
     if (!p?.solved) return t;
     return t + c.points * challengeMultiplier(p);
@@ -223,13 +237,15 @@ export function rankFor(score: number): { name: string; next?: Rank } {
 
 interface Store {
   screen: Screen;
+  selectedCaseId: string;
   run: RunState;
   profile: Profile;
   /** Newly earned achievements queued for the toast strip. */
   toasts: { id: string; text: string }[];
 
   setScreen: (s: Screen) => void;
-  startRun: (totalFragments: number, totalCrystals: number) => void;
+  selectCase: (caseId: string) => void;
+  startRun: (totalFragments: number, totalCrystals: number, caseId?: string) => void;
   setHud: (p: Partial<RunState>) => void;
   readNote: (id: string) => void;
   registerAttempt: (challengeId: string) => void;
@@ -259,18 +275,45 @@ const initialProfile: Profile = {
   character: 'quill',
 };
 
+function requireChallenge(run: RunState, challengeId: string) {
+  const spec = getCase(run.caseId).challenges.find((c) => c.id === challengeId);
+  if (!spec || !run.challenges[challengeId]) {
+    throw new Error(`Challenge "${challengeId}" does not belong to active case "${run.caseId}".`);
+  }
+  return spec;
+}
+
 export const useStore = create<Store>()(
   persist(
     (set, get) => ({
       screen: 'menu',
+      selectedCaseId: DEFAULT_CASE_ID,
       run: emptyRun(0, 0),
       profile: initialProfile,
       toasts: [],
 
       setScreen: (screen) => set({ screen }),
 
-      startRun: (totalFragments, totalCrystals) =>
-        set({ run: emptyRun(totalFragments, totalCrystals), screen: 'playing' }),
+      selectCase: (caseId) => {
+        const caseDef = getCase(caseId);
+        if (get().screen === 'playing') {
+          throw new Error('Return to the case menu before changing cases.');
+        }
+        const level = parseLevel(caseDef.level);
+        set({
+          selectedCaseId: caseId,
+          run: emptyRun(level.totalFragments, level.totalCrystals, caseId),
+          toasts: [],
+        });
+      },
+
+      startRun: (totalFragments, totalCrystals, caseId = get().selectedCaseId) =>
+        set({
+          selectedCaseId: caseId,
+          run: emptyRun(totalFragments, totalCrystals, caseId),
+          screen: 'playing',
+          toasts: [],
+        }),
 
       setHud: (p) => set((s) => ({ run: { ...s.run, ...p } })),
 
@@ -283,6 +326,7 @@ export const useStore = create<Store>()(
 
       registerAttempt: (challengeId) =>
         set((s) => {
+          requireChallenge(s.run, challengeId);
           const c = s.run.challenges[challengeId];
           return {
             run: {
@@ -298,6 +342,7 @@ export const useStore = create<Store>()(
 
       useHint: (challengeId) =>
         set((s) => {
+          requireChallenge(s.run, challengeId);
           const c = s.run.challenges[challengeId];
           return {
             run: {
@@ -317,6 +362,7 @@ export const useStore = create<Store>()(
        */
       spendCrystal: (challengeId) => {
         const s = get();
+        requireChallenge(s.run, challengeId);
         if (s.run.crystalsSpent >= s.run.crystals) return false;
         set((st) => ({
           run: {
@@ -338,7 +384,7 @@ export const useStore = create<Store>()(
       },
 
       solveChallenge: (challengeId, query) => {
-        const spec = CHALLENGES.find((c) => c.id === challengeId);
+        const spec = requireChallenge(get().run, challengeId);
         set((s) => {
           const c = s.run.challenges[challengeId];
           if (c.solved) return s;
@@ -367,10 +413,23 @@ export const useStore = create<Store>()(
         const { run, award } = get();
         const progress = run.challenges[challengeId];
         if (progress.attempts <= 1 && hintsSeen(progress) === 0) award('first-try');
-        if (CHALLENGES.every((c) => run.challenges[c.id].solved)) award('kusto-master');
+        if (getCase(run.caseId).challenges.every((c) => run.challenges[c.id].solved)) {
+          award('kusto-master');
+        }
       },
 
-      submitVerdict: (optionId, correct) => {        set((s) => ({
+      submitVerdict: (optionId, correct) => {
+        const activeRun = get().run;
+        const caseDef = getCase(activeRun.caseId);
+        const option = caseDef.rootCauses.find((candidate) => candidate.id === optionId);
+        if (!option || Boolean(option.correct) !== correct) {
+          throw new Error(`Invalid verdict for active case "${activeRun.caseId}".`);
+        }
+        if (activeRun.finishedAt !== null) return;
+        if (correct && !caseDef.challenges.every((c) => activeRun.challenges[c.id]?.solved)) {
+          throw new Error('Solve the active case terminals before submitting its verdict.');
+        }
+        set((s) => ({
           run: { ...s.run, verdictId: optionId, verdictCorrect: correct, finishedAt: Date.now() },
         }));
 
@@ -386,7 +445,7 @@ export const useStore = create<Store>()(
         award('case-closed');
         if (run.fragments >= run.totalFragments) award('archivist');
         if (run.crystals >= run.totalCrystals) award('crystallographer');
-        if (run.notesRead.length >= 3) award('librarian');
+        if (caseDef.level.notes.every((note) => run.notesRead.includes(note.id))) award('librarian');
         if (run.deaths === 0) award('flawless');
         if (Object.values(run.challenges).every((c) => hintsSeen(c) === 0)) award('no-hints');
         if ((run.finishedAt ?? Date.now()) - run.startedAt < 8 * 60_000) award('quickdraw');
@@ -433,7 +492,10 @@ export const useStore = create<Store>()(
         // pending left a fully-solved clean run unflagged, so "Finish case"
         // on it still wrote a dev-assisted completion to the profile.
         set((s) => ({ run: { ...s.run, devUsed: true } }));
-        const pending = CHALLENGES.filter((c) => !get().run.challenges[c.id].solved);
+        const activeRun = get().run;
+        const pending = getCase(activeRun.caseId).challenges.filter(
+          (c) => !activeRun.challenges[c.id].solved,
+        );
         const target = which === 'all' ? pending : pending.slice(0, 1);
         for (const c of target) get().solveChallenge(c.id, c.solution);
       },
@@ -447,6 +509,7 @@ export const useStore = create<Store>()(
        */
       revealSolution: (challengeId) =>
         set((s) => {
+          requireChallenge(s.run, challengeId);
           const c = s.run.challenges[challengeId];
           if (c.solved || c.solutionRevealed) return s;
           return {
@@ -466,7 +529,8 @@ export const useStore = create<Store>()(
   ),
 );
 
-export const evidenceById = (id: string) => EVIDENCE.find((e) => e.id === id);
+export const evidenceById = (id: string, caseId = DEFAULT_CASE_ID) =>
+  getCase(caseId).evidence.find((e) => e.id === id);
 
 export interface Objective {
   /** One line telling the player exactly what to do next. */
@@ -482,38 +546,43 @@ export interface Objective {
   total: number;
 }
 
-const ROOM_NAMES = ['Customer Office', 'Monitoring Forest', 'Server Caverns', 'Data Center'];
-
 /** Derives "what should I be doing right now" from run state. */
-export function currentObjective(solvedIds: string[]): Objective {
+export function currentObjective(solvedIds: string[], caseId = DEFAULT_CASE_ID): Objective {
+  const caseDef = getCase(caseId);
+  const challenges = caseDef.challenges;
   const solvedSet = new Set(solvedIds);
-  const next = CHALLENGES.find((c) => !solvedSet.has(c.id));
-  const solved = CHALLENGES.filter((c) => solvedSet.has(c.id)).length;
+  const next = challenges.find((c) => !solvedSet.has(c.id));
+  const solved = challenges.filter((c) => solvedSet.has(c.id)).length;
 
   if (!next) {
+    const finalRoom = caseDef.level.rooms.length - 1;
     return {
-      text: 'All terminals solved — reach the verdict console in the Data Center',
-      room: 3,
+      text: `All terminals solved — reach the verdict console in the ${caseDef.level.rooms[finalRoom].name}`,
+      room: finalRoom,
       finale: true,
       solved,
-      total: CHALLENGES.length,
+      total: challenges.length,
     };
   }
   return {
-    text: `Find and solve the KQL terminal in ${ROOM_NAMES[next.room]}`,
+    text: `Find and solve the KQL terminal in ${caseDef.level.rooms[next.room].name}`,
     room: next.room,
     challengeId: next.id,
     finale: false,
     solved,
-    total: CHALLENGES.length,
+    total: challenges.length,
   };
 }
 
 /** Terminal counts per room, for the progress strip. */
-export function roomProgress(solvedIds: string[]): { name: string; solved: number; total: number }[] {
+export function roomProgress(
+  solvedIds: string[],
+  caseId = DEFAULT_CASE_ID,
+): { name: string; solved: number; total: number }[] {
+  const caseDef = getCase(caseId);
   const solvedSet = new Set(solvedIds);
-  return ROOM_NAMES.map((name, i) => {
-    const inRoom = CHALLENGES.filter((c) => c.room === i);
+  return caseDef.level.rooms.map(({ name }, i) => {
+    const inRoom = caseDef.challenges.filter((c) => c.room === i);
     return {
       name,
       solved: inRoom.filter((c) => solvedSet.has(c.id)).length,
