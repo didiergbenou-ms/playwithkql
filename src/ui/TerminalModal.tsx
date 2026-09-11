@@ -3,7 +3,7 @@ import type { CaseDefinition } from '../data/cases/types';
 import type { ChallengeSpec } from '../kql/challenge';
 import { gradeChallenge, type GradeResult } from '../kql/challenge';
 import { toDisplayString } from '../kql/evaluator';
-import { runQuery } from '../kql/index';
+import { collectFeatures, KqlError, parse, runQuery } from '../kql/index';
 import { formatKql, withSourceTable } from '../kql/format';
 import type { Table } from '../kql/types';
 import { KqlEditor } from './KqlEditor';
@@ -34,6 +34,16 @@ interface Props {
 }
 
 const MAX_ROWS_SHOWN = 50;
+
+export function getLiveQueryFeatures(query: string): Set<string> {
+  if (!query.trim()) return new Set<string>();
+  try {
+    return collectFeatures(parse(query));
+  } catch (err) {
+    if (err instanceof KqlError) return new Set<string>();
+    throw err;
+  }
+}
 
 function ResultTable({
   table,
@@ -167,12 +177,8 @@ export function TerminalModal({
 
   // live check state, shown before the player runs anything
   const usedOps = useMemo(() => {
-    try {
-      return runQuery(query, db, { now: caseDef.now }).features;
-    } catch {
-      return new Set<string>();
-    }
-  }, [caseDef, query, db]);
+    return getLiveQueryFeatures(query);
+  }, [query]);
 
   const checks = [
     ...(spec.requiredOperators ?? []).map((op) => ({

@@ -62,11 +62,13 @@ class FakeClock {
     for (;;) {
       const next = this.nextDue(target);
       if (!next) break;
-      this.nowMs = next.at;
+      // A delayed callback fires at the current time, not back in the past.
+      // Missed setInterval ticks are not replayed one by one after a stall.
+      this.nowMs = Math.max(this.nowMs, next.at);
       if (next.interval === null) {
         this.tasks.delete(next.id);
       } else {
-        next.at += next.interval;
+        next.at = this.nowMs + next.interval;
       }
       next.cb();
       if (!next.active) this.tasks.delete(next.id);
@@ -312,6 +314,7 @@ function withHarness(run: (h: Harness) => void) {
   try {
     run({ audio, clock, ctx });
   } finally {
+    audio.stopMusic();
     restoreProperty('setTimeout', originals.setTimeout);
     restoreProperty('clearTimeout', originals.clearTimeout);
     restoreProperty('setInterval', originals.setInterval);

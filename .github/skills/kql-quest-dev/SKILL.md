@@ -40,6 +40,8 @@ This map was updated alongside the multi-case scaffolds on 2026-09-11, after the
 | Recruit appearance or stats | `src/game/characters.ts`: `CHARACTERS`, frames, hats | `textures.ts`, `CharacterSelect.tsx`, default character IDs in store and scene |
 | Pixel art or props | `src/game/textures.ts`, `propSprites.ts`, `characters.ts` | Scene sprite origins, hitboxes and floor placement |
 | Canvas size, camera or parallax | `src/game/config.ts`, `PhaserGame.tsx`, `GameScene.ts` | `src/styles.css` stage sizing |
+| Startup loading, pause or teardown | `App.tsx`, `PhaserGame.tsx`, `GameScene.ts` | `GameplayLoadError.ts`, `ErrorBoundary.tsx`, lifecycle safeguards below |
+| Menu map previews | `src/ui/CaseMapThumbnail.tsx`, `caseMapThumbnailData.ts` | Immutable case level definitions, `MainMenu.tsx`, `testPerfUi.tsx` |
 | Progress, hints, XP, rank, achievements | `src/state/store.ts` | `App.tsx`, `Hud.tsx`, `MainMenu.tsx`, `Celebration.tsx`, `Debrief.tsx` |
 | Root-cause choices and final result | `case001.ts`: `ROOT_CAUSES`, `CAUSAL_CHAIN` | `VerdictModal.tsx`, `Debrief.tsx`, map `V`, `submitVerdict` |
 | Menu, briefing, notebook, options | Matching component in `src/ui/` | Screen/overlay state in `App.tsx`, `ModalScrim.tsx`, styles |
@@ -115,6 +117,8 @@ Runtime flow:
 
 `gradeChallenge` compares actual result tables against the reference query plus optional operator constraints. Do not replace this with query-text matching. `evidenceTokens` is an authoring-test contract, not a substitute for checking actual rendered output.
 
+Live operator ticks in `TerminalModal.getLiveQueryFeatures` only parse and collect syntax features. Do not execute the database on every keystroke. Actual Run, example execution and previews still use the interpreter.
+
 ## Adding a room or another case
 
 **A new room:** update the selected map's rooms, markers and challenge room indices. Also update its `musicTracks` and inspect objectives, HUD, checkpoints, developer warp controls and tests. Placeholder authoring validation currently expects four rooms and the terminal sequence `0,1,2,2,3`; change that deliberately if expanding a scaffold.
@@ -147,9 +151,13 @@ Runtime flow:
 - Global keyboard handling must respect `defaultPrevented`. Escape should dismiss completion before closing the terminal. Tab must provide a way out of the editor; currently an open completion popup accepts Tab, so check that case too. Preserve Ctrl+Enter run and Ctrl+Space completion behavior.
 - Phaser key capture can prevent spaces and arrows even while its keyboard plugin is disabled. Preserve pause/resume and global-capture handling when opening editors.
 - Verify scene/bus cleanup for both shutdown and whole-game destruction. Abandon, re-enter and replay must not leave duplicate listeners or a black screen.
+- `App` lazy-loads gameplay, preloading at recruit selection rather than the initial menu. Preserve the sized Suspense fallback and re-send overlay state on `game:ready`. A `GameplayLoadError` requires Reload; resetting the boundary alone cannot clear React's cached rejected import.
+- Overlays sleep the Phaser loop after `POST_RENDER`, keeping bus handlers live. Resume removes pending sleep, resets delta, then wakes. `destroy(true)` is deferred until a frame: wake an already-running sleeping game during cleanup, and remove the pending READY scene-start callback when abandoning before boot. Test both paths.
+- Menu thumbnails cache merged geometry by level object identity. Treat case/map definitions as immutable; preserve every colored cell when changing the compaction.
 - With camera zoom, parallax uses `camera.worldView.x`, not an assumption that `scrollX` is the visible left edge.
 - Pixel sprites have fixed dimensions and collision offsets. Ragged sprite rows or trailing transparent rows under bottom-origin props can cause broken rendering or floating terminals.
 - Music lives in `music.ts` (tracks, patterns, room mapping) and `audio.ts` (voices, scheduling, gains). Preserve user volume/on-off settings, modal ducking and focus fade. Keep channels aligned and use original compositions/assets.
+- After focus fade, stop music scheduling and owned sources, not SFX. Resume preserves track/step but rebases stale audio time; music off/volume zero must not synthesize. Preserve cancellation tokens for rapid focus changes and the stalled-scheduler bound.
 - Motion settings can change while playing. Check actual shake, camera zoom and particle behavior, not just the text in Options.
 - The optional `server/index.js` binds to loopback and refuses production mode, but remains unauthenticated and trusts client data. Local-only/CORS restrictions are not identity or score validation. Do not expose it or describe its leaderboard as trusted production gameplay.
 
@@ -171,6 +179,8 @@ node scripts\run.mjs scripts\testKql.ts
 node scripts\run.mjs scripts\testUi.tsx
 node scripts\run.mjs scripts\testCaseContent.ts
 node scripts\run.mjs scripts\testCases.ts
+node scripts\run.mjs scripts\testAudioScheduling.ts
+node scripts\run.mjs scripts\testPerfUi.tsx
 node scripts\run.mjs scripts\fuzzKql.ts
 node node_modules\vite\bin\vite.js build
 ```
@@ -179,6 +189,7 @@ The test commands share `.tmp/test.mjs` and delete `.tmp`; running them concurre
 
 - For code changes, establish the existing baseline, add focused regressions, run affected checks and the full existing suite before handoff.
 - `testKql.ts` covers original engine/content/game helpers; `testUi.tsx` includes rendering/state assertions; `testCaseContent.ts` covers registry/maps/lessons; `testCases.ts` covers cross-case state, scoring and replay; `fuzzKql.ts` probes robustness and formatting equivalence. Their passing does not prove browser interaction, audio quality or full physical reachability.
+- `testAudioScheduling.ts` uses a monotonic fake clock with coalesced overdue timers for fade cancellation, silent scheduling, SFX isolation and long stalls. `testPerfUi.tsx` checks syntax-only features, independent thumbnail cell parity/cache reuse and failed-import recovery. These run sequentially via `test:performance` and CI.
 - Do not run known catastrophic regex or deliberately remove safety guards in the main process or working tree. Prefer isolated fixtures or child processes with enforced deadlines and reliable cleanup. A timing assertion after a blocking call cannot interrupt it.
 - For gameplay changes, test the real route and interaction, not only store mutations or presence of strings in a bundle. State explicitly when browser testing is unavailable.
 - Save text as UTF-8. Do not round-trip native `git show` output through an ambiguously decoded PowerShell text pipeline; this previously corrupted arrows and punctuation. Use byte-preserving reads/copies or explicit UTF-8, and inspect the diff.
