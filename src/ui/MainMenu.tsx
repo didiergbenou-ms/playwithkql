@@ -1,10 +1,62 @@
+import type { CaseDefinition } from '../data/cases/types';
 import { ACHIEVEMENTS, RANKS, rankFor, useStore } from '../state/store';
-import { CASE } from '../data/case001';
+import { ROOM_WIDTH, ROWS } from '../game/levels/heartbeatHills';
 
-export function MainMenu({ onStart, onOptions }: { onStart: () => void; onOptions: () => void }) {
+function CaseMapThumbnail({ caseDef }: { caseDef: CaseDefinition }) {
+  const width = caseDef.level.rooms.length * ROOM_WIDTH;
+  const height = ROWS;
+  let offset = 0;
+  const tiles = caseDef.level.rooms.flatMap((room) => {
+    const roomTiles = room.rows.flatMap((row, y) =>
+      [...row].flatMap((char, x) => {
+        if (char === ' ') return [];
+        const fill =
+          char === '#'
+            ? '#6f6ac4'
+            : char === '='
+              ? '#f7c948'
+              : char === '^'
+                ? '#e5404f'
+                : char === 'P' || char === '@'
+                  ? '#4fe6e6'
+                  : /[1-5V]/.test(char)
+                    ? '#5fd97a'
+                    : /[GHJKL]/.test(char)
+                      ? '#e451c8'
+                      : '#45418c';
+        return <rect key={`${offset + x}-${y}-${char}`} x={offset + x} y={y} width="1" height="1" fill={fill} />;
+      }),
+    );
+    offset += ROOM_WIDTH;
+    return roomTiles;
+  });
+
+  return (
+    <svg
+      className="case-thumb"
+      viewBox={`0 0 ${width} ${height}`}
+      aria-hidden="true"
+      preserveAspectRatio="none"
+    >
+      <rect width={width} height={height} fill="#0d0b1a" />
+      {tiles}
+    </svg>
+  );
+}
+
+interface Props {
+  cases: CaseDefinition[];
+  selectedCaseId: string;
+  onSelectCase: (caseId: string) => void;
+  onStart: () => void;
+  onOptions: () => void;
+}
+
+export function MainMenu({ cases, selectedCaseId, onSelectCase, onStart, onOptions }: Props) {
   const profile = useStore((s) => s.profile);
   const resetProfile = useStore((s) => s.resetProfile);
   const rank = rankFor(profile.lifetimeScore);
+  const selectedCase = cases.find((caseDef) => caseDef.id === selectedCaseId) ?? cases[0];
   const progress = rank.next
     ? Math.min(100, ((profile.lifetimeScore - (RANKS.find((r) => r.name === rank.name)?.min ?? 0)) /
         (rank.next.min - (RANKS.find((r) => r.name === rank.name)?.min ?? 0))) * 100)
@@ -24,13 +76,44 @@ export function MainMenu({ onStart, onOptions }: { onStart: () => void; onOption
 
         <div className="menu-case">
           <div>
-            <span className="case-no">CASE {CASE.id}</span>
-            <h2>{CASE.title}</h2>
-            <p>{CASE.summary}</p>
+            <span className="case-no">CASE {selectedCase.id}</span>
+            <h2>{selectedCase.title}</h2>
+            <p>{selectedCase.summary}</p>
+            {selectedCase.placeholder && (
+              <p className="prototype-note">Prototype — reused training tasks</p>
+            )}
           </div>
           <button className="primary big" onClick={onStart}>
             Open case file
           </button>
+        </div>
+
+        <div className="case-dossiers" role="group" aria-label="Available case files">
+          {cases.map((caseDef) => {
+            const selected = caseDef.id === selectedCaseId;
+            return (
+              <button
+                key={caseDef.id}
+                type="button"
+                className={`case-dossier ${selected ? 'selected' : ''}`}
+                onClick={() => onSelectCase(caseDef.id)}
+                aria-label={`Select case ${caseDef.id}: ${caseDef.title}`}
+                aria-pressed={selected}
+              >
+                <div className="case-dossier-head">
+                  <span className="case-no">CASE {caseDef.id}</span>
+                  {caseDef.placeholder && <span className="case-mini-tag">Prototype</span>}
+                </div>
+                <strong>{caseDef.title}</strong>
+                <span className="case-customer">{caseDef.customer}</span>
+                <CaseMapThumbnail caseDef={caseDef} />
+                <span className="case-summary">{caseDef.summary}</span>
+                {caseDef.placeholder && (
+                  <span className="prototype-note">Prototype — reused training tasks</span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div className="menu-secondary">

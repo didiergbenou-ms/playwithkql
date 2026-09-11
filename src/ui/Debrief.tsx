@@ -1,8 +1,16 @@
-import { CAUSAL_CHAIN, CHALLENGES, CULPRIT, PROXY_HOST } from '../data/case001';
+import type { CaseDefinition } from '../data/cases/types';
 import { formatKql } from '../kql/format';
 import { ACHIEVEMENTS, rankFor, scoreRun, useStore } from '../state/store';
 
-export function Debrief({ onMenu, onReplay }: { onMenu: () => void; onReplay: () => void }) {
+export function Debrief({
+  caseDef,
+  onMenu,
+  onReplay,
+}: {
+  caseDef: CaseDefinition;
+  onMenu: () => void;
+  onReplay: () => void;
+}) {
   const run = useStore((s) => s.run);
   const profile = useStore((s) => s.profile);
   const score = scoreRun(run);
@@ -19,30 +27,20 @@ export function Debrief({ onMenu, onReplay }: { onMenu: () => void; onReplay: ()
   return (
     <div className="screen debrief">
       <div className="panel debrief-main">
-        <span className="tag tag-cyan">CASE 001 — CLOSED</span>
+        <span className="tag tag-cyan">CASE {caseDef.id} — CLOSED</span>
         {run.devUsed && (
           <p className="dev-warn">
             Dev shortcuts were used on this run. The score below is not a real result and nothing
             was written to your profile.
           </p>
         )}
-        <h1>Proxy misconfiguration</h1>
-        <p className="lede">
-          The five machines never stopped running. At 09:02Z an agent proxy setting was pushed to{' '}
-          <code>rg-contoso-prod</code>, pointing every agent at{' '}
-          <code>http://{PROXY_HOST}</code> — plain HTTP, with a bypass list covering{' '}
-          <code>*.contoso.local</code> and nothing else. No Azure Monitor endpoint was exempt, so
-          TLS died at the proxy and the agents went silent at 09:15Z while still logging the failure
-          locally, which is exactly what you found.
-        </p>
-
-        <p className="muted">
-          The change was made by <code>{CULPRIT}</code>. Proving that from the activity log needs{' '}
-          <code>parse_json</code> to read the change payload — that is Case 002.
-        </p>
+        <h1>{caseDef.debrief.title}</h1>
+        {caseDef.placeholderNotice && <p className="case-notice">{caseDef.placeholderNotice}</p>}
+        <p className="lede">{caseDef.debrief.body}</p>
+        <p className="muted">{caseDef.debrief.followUp}</p>
 
         <ol className="chain-list big">
-          {CAUSAL_CHAIN.map((c) => (
+          {caseDef.causalChain.map((c) => (
             <li key={c}>{c}</li>
           ))}
         </ol>
@@ -50,7 +48,7 @@ export function Debrief({ onMenu, onReplay }: { onMenu: () => void; onReplay: ()
         <section>
           <h3>Your queries</h3>
           <ul className="own-queries">
-            {CHALLENGES.map((c) => {
+            {caseDef.challenges.map((c) => {
               const p = run.challenges[c.id];
               return (
                 <li key={c.id} className={p?.solved ? 'got' : ''}>
@@ -105,7 +103,7 @@ export function Debrief({ onMenu, onReplay }: { onMenu: () => void; onReplay: ()
 
         <h3>What you actually learned</h3>
         <ul className="learned">
-          {CHALLENGES.map((c) => (
+          {caseDef.challenges.map((c) => (
             <li key={c.id} className={run.challenges[c.id]?.solved ? 'got' : ''}>
               <code>{c.requiredOperators?.join(' · ') ?? 'kql'}</code>
               <span>{c.teaches}</span>

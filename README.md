@@ -62,9 +62,19 @@ The experience uses a polished retro fantasy style with pixel art, an emerald CR
 
 ## Project status
 
-A playable prototype now lives in this repository: one complete investigation
-(five KQL terminals and a final verdict), a real KQL interpreter, four
-characters and four rooms.
+A playable prototype now lives in this repository: a real KQL interpreter,
+four characters, and three selectable case files.
+
+| Case | Map | Content status |
+|---|---|---|
+| 001 | Heartbeat Hills | Original investigation, five terminals and a final verdict |
+| 002 | Signal Harbor | New four-room map; reuses Case 001 lessons and data for now |
+| 003 | Relay Ruins | New four-room map; reuses Case 001 lessons and data for now |
+
+Cases 002 and 003 are playable scaffolds for later content authoring, not new
+support diagnoses. Each has its own terminal, gate, evidence and note IDs.
+Choose a case before choosing a recruit; replay and switching start fresh runs.
+Profiles remain shared across cases, and in-progress runs are not saved on reload.
 
 **New to the project?** Follow the [local development guide](docs/LOCAL_DEVELOPMENT.md)
 for the full steps to install the tools, clone `develop`, and run the game on

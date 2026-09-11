@@ -15,6 +15,7 @@ import { TerminalModal } from '../src/ui/TerminalModal';
 import { VerdictModal } from '../src/ui/VerdictModal';
 import { CHALLENGES, ROOT_CAUSES } from '../src/data/case001';
 import { useStore } from '../src/state/store';
+import { getCase } from '../src/data/cases';
 
 let passed = 0;
 const failures: string[] = [];
@@ -178,7 +179,9 @@ check('the worked example labels its output as the example result', () => {
 
 // ---- verdict console -------------------------------------------------------
 
-const verdictHtml = () => renderToStaticMarkup(<VerdictModal onClose={noop} onResolved={noop} />);
+const verdictHtml = () => renderToStaticMarkup(
+  <VerdictModal caseDef={getCase('001')} onClose={noop} onResolved={noop} />,
+);
 
 check('submit verdict is pinned, not floated at the end of a long scroll', () => {
   const html = verdictHtml();

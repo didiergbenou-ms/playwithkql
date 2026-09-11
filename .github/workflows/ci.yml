@@ -37,6 +37,11 @@ jobs:
       - name: UI tests
         run: node scripts/run.mjs scripts/testUi.tsx
 
+      - name: Case content and isolation
+        run: |
+          node scripts/run.mjs scripts/testCaseContent.ts
+          node scripts/run.mjs scripts/testCases.ts
+
       # Adversarial input against the KQL parser. This is what caught the
       # stack overflow on deeply nested parentheses.
       - name: Fuzz

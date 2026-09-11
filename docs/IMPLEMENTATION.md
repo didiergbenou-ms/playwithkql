@@ -6,6 +6,44 @@ for **correct queries**.
 
 Prototype status: **Case 001 "Heartbeat Hills" is complete and playable end to end.**
 
+## Case files and map scaffolds
+
+The menu now offers Heartbeat Hills (001), Signal Harbor (002), and Relay Ruins
+(003). The latter two have new geometry but deliberately reuse the original
+beginner KQL tasks, synthetic dataset and verdict. Their menus, briefings,
+terminals and debriefs label this reuse; bespoke incident content is pending.
+
+| Authoring task | File |
+|---|---|
+| Register/select a case | `src/data/cases/index.ts` |
+| Shared case contract | `src/data/cases/types.ts` (`CaseDefinition`) |
+| Original content adapter | `src/data/cases/case001.ts` |
+| Signal Harbor content | `src/data/cases/case002.ts` |
+| Relay Ruins content | `src/data/cases/case003.ts` |
+| Temporary lesson-copy factory | `src/data/cases/placeholder.ts` |
+| Harbor geometry, room names, notes | `src/game/levels/signalHarbor.ts` |
+| Ruins geometry, room names, notes | `src/game/levels/relayRuins.ts` |
+| Common parser and original map | `src/game/levels/heartbeatHills.ts` |
+
+`createPlaceholderCase` currently copies the Case 001 lessons and prefixes
+their IDs and links. To author a genuinely new investigation, replace that
+factory call with a `CaseDefinition` supplying its own database, schema,
+challenges, evidence, root causes and debrief; keep the map's terminal order
+and gate links consistent. Do not edit the original dataset expecting a
+case-specific change: the placeholder factory intentionally reuses it.
+
+`getCase` returns a stable definition; treat it as configuration, not run state.
+Databases returned by each case's factory are independent snapshots. The
+selected case is passed to Phaser at scene creation and through the UI. Run
+state includes `caseId` and a fresh `runId`, which prevents stale scenes on
+rapid replay. Score, objectives, notes, dev shortcuts and verdicts use that
+case's definition. The existing profile storage key and aggregate profile
+fields are unchanged; active runs still do not survive a reload.
+
+`npm run test:cases` checks the registry, content wiring, maps, case switching,
+replay and scoring isolation. The existing reachability helper is heuristic;
+its passing is not a substitute for traversing the actual Phaser map.
+
 ---
 
 ## Quick start

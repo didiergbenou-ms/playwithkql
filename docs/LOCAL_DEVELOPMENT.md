@@ -122,6 +122,7 @@ development server:
 npm run typecheck
 npm test
 npm run test:ui
+npm run test:cases
 npm run fuzz
 npm run build
 ```

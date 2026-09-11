@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run.mjs scripts/testKql.ts",
     "test:ui": "node scripts/run.mjs scripts/testUi.tsx",
+    "test:cases": "node scripts/run.mjs scripts/testCaseContent.ts && node scripts/run.mjs scripts/testCases.ts",
     "fuzz": "node scripts/run.mjs scripts/fuzzKql.ts",
     "server": "node server/index.js"
   },

@@ -1,10 +1,10 @@
-import { CHALLENGES, ROOT_CAUSES } from '../data/case001';
-import { ROOMS } from '../game/levels/heartbeatHills';
+import type { CaseDefinition } from '../data/cases/types';
 import { bus } from '../game/bus';
 import { useStore } from '../state/store';
 import { disableDev } from '../dev/secret';
 
 interface Props {
+  caseDef: CaseDefinition;
   onClose: () => void;
   onOpenVerdict: () => void;
 }
@@ -13,7 +13,7 @@ interface Props {
  * Dev-only shortcut panel. Reachable solely once the passphrase has unlocked
  * dev mode, so it never appears for a player on the public build.
  */
-export function DevPanel({ onClose, onOpenVerdict }: Props) {
+export function DevPanel({ caseDef, onClose, onOpenVerdict }: Props) {
   const run = useStore((s) => s.run);
   const devSolve = useStore((s) => s.devSolve);
   const devTaint = useStore((s) => s.devTaint);
@@ -22,19 +22,21 @@ export function DevPanel({ onClose, onOpenVerdict }: Props) {
   const setScreen = useStore((s) => s.setScreen);
   const pushToast = useStore((s) => s.pushToast);
 
-  const solved = CHALLENGES.filter((c) => run.challenges[c.id]?.solved).length;
-  const correct = ROOT_CAUSES.find((o) => o.correct);
+  const solved = caseDef.challenges.filter((challenge) => run.challenges[challenge.id]?.solved).length;
+  const correct = caseDef.rootCauses.find((option) => option.correct);
 
   /**
    * The store deliberately does not know about the game bus, so the gate
    * animation is driven from here — same as the real solve path in App.
    */
   const solveSome = (which: 'next' | 'all') => {
-    const pending = CHALLENGES.filter((c) => !run.challenges[c.id]?.solved);
+    const pending = caseDef.challenges.filter((challenge) => !run.challenges[challenge.id]?.solved);
     const target = which === 'all' ? pending : pending.slice(0, 1);
     devSolve(which);
-    for (const c of target) {
-      if (c.unlocksGate) bus.emit('ui:openGate', { gateId: c.unlocksGate, challengeId: c.id });
+    for (const challenge of target) {
+      if (challenge.unlocksGate) {
+        bus.emit('ui:openGate', { gateId: challenge.unlocksGate, challengeId: challenge.id });
+      }
     }
   };
 
@@ -53,7 +55,7 @@ export function DevPanel({ onClose, onOpenVerdict }: Props) {
     // score — so it is dev assistance like any other and has to flag the run.
     devTaint();
     bus.emit('ui:teleport', { roomIndex: index });
-    pushToast(`Warped to ${ROOMS[index]?.name ?? `room ${index}`}`);
+    pushToast(`Warped to ${caseDef.level.rooms[index]?.name ?? `room ${index}`}`);
     onClose();
   };
 
@@ -62,31 +64,33 @@ export function DevPanel({ onClose, onOpenVerdict }: Props) {
       <header className="modal-head">
         <div>
           <span className="tag tag-magenta">DEV</span>
-          <h2>Shortcuts</h2>
+          <h2>{caseDef.title} shortcuts</h2>
         </div>
         <button className="ghost" onClick={onClose}>
           Esc
         </button>
       </header>
 
+      {caseDef.placeholderNotice && <p className="case-notice compact">{caseDef.placeholderNotice}</p>}
+
       <p className="dev-warn">
         Anything you touch here flags the run, so it will not write to your profile, score or
         achievements. Use a clean run for real numbers.
       </p>
 
-      <h3>Terminals ({solved}/{CHALLENGES.length} solved)</h3>
+      <h3>Terminals ({solved}/{caseDef.challenges.length} solved)</h3>
       <div className="dev-row">
         <button
           className="ghost small"
           onClick={() => solveSome('next')}
-          disabled={solved >= CHALLENGES.length}
+          disabled={solved >= caseDef.challenges.length}
         >
           Solve next
         </button>
         <button
           className="ghost small"
           onClick={() => solveSome('all')}
-          disabled={solved >= CHALLENGES.length}
+          disabled={solved >= caseDef.challenges.length}
         >
           Solve all + open gates
         </button>
@@ -94,9 +98,9 @@ export function DevPanel({ onClose, onOpenVerdict }: Props) {
 
       <h3>Warp</h3>
       <div className="dev-row">
-        {ROOMS.map((r, i) => (
-          <button key={r.name} className="ghost small" onClick={() => jump(i)}>
-            {i + 1}. {r.name}
+        {caseDef.level.rooms.map((room, i) => (
+          <button key={room.name} className="ghost small" onClick={() => jump(i)}>
+            {i + 1}. {room.name}
           </button>
         ))}
       </div>

@@ -1,9 +1,23 @@
-import { CAUSAL_CHAIN, EVIDENCE } from '../data/case001';
-import { NOTES } from '../game/levels/heartbeatHills';
+import type { CaseDefinition } from '../data/cases/types';
 import { useStore } from '../state/store';
+import { getCase } from '../data/cases';
 
-export function NoteModal({ noteId, onClose }: { noteId: string; onClose: () => void }) {
-  const note = NOTES.find((n) => n.id === noteId);
+function useActiveCase(caseDef?: CaseDefinition) {
+  const runCaseId = useStore((s) => s.run.caseId);
+  return caseDef ?? getCase(runCaseId);
+}
+
+export function NoteModal({
+  caseDef,
+  noteId,
+  onClose,
+}: {
+  caseDef?: CaseDefinition;
+  noteId: string;
+  onClose: () => void;
+}) {
+  const activeCase = useActiveCase(caseDef);
+  const note = activeCase.level.notes.find((item) => item.id === noteId);
   if (!note) return null;
   return (
     <div className="modal note-modal">
@@ -26,9 +40,10 @@ export function NoteModal({ noteId, onClose }: { noteId: string; onClose: () => 
   );
 }
 
-export function Notebook({ onClose }: { onClose: () => void }) {
+export function Notebook({ caseDef, onClose }: { caseDef?: CaseDefinition; onClose: () => void }) {
+  const activeCase = useActiveCase(caseDef);
   const run = useStore((s) => s.run);
-  const collected = EVIDENCE.filter((e) => run.evidence.includes(e.id));
+  const collected = activeCase.evidence.filter((evidence) => run.evidence.includes(evidence.id));
 
   return (
     <div className="modal notebook-modal">
@@ -36,7 +51,7 @@ export function Notebook({ onClose }: { onClose: () => void }) {
         <div>
           <span className="tag tag-cyan">INVESTIGATION NOTES</span>
           <h2>
-            {collected.length} of {EVIDENCE.length} filed
+            CASE {activeCase.id} · {collected.length} of {activeCase.evidence.length} filed
           </h2>
         </div>
         <button className="ghost" onClick={onClose}>
@@ -62,7 +77,7 @@ export function Notebook({ onClose }: { onClose: () => void }) {
       <section className="chain">
         <h3>Working theory</h3>
         <ol>
-          {CAUSAL_CHAIN.map((step, i) => (
+          {activeCase.causalChain.map((step, i) => (
             <li key={step} className={i < collected.length ? 'lit' : ''}>
               {i < collected.length ? step : '???'}
             </li>

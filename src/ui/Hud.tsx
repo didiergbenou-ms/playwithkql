@@ -1,45 +1,54 @@
-import { CHALLENGES } from '../data/case001';
+import type { CaseDefinition } from '../data/cases/types';
 import { currentObjective, roomProgress, useStore } from '../state/store';
 
 interface Props {
+  caseDef: CaseDefinition;
   onNotebook: () => void;
   onReference: () => void;
   onOptions: () => void;
   onQuit: () => void;
 }
 
-export function Hud({ onNotebook, onReference, onOptions, onQuit }: Props) {
+export function Hud({ caseDef, onNotebook, onReference, onOptions, onQuit }: Props) {
   const run = useStore((s) => s.run);
-  const solvedIds = CHALLENGES.filter((c) => run.challenges[c.id]?.solved).map((c) => c.id);
-  const objective = currentObjective(solvedIds);
-  const rooms = roomProgress(solvedIds);
-  const currentRoomIndex = rooms.findIndex((r) => r.name === run.room);
+  const solvedIds = caseDef.challenges
+    .filter((challenge) => run.challenges[challenge.id]?.solved)
+    .map((challenge) => challenge.id);
+  const objective = currentObjective(solvedIds, caseDef.id);
+  const rooms = roomProgress(solvedIds, caseDef.id);
+  const currentRoomIndex = rooms.findIndex((room) => room.name === run.room);
   const crystalsLeft = run.crystals - run.crystalsSpent;
 
   return (
     <div className="hud">
+      <div className="hud-case">
+        <span className="hud-case-no">CASE {caseDef.id}</span>
+        <strong>{caseDef.title}</strong>
+        {caseDef.placeholder && <em>Prototype</em>}
+      </div>
+
       {/* where you are: one chip per room, current one lit */}
       <div className="hud-rooms" aria-label="Progress through the level">
-        {rooms.map((r, i) => (
+        {rooms.map((room, index) => (
           <div
-            key={r.name}
+            key={room.name}
             className={[
               'room-chip',
-              i === currentRoomIndex ? 'here' : '',
-              r.total > 0 && r.solved === r.total ? 'clear' : '',
-              i === objective.room ? 'target' : '',
+              index === currentRoomIndex ? 'here' : '',
+              room.total > 0 && room.solved === room.total ? 'clear' : '',
+              index === objective.room ? 'target' : '',
             ]
               .filter(Boolean)
               .join(' ')}
-            title={`${r.name} — ${r.solved}/${r.total} terminals`}
+            title={`${room.name} — ${room.solved}/${room.total} terminals`}
           >
-            <span className="room-name">{r.name}</span>
-            {r.total > 0 && (
+            <span className="room-name">{room.name}</span>
+            {room.total > 0 && (
               <span className="room-count">
-                {r.solved}/{r.total}
+                {room.solved}/{room.total}
               </span>
             )}
-            {i === currentRoomIndex && <span className="room-you">YOU</span>}
+            {index === currentRoomIndex && <span className="room-you">YOU</span>}
           </div>
         ))}
       </div>
@@ -63,8 +72,8 @@ export function Hud({ onNotebook, onReference, onOptions, onQuit }: Props) {
             <i className="dot magenta" /> {crystalsLeft} free hint{crystalsLeft === 1 ? '' : 's'}
           </span>
           <span className="hud-health" aria-label={`Health ${run.health} of ${run.maxHealth}`}>
-            {Array.from({ length: run.maxHealth }, (_, i) => (
-              <i key={i} className={i < run.health ? 'heart on' : 'heart'} />
+            {Array.from({ length: run.maxHealth }, (_, index) => (
+              <i key={index} className={index < run.health ? 'heart on' : 'heart'} />
             ))}
           </span>
         </div>
