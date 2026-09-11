@@ -80,6 +80,10 @@ why, and for what is deliberately not built yet.
 
 ## Contributing
 
+AI coding assistants can use the repository's
+[KQL Quest development skill](.github/skills/kql-quest-dev/SKILL.md) to locate
+level maps, wire terminals and gates, and follow the development workflows.
+
 Ideas, mission scenarios, KQL examples, game design, accessibility feedback, and implementation contributions are welcome. Open an issue to propose a change or describe how you would like to help.
 
 ## Responsible development
