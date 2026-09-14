@@ -107,6 +107,10 @@ export const DEFAULT_SETTINGS: AudioSettings = {
 const STORAGE_KEY = 'kql-quest-audio';
 const LOOKAHEAD_MS = 25;
 const SCHEDULE_AHEAD = 0.14;
+const SCHEDULER_START_LEAD = 0.06;
+const FOCUS_FADE_OUT = 1.6;
+const FOCUS_FADE_IN = 0.9;
+const MAX_STALLED_STEPS = 16;
 /** Music drops to this fraction while a modal is open, so reading is easier. */
 const DUCK = 0.35;
 
@@ -116,6 +120,24 @@ interface Prepared {
   events: NoteEvent[];
   steps: number;
   vibrato: boolean;
+}
+
+interface LegacyAudioWindow extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
+interface OwnedMusicSource {
+  stop(at: number): void;
+  cleanup(): void;
+}
+
+export interface AudioDebugState {
+  currentTrack: TrackId | null;
+  step: number;
+  schedulerRunning: boolean;
+  scheduledMusicSources: number;
+  focusStopPending: boolean;
+  focused: boolean;
 }
 
 /**
@@ -134,7 +156,7 @@ const DRUM_SPEC: Record<DrumName, { type: BiquadFilterType; hz: number; q: numbe
   openHat: { type: 'highpass', hz: 6200, q: 1, dur: 0.17, gain: 0.16 },
 };
 
-class GameAudio {
+export class GameAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private sfxBus: GainNode | null = null;
@@ -154,6 +176,9 @@ class GameAudio {
   private currentTrack: TrackId | null = null;
   private ducked = false;
   private focused = false;
+  private focusStopTimer: ReturnType<typeof setTimeout> | null = null;
+  private focusStopToken = 0;
+  private musicSources = new Set<OwnedMusicSource>();
 
   constructor() {
     this.settings = { ...DEFAULT_SETTINGS, ...this.load() };
@@ -190,13 +215,8 @@ class GameAudio {
     this.save();
     this.applyVolumes();
 
-    if (this.settings.musicOn) {
-      this.unlock();
-      if (this.currentTrack && !this.timer) this.startScheduler();
-    } else {
-      this.stopScheduler();
-    }
-    if (this.settings.sfxOn) this.unlock();
+    if (this.settings.sfxOn || this.shouldRunScheduler()) this.unlock();
+    this.syncMusicPlayback();
   }
 
   setEnabled(on: boolean) {
@@ -238,16 +258,26 @@ class GameAudio {
   setFocusMode(on: boolean) {
     if (this.focused === on) return;
     this.focused = on;
-    this.rampMusic(on ? 1.6 : 0.9);
+    if (on) {
+      this.rampMusic(FOCUS_FADE_OUT);
+      if (this.canSynthesizeMusic() && this.timer) this.scheduleFocusStop(FOCUS_FADE_OUT);
+      return;
+    }
+
+    this.cancelFocusStop();
+    if (this.shouldRunScheduler()) {
+      this.unlock();
+      this.startScheduler();
+    }
+    this.rampMusic(FOCUS_FADE_IN);
   }
 
   /** Must be called from a user gesture, or the context stays suspended. */
   unlock() {
     try {
       if (!this.ctx) {
-        const Ctor =
-          window.AudioContext ??
-          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        const legacyWindow = window as LegacyAudioWindow;
+        const Ctor = window.AudioContext ?? legacyWindow.webkitAudioContext;
         if (!Ctor) return;
         this.ctx = new Ctor();
         this.master = this.ctx.createGain();
@@ -261,7 +291,7 @@ class GameAudio {
         this.applyVolumes();
       }
       if (this.ctx.state === 'suspended') void this.ctx.resume();
-      if (this.settings.musicOn && this.currentTrack && !this.timer) this.startScheduler();
+      if (this.shouldRunScheduler()) this.startScheduler();
     } catch {
       /* audio unavailable — the game stays fully playable */
     }
@@ -361,6 +391,7 @@ class GameAudio {
     gain.connect(out);
     src.start(at);
     src.stop(at + spec.dur + 0.02);
+    this.ownMusicNodes([src], [src, filter, gain]);
 
     // Pitch-dropping body under the kick. Without this the kick is a click.
     if (name === 'kick') {
@@ -375,6 +406,7 @@ class GameAudio {
       og.connect(out);
       osc.start(at);
       osc.stop(at + 0.13);
+      this.ownMusicNodes([osc], [osc, og]);
     }
   }
 
@@ -406,9 +438,10 @@ class GameAudio {
     // Delayed vibrato on sustained notes — a held chip note is otherwise dead
     // flat, and this is how the era added expression with no extra channel.
     let lfo: OscillatorNode | null = null;
+    let depth: GainNode | null = null;
     if (vibrato && dur > 0.28) {
       lfo = ctx.createOscillator();
-      const depth = ctx.createGain();
+      depth = ctx.createGain();
       lfo.frequency.setValueAtTime(5.5, at);
       depth.gain.setValueAtTime(0, at);
       depth.gain.setValueAtTime(0, at + 0.16);
@@ -428,6 +461,9 @@ class GameAudio {
     gain.connect(out);
     osc.start(at);
     osc.stop(at + dur + 0.02);
+    const sources = lfo ? [osc, lfo] : [osc];
+    const nodes = lfo && depth ? [osc, gain, lfo, depth] : [osc, gain];
+    this.ownMusicNodes(sources, nodes);
   }
 
   // ---- music ---------------------------------------------------------------
@@ -447,28 +483,134 @@ class GameAudio {
     this.stepDur = 60 / track.bpm / 4;
     this.swing = track.swing ?? 0;
 
-    this.stopScheduler();
+    this.cancelFocusStop();
+    this.stopMusicPlayback();
     this.step = 0;
-    if (this.settings.musicOn) {
+    if (this.shouldRunScheduler()) {
       this.unlock();
       this.startScheduler();
     }
   }
 
   stopMusic() {
+    this.cancelFocusStop();
     this.currentTrack = null;
-    this.stopScheduler();
+    this.stopMusicPlayback();
   }
 
   private startScheduler() {
     if (!this.ctx || this.timer || !this.prepared.length) return;
-    this.nextStepTime = this.ctx.currentTime + 0.06;
+    if (
+      this.nextStepTime <= this.ctx.currentTime ||
+      this.nextStepTime > this.ctx.currentTime + Math.max(this.stepDur, SCHEDULE_AHEAD)
+    ) {
+      this.nextStepTime = this.ctx.currentTime + SCHEDULER_START_LEAD;
+    }
     this.timer = setInterval(() => this.tick(), LOOKAHEAD_MS);
   }
 
   private stopScheduler() {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+  }
+
+  private stopMusicPlayback() {
+    this.stopScheduler();
+    this.stopOwnedMusicSources();
+  }
+
+  private canSynthesizeMusic(): boolean {
+    return this.settings.musicOn && this.settings.musicVolume > 0;
+  }
+
+  private shouldRunScheduler(): boolean {
+    return this.canSynthesizeMusic() && !this.focused && this.currentTrack !== null && this.prepared.length > 0;
+  }
+
+  private syncMusicPlayback() {
+    if (!this.currentTrack || !this.prepared.length) {
+      this.cancelFocusStop();
+      this.stopMusicPlayback();
+      return;
+    }
+
+    if (this.shouldRunScheduler()) {
+      this.cancelFocusStop();
+      this.startScheduler();
+      return;
+    }
+
+    if (!this.canSynthesizeMusic()) {
+      this.cancelFocusStop();
+      this.stopMusicPlayback();
+    }
+  }
+
+  private scheduleFocusStop(seconds: number) {
+    this.cancelFocusStop();
+    const token = ++this.focusStopToken;
+    this.focusStopTimer = setTimeout(() => {
+      if (this.focusStopToken !== token) return;
+      this.focusStopTimer = null;
+      if (!this.focused || !this.canSynthesizeMusic()) return;
+      this.stopMusicPlayback();
+    }, seconds * 1000);
+  }
+
+  private cancelFocusStop() {
+    this.focusStopToken++;
+    if (this.focusStopTimer) clearTimeout(this.focusStopTimer);
+    this.focusStopTimer = null;
+  }
+
+  private ownMusicNodes(sources: AudioScheduledSourceNode[], nodes: AudioNode[]) {
+    const records = sources.map((source) => ({ source, ended: false, stopRequested: false }));
+    const owned: OwnedMusicSource = {
+      stop: (at: number) => {
+        for (const record of records) {
+          if (record.ended || record.stopRequested) continue;
+          record.stopRequested = true;
+          record.source.stop(at);
+        }
+      },
+      cleanup: () => {
+        if (!this.musicSources.delete(owned)) return;
+        for (const record of records) record.source.onended = null;
+        for (const node of new Set(nodes)) node.disconnect();
+      },
+    };
+
+    let remaining = records.length;
+    for (const record of records) {
+      record.source.onended = () => {
+        if (record.ended) return;
+        record.ended = true;
+        remaining--;
+        if (remaining <= 0) owned.cleanup();
+      };
+    }
+
+    this.musicSources.add(owned);
+  }
+
+  private stopOwnedMusicSources() {
+    if (!this.musicSources.size) return;
+    const now = this.ctx?.currentTime ?? 0;
+    for (const owned of [...this.musicSources]) {
+      owned.stop(now);
+      owned.cleanup();
+    }
+  }
+
+  getDebugState(): AudioDebugState {
+    return {
+      currentTrack: this.currentTrack,
+      step: this.step,
+      schedulerRunning: this.timer !== null,
+      scheduledMusicSources: this.musicSources.size,
+      focusStopPending: this.focusStopTimer !== null,
+      focused: this.focused,
+    };
   }
 
   /**
@@ -479,6 +621,14 @@ class GameAudio {
     const ctx = this.ctx;
     const bus = this.musicBus;
     if (!ctx || !bus || ctx.state !== 'running') return;
+    if (!this.stepDur || !this.stepsPerLoop) return;
+
+    const lag = ctx.currentTime - this.nextStepTime;
+    if (lag > this.stepDur * MAX_STALLED_STEPS) {
+      const skipped = Math.ceil(lag / this.stepDur);
+      this.step = (this.step + skipped) % this.stepsPerLoop;
+      this.nextStepTime += skipped * this.stepDur;
+    }
 
     while (this.nextStepTime < ctx.currentTime + SCHEDULE_AHEAD) {
       // Swing: push every odd 16th later so pairs play long-short. The step

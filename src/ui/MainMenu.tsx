@@ -1,48 +1,6 @@
 import type { CaseDefinition } from '../data/cases/types';
 import { ACHIEVEMENTS, RANKS, rankFor, useStore } from '../state/store';
-import { ROOM_WIDTH, ROWS } from '../game/levels/heartbeatHills';
-
-function CaseMapThumbnail({ caseDef }: { caseDef: CaseDefinition }) {
-  const width = caseDef.level.rooms.length * ROOM_WIDTH;
-  const height = ROWS;
-  let offset = 0;
-  const tiles = caseDef.level.rooms.flatMap((room) => {
-    const roomTiles = room.rows.flatMap((row, y) =>
-      [...row].flatMap((char, x) => {
-        if (char === ' ') return [];
-        const fill =
-          char === '#'
-            ? '#6f6ac4'
-            : char === '='
-              ? '#f7c948'
-              : char === '^'
-                ? '#e5404f'
-                : char === 'P' || char === '@'
-                  ? '#4fe6e6'
-                  : /[1-5V]/.test(char)
-                    ? '#5fd97a'
-                    : /[GHJKL]/.test(char)
-                      ? '#e451c8'
-                      : '#45418c';
-        return <rect key={`${offset + x}-${y}-${char}`} x={offset + x} y={y} width="1" height="1" fill={fill} />;
-      }),
-    );
-    offset += ROOM_WIDTH;
-    return roomTiles;
-  });
-
-  return (
-    <svg
-      className="case-thumb"
-      viewBox={`0 0 ${width} ${height}`}
-      aria-hidden="true"
-      preserveAspectRatio="none"
-    >
-      <rect width={width} height={height} fill="#0d0b1a" />
-      {tiles}
-    </svg>
-  );
-}
+import { CaseMapThumbnail } from './CaseMapThumbnail';
 
 interface Props {
   cases: CaseDefinition[];

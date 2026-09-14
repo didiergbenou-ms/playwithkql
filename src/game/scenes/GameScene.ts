@@ -437,11 +437,20 @@ export class GameScene extends Phaser.Scene {
           // drop held keys so movement does not resume on close
           this.input.keyboard?.resetKeys();
           this.jumpHeld = false;
+          // Finish one render for a stable backdrop, then stop the Phaser
+          // frame loop. React overlays and their animations remain independent.
+          this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
+          this.game.events.once(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
         } else {
+          this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
           this.physics.resume();
           this.player.anims.resume();
           // stop the key that closed the modal from immediately re-opening it
-          this.interactLockUntil = this.time.now + 250;
+          this.interactLockUntil = performance.now() + 250;
+          if (this.game.isRunning && !this.game.loop.running) {
+            this.game.loop.resetDelta();
+            this.game.loop.wake();
+          }
         }
       }),
     );
@@ -458,11 +467,16 @@ export class GameScene extends Phaser.Scene {
     // SHUTDOWN leaked these bus handlers; on re-entry the stale handler ran
     // against a destroyed scene, threw, and left the player on a black screen.
     const cleanup = () => {
+      this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
       this.busOff.forEach((off) => off());
       this.busOff = [];
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
     this.events.once(Phaser.Scenes.Events.DESTROY, cleanup);
+  }
+
+  private sleepCoveredWorld() {
+    if (this.frozen && this.sys.isActive()) this.game.loop.sleep();
   }
 
   // ---- gameplay ------------------------------------------------------------

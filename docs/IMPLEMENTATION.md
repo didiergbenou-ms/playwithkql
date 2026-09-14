@@ -61,6 +61,7 @@ Other commands:
 ```bash
 npm test               # engine, content, level, reachability and music checks
 npm run test:ui        # render checks — what the player actually sees on open
+npm run test:performance # audio scheduler, syntax-only features, compact maps, load recovery
 npm run fuzz           # 268 adversarial probes — nothing may crash, hang or change meaning
 npm run typecheck      # tsc --noEmit
 npm run build          # production bundle into dist/
@@ -143,6 +144,29 @@ Grading (`src/kql/challenge.ts`) runs the author's reference solution and the
 player's query, then compares result tables — plus an optional
 `requiredOperators` gate so a terminal that is teaching `arg_max` cannot be
 brute-forced with `sort by ... | take 1`.
+
+### Lightweight performance safeguards
+
+- `App.tsx` lazy-loads `PhaserGame` and preloads it during recruit selection.
+  The initial menu does not fetch Phaser. A sized loading panel preserves the
+  stage layout; failed imports require Reload because React caches their error.
+- Overlays pause input/physics and sleep the Phaser frame loop after a final
+  render. Bus handlers still apply solved-terminal and gate changes while asleep.
+  Resume resets the frame delta before waking. Cleanup must wake a sleeping
+  game so Phaser can process its deferred destruction.
+- Terminal operator ticks use `parse` and `collectFeatures`, not query execution.
+  They indicate syntax present, not a correct answer. Run still executes and
+  grades the real result table; lesson examples and previews are unchanged.
+- After the existing modal focus fade completes, audio stops scheduling and
+  releases owned music sources. Resume retains the track/step and rebases its
+  clock. Music off or volume zero creates no music sources; SFX is independent.
+- `CaseMapThumbnail` is memoized and caches horizontally merged SVG rectangles
+  by stable level definition. Treat authored level definitions as immutable.
+
+`test:performance` covers audio timing/cancellation, syntax-only features,
+thumbnail cell parity/cache reuse and load-error recovery UI. Browser checks
+are still needed for delayed downloads, overlays during loading, pause/resume,
+gate updates, abandoning before boot or while asleep, and replay.
 
 ---
 

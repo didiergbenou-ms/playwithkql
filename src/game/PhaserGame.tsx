@@ -52,7 +52,9 @@ export function PhaserGame({
       scene: [],
     });
 
-    game.scene.add('Game', GameScene, true, seed.current);
+    const startScene = () => game.scene.add('Game', GameScene, true, seed.current);
+    if (game.isRunning) startScene();
+    else game.events.once(Phaser.Core.Events.READY, startScene);
     gameRef.current = game;
 
     // debug handle for level designers and automated playtests
@@ -62,13 +64,12 @@ export function PhaserGame({
       const g = gameRef.current;
       gameRef.current = null;
       if (window.__kql?.game === g) delete window.__kql;
-      // Guard the teardown: rapid navigation could destroy the game while a
-      // scene callback was still in flight, throwing "Cannot set properties
-      // of null" from Phaser's internals.
-      try {
-        g?.destroy(true);
-      } catch {
-        /* already torn down */
+      if (g) {
+        g.events.off(Phaser.Core.Events.READY, startScene);
+        g.destroy(true);
+        // destroy() is processed on the next frame. A sleeping game needs that
+        // frame to release its scene, listeners, renderer and canvas.
+        if (g.isRunning && !g.loop.running) g.loop.wake();
       }
     };
   }, []);

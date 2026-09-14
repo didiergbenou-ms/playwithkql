@@ -13,6 +13,7 @@
     "test": "node scripts/run.mjs scripts/testKql.ts",
     "test:ui": "node scripts/run.mjs scripts/testUi.tsx",
     "test:cases": "node scripts/run.mjs scripts/testCaseContent.ts && node scripts/run.mjs scripts/testCases.ts",
+    "test:performance": "node scripts/run.mjs scripts/testAudioScheduling.ts && node scripts/run.mjs scripts/testPerfUi.tsx",
     "fuzz": "node scripts/run.mjs scripts/fuzzKql.ts",
     "server": "node server/index.js"
   },

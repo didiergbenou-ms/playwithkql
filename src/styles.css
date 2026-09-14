@@ -633,6 +633,13 @@ kbd {
     0 0 0 8px var(--black),
     10px 10px 0 8px rgba(0, 0, 0, 0.5);
 }
+.game-loading {
+  display: grid;
+  place-items: center;
+  color: var(--amber);
+  font-family: var(--pixel);
+  font-size: 12px;
+}
 .phaser-host canvas {
   display: block;
   width: 100% !important;

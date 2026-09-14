@@ -42,6 +42,11 @@ jobs:
           node scripts/run.mjs scripts/testCaseContent.ts
           node scripts/run.mjs scripts/testCases.ts
 
+      - name: Performance regressions
+        run: |
+          node scripts/run.mjs scripts/testAudioScheduling.ts
+          node scripts/run.mjs scripts/testPerfUi.tsx
+
       # Adversarial input against the KQL parser. This is what caught the
       # stack overflow on deeply nested parentheses.
       - name: Fuzz

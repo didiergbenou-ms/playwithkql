@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { GameplayLoadError } from '../game/GameplayLoadError';
 
 interface Props {
   children: ReactNode;
@@ -48,9 +49,11 @@ export class ErrorBoundary extends Component<Props, State> {
             <button className="ghost" onClick={() => window.location.reload()}>
               Reload
             </button>
-            <button className="primary big" onClick={this.reset}>
-              Back to HQ
-            </button>
+            {!(error instanceof GameplayLoadError) && (
+              <button className="primary big" onClick={this.reset}>
+                Back to HQ
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { PhaserGame } from './game/PhaserGame';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { bus } from './game/bus';
 import { parseLevel } from './game/levels/heartbeatHills';
 import {
@@ -11,6 +10,7 @@ import {
   currentObjective,
 } from './state/store';
 import { audio } from './game/audio';
+import { GameplayLoadError } from './game/GameplayLoadError';
 import { Celebration, type CelebrationData } from './ui/Celebration';
 import { MainMenu } from './ui/MainMenu';
 import { CharacterSelect } from './ui/CharacterSelect';
@@ -26,6 +26,14 @@ import { DevPanel } from './ui/DevPanel';
 import { ModalScrim } from './ui/ModalScrim';
 import { CASES, getCase } from './data/cases';
 import { devActive, initDevMode, onDevChange } from './dev/secret';
+
+const loadGameplay = () =>
+  import('./game/PhaserGame')
+    .then((module) => ({ default: module.PhaserGame }))
+    .catch((error: unknown) => {
+      throw new GameplayLoadError(error);
+    });
+const PhaserGame = lazy(loadGameplay);
 
 type Overlay =
   | { kind: 'terminal'; challengeId: string }
@@ -84,6 +92,15 @@ export default function App() {
   const selectedCaseDef = getCase(selectedCaseId);
   const runCaseDef = getCase(run.caseId);
   const selectedLevel = useMemo(() => parseLevel(selectedCaseDef.level), [selectedCaseDef]);
+
+  useEffect(() => {
+    if (screen !== 'select' && screen !== 'briefing') return;
+    // Preload during selection, not on the initial menu. Rendering the lazy
+    // component still reports a failed load through the existing error boundary.
+    void loadGameplay().catch((error: unknown) => {
+      console.warn('[gameplay] Preload failed; reload the page to retry.', error);
+    });
+  }, [screen]);
 
   // Unlock audio on the first real gesture — browsers keep the context
   // suspended until then.
@@ -210,15 +227,18 @@ export default function App() {
   // The scene registers its bus listener during create(), which can land after
   // the effect above has already fired — so re-send once it says it is ready.
   useEffect(() => {
-    const off = bus.on('game:ready', () =>
+    const off = bus.on('game:ready', () => {
       pushObjective(
         runCaseDef.challenges
           .filter((challenge) => useStore.getState().run.challenges[challenge.id]?.solved)
           .map((challenge) => challenge.id),
-      ),
-    );
+      );
+      // Loading can finish after an overlay opened. Re-send pause state once
+      // the new scene has installed its event handlers.
+      bus.emit('ui:setPaused', { paused: overlay !== null });
+    });
     return off;
-  }, [pushObjective, runCaseDef]);
+  }, [pushObjective, runCaseDef, overlay]);
 
   useEffect(() => {
     if (!toasts.length) return;
@@ -283,13 +303,19 @@ export default function App() {
               setScreen('menu');
             }}
           />
-          <PhaserGame
-            key={`${run.runId}-${runCaseDef.id}-${character}`}
-            characterId={character}
-            caseId={runCaseDef.id}
-            solvedChallenges={solvedIds}
-            openGates={run.openGates}
-          />
+          <Suspense fallback={
+            <div className="phaser-host game-loading" role="status">
+              Loading map...
+            </div>
+          }>
+            <PhaserGame
+              key={`${run.runId}-${runCaseDef.id}-${character}`}
+              characterId={character}
+              caseId={runCaseDef.id}
+              solvedChallenges={solvedIds}
+              openGates={run.openGates}
+            />
+          </Suspense>
           <p className="stage-hint">
             <kbd>A</kbd>/<kbd>D</kbd> move · <kbd>Space</kbd> jump · <kbd>E</kbd> interact ·{' '}
             <kbd>Tab</kbd> notes · <kbd>K</kbd> KQL card · <kbd>R</kbd> respawn
