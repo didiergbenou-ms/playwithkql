@@ -1,5 +1,5 @@
-import { gradeChallenge } from '../src/kql/challenge';
-import { runQuery } from '../src/kql/index';
+import { CASE_STARTER } from '../src/authoring/caseStarter';
+import { validateCase } from '../src/authoring/validateCase';
 import { CHARACTERS } from '../src/game/characters';
 import { analyse } from '../src/game/reach';
 import {
@@ -38,16 +38,17 @@ function eq<T>(actual: T, expected: T, label: string) {
   }
 }
 
-const CASE_LIST = [CASE001, CASE002, CASE003] as const;
+const CASE_LIST = [...CASES, CASE_STARTER];
 
 function roomSignature(rows: string[]) {
   return rows.map((row) => row.padEnd(ROOM_WIDTH, ' ')).join('\n');
 }
 
-check('registry: exposes three case ids and keeps 001 as default', () => {
+check('registry: has unique case ids and keeps 001 as default', () => {
   eq(DEFAULT_CASE_ID, '001', 'default case');
-  eq(CASES.length, 3, 'case count');
-  eq(CASES.map((item) => item.id).join(','), '001,002,003', 'case ids');
+  eq(new Set(CASES.map(item => item.id)).size, CASES.length, 'unique case ids');
+  assert(CASES.includes(CASE001), 'case001 must remain selectable');
+  assert(!CASES.some(item => item.id === CASE_STARTER.id), 'starter must not be registered');
 });
 
 check('registry: getCase throws on an unknown id', () => {
@@ -68,14 +69,14 @@ check('registry: definitions are stable and cases do not share mutable lesson st
   for (let i = 0; i < a.challenges.length; i++) {
     assert(a.challenges[i].concept !== b.challenges[i].concept, 'concept objects are shared');
     assert(a.challenges[i].hints !== b.challenges[i].hints, 'hints are shared');
-    assert(a.challenges[i].requiredOperators !== b.challenges[i].requiredOperators, 'operator arrays are shared');
-    assert(a.challenges[i].evidenceTokens !== b.challenges[i].evidenceTokens, 'evidence tokens are shared');
+    if (a.challenges[i].requiredOperators) assert(a.challenges[i].requiredOperators !== b.challenges[i].requiredOperators, 'operator arrays are shared');
+    if (a.challenges[i].evidenceTokens) assert(a.challenges[i].evidenceTokens !== b.challenges[i].evidenceTokens, 'evidence tokens are shared');
   }
 
   const db = a.database();
-  const rowCount = db.Heartbeat.rows.length;
-  db.Heartbeat.rows.pop();
-  eq(getCase('002').database().Heartbeat.rows.length, rowCount, 'database clone row count');
+  const before = JSON.stringify(db);
+  for (const table of Object.values(db)) table.rows.pop();
+  eq(JSON.stringify(a.database()), before, 'database clone contents');
 });
 
 check('case001 adapter: preserves shipped flags and debrief intent', () => {
@@ -85,15 +86,6 @@ check('case001 adapter: preserves shipped flags and debrief intent', () => {
   assert(CASE001.debrief.title.includes('Proxy'), 'case001 debrief title');
   assert(!CASE001.debrief.followUp.includes('that is Case 002'), 'follow-up must not claim case002 already teaches parse_json');
 });
-
-for (const item of [CASE002, CASE003]) {
-  check(`${item.id}: placeholder metadata is explicit and honest`, () => {
-    assert(item.placeholder, 'placeholder flag should be true');
-    assert(item.placeholderNotice?.includes('Case 001'), 'placeholder notice must name the reused Case 001 content');
-    assert(item.summary.includes('Case 001') || item.summary.includes('Heartbeat Hills'), 'summary must mention the reuse');
-    assert(!item.debrief.followUp.includes('that is Case 002'), 'follow-up must not claim case002 already teaches parse_json');
-  });
-}
 
 check('levels: parseLevel() default is unchanged', () => {
   const legacy = parseLevel();
@@ -109,58 +101,9 @@ check('levels: parseLevel() default is unchanged', () => {
 });
 
 for (const item of CASE_LIST) {
-  check(`${item.id}: reference queries, examples, and final hints all work`, () => {
-    const db = item.database();
-    for (const challenge of item.challenges) {
-      const solved = gradeChallenge(challenge, challenge.solution, db, item.now);
-      eq(solved.status, 'correct', `${challenge.id} reference solution`);
-
-      const finalHint = challenge.hints[challenge.hints.length - 1];
-      const hinted = gradeChallenge(challenge, finalHint, db, item.now);
-      eq(hinted.status, 'correct', `${challenge.id} final hint`);
-
-      const example = runQuery(challenge.concept.example.query, db, { now: item.now }).table;
-      assert(example.columns.length > 0, `${challenge.id} example returned no columns`);
-    }
-  });
-
-  check(`${item.id}: ids, links, and room sequence stay consistent`, () => {
-    eq(item.challenges.map((challenge) => challenge.room).join(','), '0,1,2,2,3', 'room indices');
-    eq(item.rootCauses.filter((option) => option.correct).length, 1, 'correct root cause count');
-
-    const evidenceIds = new Set(item.evidence.map((evidence) => evidence.id));
-    const gateIds = new Set(Object.values(item.level.gateChars));
-    for (const challenge of item.challenges) {
-      if (challenge.evidenceId) assert(evidenceIds.has(challenge.evidenceId), `${challenge.id} missing evidence`);
-      if (challenge.unlocksGate) assert(gateIds.has(challenge.unlocksGate), `${challenge.id} missing gate`);
-    }
-  });
-
-  check(`${item.id}: authored map stays within limits and keeps expected markers`, () => {
-    const level = parseLevel(item.level);
-    eq(item.level.rooms.length, 4, 'room count');
-    eq(level.terminals.length, 5, 'terminal count');
-    eq(level.checkpoints.length, item.id === '001' ? 3 : 4, 'checkpoint count');
-    eq(level.notes.length, 3, 'note marker count');
-    assert(level.verdict !== null, 'verdict console missing');
-    eq(new Set(level.gates.map((gate) => gate.gateId)).size, 5, 'unique gate count');
-    eq(
-      level.terminals
-        .slice()
-        .sort((left, right) => left.challengeIndex - right.challengeIndex)
-        .map((terminal) => terminal.roomIndex)
-        .join(','),
-      '0,1,2,2,3',
-      'terminal room sequence',
-    );
-    eq(level.notes.map((note) => note.noteId).join(','), item.level.notes.map((note) => note.id).join(','), 'note ids');
-
-    for (const room of item.level.rooms) {
-      eq(room.rows.length, ROWS, `${room.name} row count`);
-      for (const row of room.rows) {
-        assert(row.length <= ROOM_WIDTH, `${room.name} has an overlong row (${row.length})`);
-      }
-    }
+  check(`${item.id}: reusable authoring validation`, () => {
+    const errors = validateCase(item);
+    assert(errors.length === 0, errors.join('\n'));
   });
 
   check(`${item.id}: interactables and checkpoints sit directly on a surface`, () => {
@@ -201,6 +144,30 @@ for (const item of CASE_LIST) {
   });
 }
 
+// Pin shipped layouts here, not the content of future authored cases on these maps.
+for (const [name, definition, checkpointCount] of [
+  ['Heartbeat Hills', HEARTBEAT_HILLS, 3],
+  ['Signal Harbor', SIGNAL_HARBOR, 4],
+  ['Relay Ruins', RELAY_RUINS, 4],
+] as const) {
+  check(`${name}: shipped map geometry and markers are preserved`, () => {
+    const level = parseLevel(definition);
+    eq(definition.rooms.length, 4, 'room count');
+    eq(level.terminals.length, 5, 'terminal count');
+    eq(level.checkpoints.length, checkpointCount, 'checkpoint count');
+    eq(level.notes.length, 3, 'note count');
+    assert(level.verdict !== null, 'verdict console missing');
+    eq(new Set(level.gates.map(g => g.gateId)).size, 5, 'unique gate count');
+    eq(level.terminals.slice().sort((a, b) => a.challengeIndex - b.challengeIndex)
+      .map(t => t.roomIndex).join(','), '0,1,2,2,3', 'terminal room sequence');
+    eq(level.notes.map(n => n.noteId).join(','), definition.notes.map(n => n.id).join(','), 'note ids');
+    for (const room of definition.rooms) {
+      eq(room.rows.length, ROWS, `${room.name} row count`);
+      for (const row of room.rows) assert(row.length <= ROOM_WIDTH, `${room.name} overlong row`);
+    }
+  });
+}
+
 check('geometry: both new cases differ from Heartbeat Hills and from each other', () => {
   const baseRooms = HEARTBEAT_HILLS.rooms.map((room) => roomSignature(room.rows));
   const harborRooms = SIGNAL_HARBOR.rooms.map((room) => roomSignature(room.rows));
@@ -213,7 +180,7 @@ check('geometry: both new cases differ from Heartbeat Hills and from each other'
   }
 });
 
-check('reachability: every shipped character can clear the new placeholder cases', () => {
+check('reachability: every shipped character can clear the additional cases', () => {
   for (const item of [CASE002, CASE003]) {
     const level = parseLevel(item.level);
     for (const character of CHARACTERS) {

@@ -20,13 +20,13 @@ KQL Quest turns that learning process into an interactive adventure where progre
 
 ## Learning experience
 
-The initial path introduces:
+The playable beginner path introduces:
 
-- `where` to filter signals
-- `project` to select and shape evidence
-- `summarize` to reveal patterns
-- `sort` to rank results
-- `top` to identify the most important findings
+- `take` to inspect a few rows
+- `distinct` to identify machines
+- `where` with `ago()` to filter recent signals
+- `summarize` with `max()` to find last-seen times
+- Applying those operators to a second table to find the cause
 
 Each mission combines:
 
@@ -34,19 +34,20 @@ Each mission combines:
 2. A synthetic dataset
 3. A query objective
 4. Immediate, explainable feedback
-5. Optional AI-guided hints
-6. A mastery check before progression
+5. Authored progressive hints and worked examples
+6. A result-based query check before progression
 
-## Hackathon MVP
+## Hackathon roadmap
 
-- Five playable KQL missions
-- A final investigation battle
-- A browser-based KQL editor
-- Safe execution against synthetic data
-- An AI coach that explains errors and provides progressive hints
-- A mastery dashboard
-- Before-and-after skill measurement
-- A reusable mission format for future learning packs
+These are project goals, not a list of shipped features. The current playable
+scope is described under **Project status** below.
+
+- Expand to five distinct KQL missions
+- Add a final investigation battle beyond the current verdict console
+- Extend the existing browser-based KQL editor and synthetic-data interpreter
+- Add an AI coach alongside the current authored hints
+- Add a mastery dashboard and before-and-after skill measurement
+- Grow the reusable case format into future learning packs
 
 ## Design direction
 
@@ -94,7 +95,20 @@ AI coding assistants can use the repository's
 [KQL Quest development skill](.github/skills/kql-quest-dev/SKILL.md) to locate
 level maps, wire terminals and gates, and follow the development workflows.
 
-Ideas, mission scenarios, KQL examples, game design, accessibility feedback, and implementation contributions are welcome. Open an issue to propose a change or describe how you would like to help.
+Copilot also has a short [repository entry point](.github/copilot-instructions.md).
+For another assistant, explicitly attach the skill instead of assuming it is
+automatically discovered.
+
+**Start with one case, map, or subsystem per PR.** The
+[contributor workflow](docs/LOCAL_DEVELOPMENT.md#contribute-one-scoped-change)
+explains file boundaries, the independent case starter, content checks and the
+dev-only content workbench at **`?author=1`**. The workbench opens lessons and
+verdicts directly without playing through the map or saving game progress.
+
+Use the repository's issue forms for **case content**, **maps**, **UI/accessibility**
+or **audio** to record an owner, scope and observable acceptance criteria.
+Ideas and non-code contributions are welcome too; define the intended player
+experience before asking an AI to implement it.
 
 ## Responsible development
 

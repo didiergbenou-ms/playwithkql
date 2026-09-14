@@ -113,7 +113,122 @@ npm run dev
 This also works if you already cloned the repository on `main`. It updates
 your local `develop` branch, not your personal working branch.
 
-## Optional developer checks
+## Contribute one scoped change
+
+Start from an up-to-date `develop` and create your own branch as described above.
+Do not commit directly to `develop`. Open the matching repository issue form
+(case content, map, UI/accessibility or audio) and agree on an owner, file boundary
+and observable result before implementation. One case or subsystem per PR keeps
+reviews and parallel work manageable.
+
+| Contribution | Start here | Keep separate unless explicitly in scope |
+|---|---|---|
+| Case story, logs, KQL tasks and hints | `src/data/cases/` and `src/authoring/caseStarter.ts` | Map geometry, shared grading and player progression |
+| Platforms, props and routes | The selected file under `src/game/levels/` | Lesson content and character physics |
+| UI or accessibility | The relevant component under `src/ui/` | Data, scoring and unrelated screens |
+| Tracks and sound effects | `src/game/music.ts`, `src/game/audio.ts` | Gameplay and unrelated compositions |
+
+### Working with an AI assistant
+
+Copilot has a short entry point in `.github/copilot-instructions.md`. The detailed
+guide remains `.github/skills/kql-quest-dev/SKILL.md`; other tools may require you
+to attach that file explicitly. Give the assistant the issue's file scope and
+acceptance criteria, not just "improve the game".
+
+For example:
+
+> Read `.github/skills/kql-quest-dev/SKILL.md`. Author an independent investigation
+> for Signal Harbor using synthetic data. Preserve its map, terminal/gate IDs,
+> shared grading and other cases. Update the dataset, lesson examples, progressive
+> hints, evidence, verdict and debrief consistently. Add explicit expected-result
+> assertions; do not remove shared checks to make the content pass.
+
+Do not assign multiple assistants the same files simultaneously. Content
+authors can work on different case modules while a level designer edits one
+map; changes to shared types, the interpreter, store or scene need coordination.
+
+### Independent case content
+
+`src/authoring/caseStarter.ts` is an executable, synthetic example with its own
+data and complete lessons. It is not a fourth playable case and does not add an
+item to the normal game menu. Use it as a copy-and-edit reference, not a shared
+global object to mutate.
+
+Its `createCaseStarter({ id, level })` helper can put the sample content on a
+cloned existing map for experiments. The helper creates new lesson, gate,
+evidence and note IDs; it is not a drop-in preservation of an existing case's
+IDs. When replacing shipped content, keep that case's established links in the
+final definition rather than blindly assigning the helper's result.
+
+For an unregistered draft, copy the example to a separate module under
+`src/authoring/`, give it a unique ID, and add its exported definition to
+`AUTHORING_CASES` in `src/authoring/catalog.ts`. That one catalog drives both the
+workbench and `check:content`; it does not change the normal game menu. Keep
+each draft's expected-result assertions with its own tests. Register a finished
+new case in `src/data/cases/index.ts` only when it is intended to be playable.
+
+Cases 002 and 003 currently use `createPlaceholderCase`, which deliberately
+copies Case 001's lessons and database. To give one its own investigation,
+replace that placeholder construction with an independent `CaseDefinition`.
+Keep its existing map and identity links. Do not change `src/data/case001.ts`
+expecting a change to affect only one placeholder.
+
+Author the complete evidence chain together: synthetic rows and schema,
+terminal objective, worked example, reference answer, progressive hints,
+evidence, wrong-theory rebuttals and debrief. Use a fixed case clock and return
+a fresh database snapshot per call. The local interpreter supports a subset of
+KQL; a query valid in real Kusto is not automatically supported here.
+
+Write explicit expected columns and representative values alongside the case's
+tests. A reference query passing against itself does not prove its story is
+correct. Keep placeholder-only expectations on placeholder fixtures, not on
+every future version of Cases 002/003.
+
+```sh
+npm run check:content
+npm run test:authoring
+npm run test:cases
+```
+
+Run those commands sequentially. `check:content` validates the registered cases
+and the starter, reporting case/terminal-specific authoring errors. Authoring
+regressions exercise invalid content as well as working examples. General
+validation is not proof of narrative quality or physically reachable routes.
+
+### Preview without traversing a map
+
+With `npm run dev` running, append **`?author=1`** to its printed Local URL,
+for example **http://localhost:5173/?author=1**.
+
+Direct links can omit the terminal ID to select the case's first terminal:
+`?author=1&case=starter&view=terminal` or `?author=1&case=002&view=verdict`.
+The controls update the address bar; Back/Forward and reload retain the selected
+case/surface but reset local preview attempts.
+
+The **content workbench** lets you select a case (including the independent
+starter), open a lesson/terminal directly, execute its queries and try its
+verdict. It reuses player-facing components but keeps preview interactions
+separate from game progress and achievements. Use the workbench's reset action
+to repeat a clean attempt after checking hints or a successful query.
+
+Save source edits and refresh the workbench when you need a clean view of new
+content. Use **Open game**, or remove `?author=1`, for actual gameplay. The workbench
+is available only in the Vite development server; a production build ignores
+this switch and opens the normal game.
+
+Before handing off, also play the affected case in the game. Direct terminal
+preview cannot prove that a platform is reachable, a gate blocks the intended
+route, or the final verdict is accessible.
+
+### Handoff
+
+Open a PR targeting `develop`. State the changed case/subsystem, how the
+acceptance criteria were exercised, and any assumptions intentionally changed.
+Attach before/after visuals for map/UI changes. For content, include the lesson
+sequence and independently asserted query results. CI complements, rather than
+replaces, a browser playthrough.
+
+## Developer checks
 
 Run these from the project folder in a second terminal, or after stopping the
 development server:
@@ -123,6 +238,9 @@ npm run typecheck
 npm test
 npm run test:ui
 npm run test:cases
+npm run check:content
+npm run test:authoring
+npm run test:performance
 npm run fuzz
 npm run build
 ```
@@ -136,6 +254,9 @@ npm run serve:dist
 Open **http://127.0.0.1:4173**. This serves the built files without live updates;
 use `npm run dev` for everyday development. Stop either server with **Ctrl+C**.
 
+Run checks **sequentially**: the TypeScript test scripts share `.tmp/test.mjs`.
+Do not launch multiple suites at the same time.
+
 ## Common setup problems
 
 | Problem | What to do |
@@ -146,6 +267,7 @@ use `npm run dev` for everyday development. Stop either server with **Ctrl+C**.
 | Dependency downloads fail | Check internet/proxy access. The current lockfile downloads packages from Microsoft's public npm mirror at `*.pkgs.visualstudio.com`; that host must be reachable. Do not disable TLS checks or delete the lockfile to work around a network error. |
 | `vite` is not found | Run `npm ci` successfully in the project folder, then retry `npm run dev`. |
 | The browser cannot connect | Keep `npm run dev` running and use the exact Local URL it prints. |
+| `?author=1` shows the normal menu on a development server | Some AI desktop shells inherit `NODE_ENV=production`. Stop that server and set `NODE_ENV=development` for the new server process. In PowerShell: `$env:NODE_ENV='development'; node node_modules\vite\bin\vite.js`. Do not change the preview's production guard. Use a fresh/default shell for a subsequent production build. |
 | Port 4173 is already in use for the production preview | Stop the server you previously started on that port, or use `npm run preview -- --port 4174` after building and open the URL it prints. |
 
 For architecture, all game controls, and implementation details, see

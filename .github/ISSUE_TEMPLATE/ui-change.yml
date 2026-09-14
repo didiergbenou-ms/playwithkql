@@ -1,0 +1,41 @@
+name: UI or accessibility change
+description: Improve a specific screen or interaction without redesigning the game.
+title: "[UI] "
+body:
+  - type: input
+    id: surface
+    attributes:
+      label: Screen or component and owner
+      placeholder: "Terminal hints - contributor name"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem and expected behavior
+      description: Include reproduction steps, keyboard behavior and the intended result.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Files and boundaries
+      description: Name the components/styles involved. Preserve the retro presentation, readable query results, shared grading and profile behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Observable acceptance criteria
+      description: Cover keyboard focus, narrow screens, error/empty/success states and closing/reopening.
+    validations:
+      required: true
+  - type: checkboxes
+    id: handoff
+    attributes:
+      label: Completion checklist
+      options:
+        - label: Focus entry, containment and return were exercised with the keyboard.
+        - label: Editor Escape/Tab/Space and successful results still behave correctly.
+        - label: Typecheck, affected tests and build pass; actual browser behavior was exercised.
+        - label: PR includes before/after visuals and targets develop.

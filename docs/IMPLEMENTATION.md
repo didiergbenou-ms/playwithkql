@@ -44,6 +44,25 @@ fields are unchanged; active runs still do not survive a reload.
 replay and scoring isolation. The existing reachability helper is heuristic;
 its passing is not a substitute for traversing the actual Phaser map.
 
+### Contributor authoring tools
+
+Follow the [scoped contributor workflow](LOCAL_DEVELOPMENT.md#contribute-one-scoped-change)
+for human or AI-assisted changes. Shared content types live in
+`src/data/cases/types.ts`; the old Case 001 type exports remain compatible.
+
+`src/authoring/caseStarter.ts` supplies independent fictional parcel data and
+five complete lessons. It is not a fourth playable case. Drafts added to
+`src/authoring/catalog.ts` appear in both the dev-only `?author=1` workbench and
+`npm run check:content`, without entering the game registry. The starter helper
+clones map geometry and assigns new IDs; preserving shipped IDs when replacing
+a case is a separate, deliberate authoring step.
+
+The workbench reuses `Briefing`, `TerminalModal` and the pure `VerdictView`;
+`VerdictModal` remains the store-bound gameplay wrapper. The preview root never
+initializes App, the persisted store or Phaser. It keeps attempts, hints and
+verdict feedback in local React state. Production builds exclude the workbench,
+its catalog and validator; the URL flag alone cannot enable them.
+
 ---
 
 ## Quick start

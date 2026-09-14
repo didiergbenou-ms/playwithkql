@@ -1,0 +1,41 @@
+name: Audio change
+description: Revise a track, voice or cue while preserving playback lifecycle and user settings.
+title: "[Audio] "
+body:
+  - type: input
+    id: track
+    attributes:
+      label: Track or cue and owner
+      placeholder: "Harbor room track - contributor name"
+    validations:
+      required: true
+  - type: textarea
+    id: intent
+    attributes:
+      label: Musical or feedback goal
+      description: Describe the intended mood, cue or audible problem. Use original or appropriately licensed assets only.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Files and boundaries
+      description: Distinguish composition data from synthesis/scheduler changes. Keep gameplay and unrelated tracks unchanged.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Audible acceptance criteria
+      description: Specify loop transitions, cue clarity, volume and interaction with background music.
+    validations:
+      required: true
+  - type: checkboxes
+    id: handoff
+    attributes:
+      label: Completion checklist
+      options:
+        - label: Playback was listened to in the browser; channels and loop boundaries remain aligned.
+        - label: Music off, zero volume, focus fade/resume and rapid overlay changes were exercised.
+        - label: SFX remains independent and silent music does not keep creating sources.
+        - label: Music/scheduler regressions and build pass; PR targets develop.

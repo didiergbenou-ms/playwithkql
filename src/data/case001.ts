@@ -1,5 +1,7 @@
 import type { ChallengeSpec } from '../kql/challenge';
 import type { Database, KValue, Row, Table } from '../kql/types';
+import type { Evidence, RootCauseOption, TableMeta } from './cases/types';
+export type { ColumnMeta, Evidence, RootCauseOption, TableMeta } from './cases/types';
 
 /**
  * Case 001 — "Heartbeat Hills".
@@ -255,14 +257,6 @@ export function buildDatabase(): Database {
 
 // ---- narrative content -----------------------------------------------------
 
-export interface Evidence {
-  id: string;
-  title: string;
-  detail: string;
-  /** Position in the causal chain shown on the verdict board. */
-  chainIndex: number;
-}
-
 export const EVIDENCE: Evidence[] = [
   {
     id: 'ev-table',
@@ -305,15 +299,6 @@ export const CAUSAL_CHAIN = [
   'Heartbeat uploads fail and cache locally',
   'Workspace shows no heartbeats for 5 machines',
 ];
-
-export interface RootCauseOption {
-  id: string;
-  label: string;
-  detail: string;
-  correct?: boolean;
-  /** Shown when the player picks this and is wrong. */
-  rebuttal?: string;
-}
 
 export const ROOT_CAUSES: RootCauseOption[] = [
   {
@@ -545,18 +530,6 @@ export const CASE = {
 };
 
 // ---- schema metadata -------------------------------------------------------
-
-export interface ColumnMeta {
-  name: string;
-  type: 'datetime' | 'string' | 'int' | 'dynamic';
-  doc: string;
-}
-
-export interface TableMeta {
-  name: string;
-  doc: string;
-  columns: ColumnMeta[];
-}
 
 /** Drives the schema panel and the editor's autocomplete. */
 export const TABLE_META: TableMeta[] = [

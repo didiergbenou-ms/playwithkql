@@ -14,6 +14,8 @@
     "test:ui": "node scripts/run.mjs scripts/testUi.tsx",
     "test:cases": "node scripts/run.mjs scripts/testCaseContent.ts && node scripts/run.mjs scripts/testCases.ts",
     "test:performance": "node scripts/run.mjs scripts/testAudioScheduling.ts && node scripts/run.mjs scripts/testPerfUi.tsx",
+    "check:content": "node scripts/run.mjs scripts/checkContent.ts",
+    "test:authoring": "node scripts/run.mjs scripts/testAuthoring.ts && node scripts/run.mjs scripts/testContentPreview.tsx",
     "fuzz": "node scripts/run.mjs scripts/fuzzKql.ts",
     "server": "node server/index.js"
   },
