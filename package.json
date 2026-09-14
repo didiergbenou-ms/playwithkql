@@ -11,7 +11,7 @@
     "serve:dist": "node scripts/serve.mjs 4173",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run.mjs scripts/testKql.ts",
-    "test:ui": "node scripts/run.mjs scripts/testUi.tsx",
+    "test:ui": "node scripts/run.mjs scripts/testUi.tsx && node scripts/run.mjs scripts/testNotes.tsx",
     "test:cases": "node scripts/run.mjs scripts/testCaseContent.ts && node scripts/run.mjs scripts/testCases.ts",
     "test:performance": "node scripts/run.mjs scripts/testAudioScheduling.ts && node scripts/run.mjs scripts/testPerfUi.tsx",
     "check:content": "node scripts/run.mjs scripts/checkContent.ts",

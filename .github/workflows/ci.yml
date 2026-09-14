@@ -35,7 +35,9 @@ jobs:
       # sees on open. A mount-only test would not have caught the sample-data
       # panel masquerading as a query result.
       - name: UI tests
-        run: node scripts/run.mjs scripts/testUi.tsx
+        run: |
+          node scripts/run.mjs scripts/testUi.tsx
+          node scripts/run.mjs scripts/testNotes.tsx
 
       - name: Case content and isolation
         run: |

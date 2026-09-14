@@ -18,6 +18,7 @@ export function Hud({ caseDef, onNotebook, onReference, onOptions, onQuit }: Pro
   const rooms = roomProgress(solvedIds, caseDef.id);
   const currentRoomIndex = rooms.findIndex((room) => room.name === run.room);
   const crystalsLeft = run.crystals - run.crystalsSpent;
+  const notesPocketed = caseDef.level.notes.filter((note) => run.notesRead.includes(note.id)).length;
 
   return (
     <div className="hud">
@@ -85,8 +86,12 @@ export function Hud({ caseDef, onNotebook, onReference, onOptions, onQuit }: Pro
           <button className="ghost small" onClick={onReference}>
             KQL card (K)
           </button>
-          <button className="ghost small" onClick={onNotebook}>
-            Notes ({run.evidence.length}) (Tab)
+          <button
+            className="ghost small"
+            onClick={onNotebook}
+            title={`${notesPocketed} field notes pocketed; ${run.evidence.length} pieces of query evidence filed`}
+          >
+            Notes ({notesPocketed}) (Tab)
           </button>
           <button className="ghost small" onClick={onQuit}>
             Abandon

@@ -47,6 +47,7 @@ This map includes the contributor toolkit added after the multi-case scaffolds a
 | Progress, hints, XP, rank, achievements | `src/state/store.ts` | `App.tsx`, `Hud.tsx`, `MainMenu.tsx`, `Celebration.tsx`, `Debrief.tsx` |
 | Root-cause choices and final result | `case001.ts`: `ROOT_CAUSES`, `CAUSAL_CHAIN` | `VerdictModal.tsx`, `Debrief.tsx`, map `V`, `submitVerdict` |
 | Menu, briefing, notebook, options | Matching component in `src/ui/` | Screen/overlay state in `App.tsx`, `ModalScrim.tsx`, styles |
+| Pocketed field notes and notebook theory | `src/ui/Notes.tsx`: `Notebook`, `NotebookView` | `App.tsx` `game:note`, `store.readNote`, `run.notesRead`, `testNotes.tsx` |
 | Background music and effects | `src/game/music.ts`, `audio.ts` | `App.tsx` room/overlay events, `OptionsModal.tsx`, music tests |
 | Developer shortcuts | `src/dev/secret.ts`, `src/ui/DevPanel.tsx` | Store dev actions and scene `ui:teleport` handling |
 | Development server or CI | `package.json`, `vite.config.ts`, `.github/workflows/ci.yml` | `scripts/serve.mjs`, `scripts/run.mjs`, local development guide |
@@ -177,6 +178,7 @@ Live operator ticks in `TerminalModal.getLiveQueryFeatures` only parse and colle
 - `hintsUsed` carries paid-hint penalties; `crystalHints` records crystal-funded hints without that score penalty. Crystals are accounted for through `crystalsSpent`. A revealed solution is tracked separately and must not fabricate hints.
 - `challengeMultiplier` is shared by `challengeXp` and `scoreRun`. Change scoring there rather than maintaining two formulas. Check displayed rewards, final accuracy, streaks and achievements together.
 - Only `profile` is persisted by the store. In-progress `run` state is not restored after reload. Preserve existing save keys or add a migration when changing persisted fields or character IDs.
+- Pocketed field notes come from `run.notesRead` and the active case's `level.notes`, not `run.evidence`. The notebook displays these separately from query evidence, and the HUD Notes counter counts pocketed field notes. Theory steps unlock through each collected evidence item's `chainIndex`, never through the number of notes or evidence items. Test pocket, reopen, reread, respawn and replay.
 - Dev shortcuts are for local testing, not authentication. Do not include the unlock phrase or hash in documentation, logs or PR text. Check `devTaint`, `devSolve`, `devGrant`, attempts, achievements and completion whenever adding shortcuts; run-earned profile updates must not escape the dev flag.
 
 ## UI, Phaser and audio safeguards
@@ -212,6 +214,7 @@ Run the following checks from the repository root, **sequentially**, stopping an
 node node_modules\typescript\bin\tsc --noEmit
 node scripts\run.mjs scripts\testKql.ts
 node scripts\run.mjs scripts\testUi.tsx
+node scripts\run.mjs scripts\testNotes.tsx
 node scripts\run.mjs scripts\testCaseContent.ts
 node scripts\run.mjs scripts\testCases.ts
 node scripts\run.mjs scripts\checkContent.ts

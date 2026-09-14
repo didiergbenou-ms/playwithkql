@@ -43,7 +43,27 @@ export function NoteModal({
 export function Notebook({ caseDef, onClose }: { caseDef?: CaseDefinition; onClose: () => void }) {
   const activeCase = useActiveCase(caseDef);
   const run = useStore((s) => s.run);
-  const collected = activeCase.evidence.filter((evidence) => run.evidence.includes(evidence.id));
+  return (
+    <NotebookView
+      caseDef={activeCase}
+      notesRead={run.notesRead}
+      evidenceIds={run.evidence}
+      onClose={onClose}
+    />
+  );
+}
+
+export function NotebookView({
+  caseDef, notesRead, evidenceIds, onClose,
+}: {
+  caseDef: CaseDefinition;
+  notesRead: readonly string[];
+  evidenceIds: readonly string[];
+  onClose: () => void;
+}) {
+  const fieldNotes = caseDef.level.notes.filter((note) => notesRead.includes(note.id));
+  const collected = caseDef.evidence.filter((evidence) => evidenceIds.includes(evidence.id));
+  const knownSteps = new Set(collected.map((evidence) => evidence.chainIndex));
 
   return (
     <div className="modal notebook-modal">
@@ -51,7 +71,7 @@ export function Notebook({ caseDef, onClose }: { caseDef?: CaseDefinition; onClo
         <div>
           <span className="tag tag-cyan">INVESTIGATION NOTES</span>
           <h2>
-            CASE {activeCase.id} · {collected.length} of {activeCase.evidence.length} filed
+            CASE {caseDef.id} · Notebook
           </h2>
         </div>
         <button className="ghost" onClick={onClose}>
@@ -59,27 +79,45 @@ export function Notebook({ caseDef, onClose }: { caseDef?: CaseDefinition; onClo
         </button>
       </header>
 
-      {collected.length === 0 ? (
-        <p className="muted pad">
-          Nothing filed yet. Solve a terminal to add evidence to the case.
-        </p>
-      ) : (
-        <ul className="evidence-list">
-          {collected.map((e) => (
-            <li key={e.id}>
-              <strong>{e.title}</strong>
-              <p>{e.detail}</p>
-            </li>
-          ))}
-        </ul>
-      )}
+      <section aria-label="Pocketed field notes">
+        <h3>Field notes · {fieldNotes.length} of {caseDef.level.notes.length} pocketed</h3>
+        {fieldNotes.length === 0 ? (
+          <p className="muted">No field notes pocketed yet. Read a note in the world to keep it here.</p>
+        ) : (
+          <ul className="evidence-list field-notes-list">
+            {fieldNotes.map((note) => (
+              <li key={note.id}>
+                <strong>{note.title}</strong>
+                <pre className="note-body">{note.body}</pre>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-label="Filed query evidence">
+        <h3>Query evidence · {collected.length} of {caseDef.evidence.length} filed</h3>
+        {collected.length === 0 ? (
+          <p className="muted">No query evidence yet. Solve a terminal to file evidence.</p>
+        ) : (
+          <ul className="evidence-list">
+            {collected.map((e) => (
+              <li key={e.id}>
+                <strong>{e.title}</strong>
+                <p>{e.detail}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="chain">
         <h3>Working theory</h3>
+        <p className="muted">These steps unlock from terminal evidence, not field notes.</p>
         <ol>
-          {activeCase.causalChain.map((step, i) => (
-            <li key={step} className={i < collected.length ? 'lit' : ''}>
-              {i < collected.length ? step : '???'}
+          {caseDef.causalChain.map((step, i) => (
+            <li key={step} className={knownSteps.has(i) ? 'lit' : ''}>
+              {knownSteps.has(i) ? step : 'Awaiting query evidence'}
             </li>
           ))}
         </ol>

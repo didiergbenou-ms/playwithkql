@@ -40,6 +40,11 @@ rapid replay. Score, objectives, notes, dev shortcuts and verdicts use that
 case's definition. The existing profile storage key and aggregate profile
 fields are unchanged; active runs still do not survive a reload.
 
+The notebook keeps pocketed field-note titles and full text separate from
+terminal-earned query evidence. Its working theory uses the collected evidence's
+`chainIndex` links, not collection counts. Notes remain available during the run,
+including after respawn; a fresh replay starts an empty notebook.
+
 `npm run test:cases` checks the registry, content wiring, maps, case switching,
 replay and scoring isolation. The existing reachability helper is heuristic;
 its passing is not a substitute for traversing the actual Phaser map.
