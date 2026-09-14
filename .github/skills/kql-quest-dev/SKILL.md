@@ -15,7 +15,7 @@ Paths below are relative to the repository root.
 3. Work on a personal or feature branch based on current `develop`. Preserve uncommitted work. PRs normally target `develop`; do not merge into `main` or deploy without authorization. The team's intended promotion is `develop` to test, then approved `main` to production; inspect actual workflows before claiming deployment exists.
 4. Use the task map below to read the relevant implementation and tests before editing. Search consumers of any identifier, event, or field being changed.
 
-This map was updated alongside the multi-case scaffolds on 2026-09-11, after the local development guide and skill landed in `develop`. Refresh paths and assumptions when the code changes.
+This map includes the contributor toolkit added after the multi-case scaffolds and performance changes. Refresh paths and assumptions when the code changes.
 
 ## What exists today
 
@@ -30,6 +30,8 @@ This map was updated alongside the multi-case scaffolds on 2026-09-11, after the
 | Change | Start here | Also inspect |
 |---|---|---|
 | Case registration, selection and shared contract | `src/data/cases/index.ts`, `types.ts` | `MainMenu.tsx`, `App.tsx`, `store.ts`: `selectCase`, `startRun` |
+| Independent case starter and content checks | `src/authoring/caseStarter.ts`, `catalog.ts`, `validateCase.ts` | `scripts/checkContent.ts`, `testAuthoring.ts`, case-specific expected results |
+| Direct content preview | `src/dev/ContentPreview.tsx`, `contentPreview.css`, `src/main.tsx` | `TerminalModal.tsx`, pure verdict view, `testContentPreview.tsx`; dev URL `?author=1` |
 | Room layout, platforms, pits, spikes, pickups | `src/game/levels/heartbeatHills.ts`, `signalHarbor.ts`, `relayRuins.ts` | `parseLevel(caseDef.level)`, `GameScene.ts`, `reach.ts`, case tests |
 | A terminal's lesson, query, hints, evidence or gate | `src/data/cases/case001.ts`, `case002.ts`, `case003.ts` | Original `src/data/case001.ts`, `placeholder.ts`, map digits, `ChallengeSpec`, terminal UI |
 | Synthetic logs or table columns | `src/data/case001.ts`: `buildDatabase`, `TABLE_META`, `CASE_NOW` | Every affected reference query, example, hint, completion and evidence assertion |
@@ -45,11 +47,45 @@ This map was updated alongside the multi-case scaffolds on 2026-09-11, after the
 | Progress, hints, XP, rank, achievements | `src/state/store.ts` | `App.tsx`, `Hud.tsx`, `MainMenu.tsx`, `Celebration.tsx`, `Debrief.tsx` |
 | Root-cause choices and final result | `case001.ts`: `ROOT_CAUSES`, `CAUSAL_CHAIN` | `VerdictModal.tsx`, `Debrief.tsx`, map `V`, `submitVerdict` |
 | Menu, briefing, notebook, options | Matching component in `src/ui/` | Screen/overlay state in `App.tsx`, `ModalScrim.tsx`, styles |
+| Pocketed field notes and notebook theory | `src/ui/Notes.tsx`: `Notebook`, `NotebookView` | `App.tsx` `game:note`, `store.readNote`, `run.notesRead`, `testNotes.tsx` |
 | Background music and effects | `src/game/music.ts`, `audio.ts` | `App.tsx` room/overlay events, `OptionsModal.tsx`, music tests |
 | Developer shortcuts | `src/dev/secret.ts`, `src/ui/DevPanel.tsx` | Store dev actions and scene `ui:teleport` handling |
 | Development server or CI | `package.json`, `vite.config.ts`, `.github/workflows/ci.yml` | `scripts/serve.mjs`, `scripts/run.mjs`, local development guide |
 
 In this table, `GameScene.ts` means `src/game/scenes/GameScene.ts`; `store.ts` means `src/state/store.ts`; other game helpers live in `src/game/`.
+
+## Contributor scope and AI entry
+
+`.github/copilot-instructions.md` is a thin Copilot entry point, not a second
+copy of this guide. For other AI tools, explicitly attach this skill if they
+do not discover it. The repository issue forms define case-content, map,
+UI/accessibility and audio scopes. Assign one owner and an observable acceptance
+criterion; do not have parallel agents edit the same shared files.
+
+For an independent case, use `src/authoring/caseStarter.ts` as a working example.
+Its `CASE_STARTER` is authoring-only, not in the normal registry. It has its own
+synthetic corpus rather than copying Case 001. Replace the selected case's
+placeholder construction deliberately; preserve map/terminal/gate IDs and other
+cases. Never mutate the starter or another case as a shortcut.
+
+`createCaseStarter({id, level})` clones an existing map but assigns new identity
+links. Preserve the shipped IDs explicitly when replacing a case. Add unregistered
+draft definitions to `AUTHORING_CASES` in `src/authoring/catalog.ts`: the preview
+and CLI share that catalog, while the normal game registry remains unchanged.
+
+Run `npm run check:content` for registered cases plus the starter. Shared
+validation must not assume `Heartbeat`, the old root cause, or that 002/003
+will always be placeholders. Keep placeholder behavior covered by explicit
+factory fixtures. Add independently authored expected columns/values when
+changing a case, not only a reference-query self-comparison.
+
+Use the dev-only `?author=1` workbench for rapid lesson, terminal and verdict
+iteration without traversing a map. Preview must keep all progress in local
+state, never call persistent store actions, create Phaser or unlock gameplay
+shortcuts. Reuse player-facing components; do not build a divergent grading
+implementation. Production must exclude the preview entry, starter and validator.
+Preserve the same reset, hint and successful-result behavior in both surfaces.
+Direct preview is not a substitute for full gameplay and route checks.
 
 ## Level maps: where and how
 
@@ -142,6 +178,7 @@ Live operator ticks in `TerminalModal.getLiveQueryFeatures` only parse and colle
 - `hintsUsed` carries paid-hint penalties; `crystalHints` records crystal-funded hints without that score penalty. Crystals are accounted for through `crystalsSpent`. A revealed solution is tracked separately and must not fabricate hints.
 - `challengeMultiplier` is shared by `challengeXp` and `scoreRun`. Change scoring there rather than maintaining two formulas. Check displayed rewards, final accuracy, streaks and achievements together.
 - Only `profile` is persisted by the store. In-progress `run` state is not restored after reload. Preserve existing save keys or add a migration when changing persisted fields or character IDs.
+- Pocketed field notes come from `run.notesRead` and the active case's `level.notes`, not `run.evidence`. The notebook displays these separately from query evidence, and the HUD Notes counter counts pocketed field notes. Theory steps unlock through each collected evidence item's `chainIndex`, never through the number of notes or evidence items. Test pocket, reopen, reread, respawn and replay.
 - Dev shortcuts are for local testing, not authentication. Do not include the unlock phrase or hash in documentation, logs or PR text. Check `devTaint`, `devSolve`, `devGrant`, attempts, achievements and completion whenever adding shortcuts; run-earned profile updates must not escape the dev flag.
 
 ## UI, Phaser and audio safeguards
@@ -177,8 +214,12 @@ Run the following checks from the repository root, **sequentially**, stopping an
 node node_modules\typescript\bin\tsc --noEmit
 node scripts\run.mjs scripts\testKql.ts
 node scripts\run.mjs scripts\testUi.tsx
+node scripts\run.mjs scripts\testNotes.tsx
 node scripts\run.mjs scripts\testCaseContent.ts
 node scripts\run.mjs scripts\testCases.ts
+node scripts\run.mjs scripts\checkContent.ts
+node scripts\run.mjs scripts\testAuthoring.ts
+node scripts\run.mjs scripts\testContentPreview.tsx
 node scripts\run.mjs scripts\testAudioScheduling.ts
 node scripts\run.mjs scripts\testPerfUi.tsx
 node scripts\run.mjs scripts\fuzzKql.ts
@@ -190,6 +231,7 @@ The test commands share `.tmp/test.mjs` and delete `.tmp`; running them concurre
 - For code changes, establish the existing baseline, add focused regressions, run affected checks and the full existing suite before handoff.
 - `testKql.ts` covers original engine/content/game helpers; `testUi.tsx` includes rendering/state assertions; `testCaseContent.ts` covers registry/maps/lessons; `testCases.ts` covers cross-case state, scoring and replay; `fuzzKql.ts` probes robustness and formatting equivalence. Their passing does not prove browser interaction, audio quality or full physical reachability.
 - `testAudioScheduling.ts` uses a monotonic fake clock with coalesced overdue timers for fade cancellation, silent scheduling, SFX isolation and long stalls. `testPerfUi.tsx` checks syntax-only features, independent thumbnail cell parity/cache reuse and failed-import recovery. These run sequentially via `test:performance` and CI.
+- `checkContent.ts` reports authoring errors for the registered cases and independent starter. `testAuthoring.ts` exercises valid and deliberately broken content; `testContentPreview.tsx` covers preview helpers/rendering. Also verify browser case/terminal switching, query/hint/reset/verdict actions, unchanged persisted profile, and exclusion from a production build.
 - Do not run known catastrophic regex or deliberately remove safety guards in the main process or working tree. Prefer isolated fixtures or child processes with enforced deadlines and reliable cleanup. A timing assertion after a blocking call cannot interrupt it.
 - For gameplay changes, test the real route and interaction, not only store mutations or presence of strings in a bundle. State explicitly when browser testing is unavailable.
 - Save text as UTF-8. Do not round-trip native `git show` output through an ambiguously decoded PowerShell text pipeline; this previously corrupted arrows and punctuation. Use byte-preserving reads/copies or explicit UTF-8, and inspect the diff.

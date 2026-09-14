@@ -1,0 +1,97 @@
+.content-preview {
+  position: relative;
+  width: min(100%, 1440px);
+  margin: 0 auto;
+  padding: 24px clamp(16px, 3vw, 40px) 48px;
+  display: grid;
+  gap: 24px;
+}
+
+.content-preview h1 {
+  color: var(--amber);
+  font-size: clamp(16px, 3vw, 24px);
+}
+
+.content-preview h2 {
+  font-size: 14px;
+}
+
+.content-preview-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(140px, 0.5fr);
+  gap: 16px;
+}
+
+.content-preview-control {
+  display: grid;
+  gap: 6px;
+  color: var(--cyan);
+}
+
+.content-preview-controls select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px;
+  border: 2px solid var(--peri);
+  border-radius: 0;
+  background: var(--black);
+  color: var(--white);
+  font: inherit;
+}
+
+.content-preview-actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.content-preview-actions > * {
+  min-height: 44px;
+}
+
+.content-preview a {
+  color: var(--cyan);
+  overflow-wrap: anywhere;
+}
+
+.content-preview :focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 4px;
+}
+
+.content-preview-validation li {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.content-preview-surface {
+  min-width: 0;
+}
+
+.content-preview-status {
+  color: var(--cyan);
+}
+
+/* Inline surfaces scroll with the page; never trap the author controls behind a scrim. */
+.content-preview-surface .modal {
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+}
+
+.content-preview-surface .verdict-foot {
+  position: static;
+}
+
+.content-preview-surface .screen {
+  padding: 0;
+}
+
+@media (max-width: 800px) {
+  .content-preview-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

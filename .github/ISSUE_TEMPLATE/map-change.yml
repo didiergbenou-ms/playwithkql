@@ -1,0 +1,41 @@
+name: Map or level change
+description: Change one room, route or map while preserving terminal progression.
+title: "[Map] "
+body:
+  - type: input
+    id: map
+    attributes:
+      label: Map, room and owner
+      placeholder: "Relay Ruins, room 2 - contributor name"
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Player experience to improve
+      description: Describe the route, obstacle, collectible or interaction and its intended difficulty.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Files, coordinates and boundaries
+      description: Identify the level file and zero-based room/tile coordinates. Do not change character physics, shared rendering or lesson content just to make a route work.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Observable acceptance criteria
+      description: Specify reachable start/end points, checkpoint safety, gate order and recruit-specific routes. Include a sketch or screenshot if useful.
+    validations:
+      required: true
+  - type: checkboxes
+    id: handoff
+    attributes:
+      label: Completion checklist
+      options:
+        - label: Content/map checks pass; interactables are supported and gates cannot be bypassed.
+        - label: Actual routes were traversed with all four recruits, including running and standing jumps.
+        - label: Terminal use and collectible access were checked, not merely approximate reachability.
+        - label: PR includes before/after visuals and targets develop.

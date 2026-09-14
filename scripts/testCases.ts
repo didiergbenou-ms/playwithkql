@@ -25,15 +25,12 @@ function start(caseId: string) {
   return getCase(caseId);
 }
 
-check('three selectable cases and explicit unknown-case errors', () => {
-  assert.deepEqual(CASES.map(c => c.id), ['001', '002', '003']);
+check('unique selectable cases and explicit unknown-case errors', () => {
+  assert.equal(new Set(CASES.map(c => c.id)).size, CASES.length);
+  for (const caseDef of CASES) assert.equal(getCase(caseDef.id), caseDef);
   assert.equal(DEFAULT_CASE_ID, '001');
   assert.throws(() => getCase('missing'));
   assert.equal(getCase('001').placeholder, false);
-  for (const id of ['002', '003']) {
-    assert.equal(getCase(id).placeholder, true);
-    assert.ok(getCase(id).placeholderNotice);
-  }
 });
 
 for (const caseDef of CASES) {

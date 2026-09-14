@@ -40,9 +40,33 @@ rapid replay. Score, objectives, notes, dev shortcuts and verdicts use that
 case's definition. The existing profile storage key and aggregate profile
 fields are unchanged; active runs still do not survive a reload.
 
+The notebook keeps pocketed field-note titles and full text separate from
+terminal-earned query evidence. Its working theory uses the collected evidence's
+`chainIndex` links, not collection counts. Notes remain available during the run,
+including after respawn; a fresh replay starts an empty notebook.
+
 `npm run test:cases` checks the registry, content wiring, maps, case switching,
 replay and scoring isolation. The existing reachability helper is heuristic;
 its passing is not a substitute for traversing the actual Phaser map.
+
+### Contributor authoring tools
+
+Follow the [scoped contributor workflow](LOCAL_DEVELOPMENT.md#contribute-one-scoped-change)
+for human or AI-assisted changes. Shared content types live in
+`src/data/cases/types.ts`; the old Case 001 type exports remain compatible.
+
+`src/authoring/caseStarter.ts` supplies independent fictional parcel data and
+five complete lessons. It is not a fourth playable case. Drafts added to
+`src/authoring/catalog.ts` appear in both the dev-only `?author=1` workbench and
+`npm run check:content`, without entering the game registry. The starter helper
+clones map geometry and assigns new IDs; preserving shipped IDs when replacing
+a case is a separate, deliberate authoring step.
+
+The workbench reuses `Briefing`, `TerminalModal` and the pure `VerdictView`;
+`VerdictModal` remains the store-bound gameplay wrapper. The preview root never
+initializes App, the persisted store or Phaser. It keeps attempts, hints and
+verdict feedback in local React state. Production builds exclude the workbench,
+its catalog and validator; the URL flag alone cannot enable them.
 
 ---
 

@@ -1,0 +1,45 @@
+name: Case content
+description: Author or revise one investigation without changing shared gameplay.
+title: "[Content] "
+body:
+  - type: markdown
+    attributes:
+      value: "Start with the development skill and the independent case starter. Use synthetic data only. Do not paste real customer telemetry, credentials or internal case records."
+  - type: input
+    id: case
+    attributes:
+      label: Case and owner
+      placeholder: "002 Signal Harbor - contributor name"
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Learning goal and investigation
+      description: Describe the symptom, root cause, intended KQL operators and evidence chain.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Files and boundaries
+      description: Name the case content, dataset and assertion files. Keep maps, terminal/gate IDs, scoring and other cases unchanged unless explicitly included.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Observable acceptance criteria
+      description: Include the expected columns/values for each terminal, not just its reference query. Cover progressive hints, examples, evidence, wrong-theory rebuttals and debrief.
+    validations:
+      required: true
+  - type: checkboxes
+    id: handoff
+    attributes:
+      label: Completion checklist
+      options:
+        - label: Data is independent and synthetic; existing cases still behave as before.
+        - label: Content checks, authoring regressions and case isolation tests pass without weakening shared checks.
+        - label: Lessons, queries, hints and verdict were exercised in the content workbench.
+        - label: Final case was played through in the game; the correct gates and evidence update.
+        - label: PR targets develop and describes any intentionally changed assumptions.
