@@ -47,16 +47,19 @@ function assert(cond: boolean, msg: string) {
 const noop = () => {};
 
 /** `alreadySolved` is the supported way to open straight on the solve pane. */
-function renderTerminal(opts: { solved: boolean }) {
+function renderTerminal(opts: { solved: boolean; draft?: string }) {
   return renderToStaticMarkup(
     <TerminalModal
       spec={CHALLENGES[0]}
+      initialQuery={opts.draft}
       alreadySolved={opts.solved}
       hintsUsed={0}
       crystalsLeft={0}
       onAttempt={noop}
       onHint={noop}
       onSpendCrystal={() => false}
+      solutionRevealed={false}
+      onRevealSolution={noop}
       onSolved={noop}
       onClose={noop}
     />,
@@ -64,6 +67,28 @@ function renderTerminal(opts: { solved: boolean }) {
 }
 
 const countTables = (html: string) => (html.match(/<table class="result"/g) ?? []).length;
+
+check('an existing draft reopens on the editor instead of resetting to the lesson', () => {
+  const query = 'Heartbeat\n| take  3';
+  const html = renderTerminal({ solved: false, draft: query });
+  assert(html.includes(query), 'draft text or formatting was lost');
+  assert(html.includes('KQL query editor'), 'draft did not reopen in the editor');
+  assert(!html.includes('learn-title'), 'draft reopened on the lesson');
+  assert(countTables(html) === 0, 'a draft was mistaken for an executed result');
+});
+
+check('an empty draft is preserved rather than replaced with the starter', () => {
+  const html = renderTerminal({ solved: false, draft: '' });
+  const textarea = /<textarea\b[^>]*>([\s\S]*?)<\/textarea>/.exec(html);
+  assert(!!textarea, 'empty draft did not open the editor');
+  assert(textarea?.[1] === '', 'empty draft was replaced by starter content');
+});
+
+check('new worked examples load asynchronously without executing during render', () => {
+  const html = renderTerminal({ solved: false });
+  assert(html.includes('Loading example result'), 'missing explicit loading state');
+  assert(countTables(html) === 0, 'render synchronously executed an example');
+});
 
 // ---- the reported bug ------------------------------------------------------
 

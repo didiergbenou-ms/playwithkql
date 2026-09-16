@@ -241,6 +241,7 @@ npm run test:cases
 npm run check:content
 npm run test:authoring
 npm run test:performance
+npm run test:reliability
 npm run fuzz
 npm run build
 ```
@@ -270,6 +271,7 @@ python -m pip install playwright==1.62.0
 python -m playwright install chromium
 python scripts/testPhaserBrowser.py
 python scripts/testPhaserBrowser.py --canvas
+python scripts/testKqlBrowser.py
 ```
 
 The first two commands are one-time browser-test setup, not requirements to play
