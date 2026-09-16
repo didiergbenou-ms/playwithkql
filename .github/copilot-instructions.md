@@ -13,6 +13,8 @@ before relying on a documented assumption.
   incident records or copyrighted assets into examples or generated content.
 - Separate implemented features from the README roadmap. The game has authored
   hints and a local mini-interpreter, not a real Kusto connection or AI coach.
+- Phaser is pinned to 4.2.1. Follow the skill's Phaser 4 compatibility section;
+  do not introduce Phaser 3 renderer APIs or change the engine during content work.
 - Use `src/authoring/caseStarter.ts` for an independent content example.
   Do not edit Case 001 to customize the placeholder copies in Cases 002/003.
 - Use `npm run check:content` and the dev-only `?author=1` workbench for content

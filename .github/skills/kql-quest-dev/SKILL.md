@@ -194,11 +194,19 @@ Live operator ticks in `TerminalModal.getLiveQueryFeatures` only parse and colle
 - Menu thumbnails cache merged geometry by level object identity. Treat case/map definitions as immutable; preserve every colored cell when changing the compaction.
 - With camera zoom, parallax uses `camera.worldView.x`, not an assumption that `scrollX` is the visible left edge.
 - Pixel sprites have fixed dimensions and collision offsets. Ragged sprite rows or trailing transparent rows under bottom-origin props can cause broken rendering or floating terminals.
-- Phaser4 uses render nodes and filters, not v3 custom pipelines/preFX/postFX. The game's procedural textures use `createCanvas`/`refresh`, not the removed `TextureManager.generate`. Keep AUTO fallback and explicit pixelArt/roundPixels. Native TileSprite sampling can differ from v3's power-of-two-resampled edges; preserve source pixels rather than reproducing old blur. Consult the linked migration section in `docs/IMPLEMENTATION.md`.
 - Music lives in `music.ts` (tracks, patterns, room mapping) and `audio.ts` (voices, scheduling, gains). Preserve user volume/on-off settings, modal ducking and focus fade. Keep channels aligned and use original compositions/assets.
 - After focus fade, stop music scheduling and owned sources, not SFX. Resume preserves track/step but rebases stale audio time; music off/volume zero must not synthesize. Preserve cancellation tokens for rapid focus changes and the stalled-scheduler bound.
 - Motion settings can change while playing. Check actual shake, camera zoom and particle behavior, not just the text in Options.
 - The optional `server/index.js` binds to loopback and refuses production mode, but remains unauthenticated and trusts client data. Local-only/CORS restrictions are not identity or score validation. Do not expose it or describe its leaderboard as trusted production gameplay.
+
+### Phaser 4 compatibility
+
+- Keep the exact `4.2.1` dependency and matching lockfile unless the task explicitly upgrades the engine. Do not downgrade to match a Phaser 3 example or add a second engine copy. Verify APIs against the installed `node_modules/phaser/types/phaser.d.ts` and source; upstream `master` may describe a newer release.
+- Read the [upstream migration skill](https://github.com/phaserjs/phaser/blob/master/skills/v3-to-v4-migration/SKILL.md) before renderer work. Phaser 4 uses render nodes and filters, not v3 custom pipelines/preFX/postFX. Do not introduce `BitmapMask`, `setTintFill`, `Geom.Point`, `Phaser.Struct.Set/Map`, Mesh/Plane or `TextureManager.generate` from old examples.
+- The game's own `generateTextures` helper uses compatible `createCanvas`/`refresh` APIs. Preserve these procedural assets and the existing Arcade physics; migration did not require a runtime rewrite. Adding DynamicTexture/RenderTexture drawing is different: v4 buffers those commands until `render()`.
+- Preserve `Phaser.AUTO`, explicit `pixelArt`/`roundPixels`, the 640x360 canvas, 2x camera and deferred engine loading. Canvas is a deprecated fallback, so any new WebGL-only feature needs an explicit fallback decision. Do not blanket-force `vertexRoundMode` on scaled objects.
+- Native TileSprite sampling can differ from v3's power-of-two-resampled edges. Preserve source pixels, repeat dimensions and scrolling rather than reproducing the old blur. Canvas's rounded sprite quads retain a half-pixel expansion; do not offset game geometry to compensate for a renderer-specific test expectation.
+- For engine, texture, camera or lifecycle changes, run the production browser suite in both WebGL and Canvas after the normal checks. Also exercise cold/delayed loading, an overlay during loading, early abandonment and sleeping teardown. Never replace these checks with store-only tests or skip the renderer check to obtain a green build.
 
 ## Development and verification
 
