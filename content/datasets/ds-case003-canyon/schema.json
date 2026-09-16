@@ -1,0 +1,36 @@
+{
+  "datasetId": "ds-case003-canyon",
+  "queryTime": "2026-03-11T12:00:00Z",
+  "tables": [
+    {
+      "name": "Perf",
+      "columns": [
+        {
+          "name": "TimeGenerated",
+          "type": "datetime"
+        },
+        {
+          "name": "Computer",
+          "type": "string"
+        },
+        {
+          "name": "ObjectName",
+          "type": "string"
+        },
+        {
+          "name": "CounterName",
+          "type": "string"
+        },
+        {
+          "name": "InstanceName",
+          "type": "string"
+        },
+        {
+          "name": "CounterValue",
+          "type": "real"
+        }
+      ],
+      "rowCount": 3456
+    }
+  ]
+}

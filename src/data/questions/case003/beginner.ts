@@ -1,113 +1,59 @@
-import type { QuestionSet } from '../types';
-import { QUESTION_SET_PLACEHOLDER_NOTICE, reusedQuestion } from '../seed';
+import { authoredSet } from '../../curriculum/authoring';
 
-/**
- * All five slots reuse existing lessons, including beginner; no new questions or
- * increased difficulty are claimed. Each seed call deep-clones its slot.
- * Replace each lesson's prompt, solution, hints, starter, teaches, and concept
- * (including its example), review remaining lesson fields, and replace evidence.
- * Set each slot's source to 'authored' after replacement. Only after all five
- * slots are reviewed, set questionSetStatus to 'ready' and questionSetNotice to null.
- */
-const seeds = [
-  reusedQuestion(1),
-  reusedQuestion(2),
-  reusedQuestion(3),
-  reusedQuestion(4),
-  reusedQuestion(5),
-];
-
-export const QUESTION_SET: QuestionSet = {
-  id: '003:beginner',
-  caseId: '003',
-  difficulty: 'beginner',
-  questionSetStatus: 'placeholder',
-  questionSetNotice: QUESTION_SET_PLACEHOLDER_NOTICE,
-  slots: [
-    {
-      slot: 1,
-      source: 'reused',
-      lesson: {
-        ...seeds[0].lesson,
-        prompt: seeds[0].lesson.prompt,
-        solution: seeds[0].lesson.solution,
-        hints: seeds[0].lesson.hints,
-        starter: seeds[0].lesson.starter,
-        teaches: seeds[0].lesson.teaches,
-        concept: {
-          ...seeds[0].lesson.concept,
-          example: { ...seeds[0].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[0].evidence },
-    },
-    {
-      slot: 2,
-      source: 'reused',
-      lesson: {
-        ...seeds[1].lesson,
-        prompt: seeds[1].lesson.prompt,
-        solution: seeds[1].lesson.solution,
-        hints: seeds[1].lesson.hints,
-        starter: seeds[1].lesson.starter,
-        teaches: seeds[1].lesson.teaches,
-        concept: {
-          ...seeds[1].lesson.concept,
-          example: { ...seeds[1].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[1].evidence },
-    },
-    {
-      slot: 3,
-      source: 'reused',
-      lesson: {
-        ...seeds[2].lesson,
-        prompt: seeds[2].lesson.prompt,
-        solution: seeds[2].lesson.solution,
-        hints: seeds[2].lesson.hints,
-        starter: seeds[2].lesson.starter,
-        teaches: seeds[2].lesson.teaches,
-        concept: {
-          ...seeds[2].lesson.concept,
-          example: { ...seeds[2].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[2].evidence },
-    },
-    {
-      slot: 4,
-      source: 'reused',
-      lesson: {
-        ...seeds[3].lesson,
-        prompt: seeds[3].lesson.prompt,
-        solution: seeds[3].lesson.solution,
-        hints: seeds[3].lesson.hints,
-        starter: seeds[3].lesson.starter,
-        teaches: seeds[3].lesson.teaches,
-        concept: {
-          ...seeds[3].lesson.concept,
-          example: { ...seeds[3].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[3].evidence },
-    },
-    {
-      slot: 5,
-      source: 'reused',
-      lesson: {
-        ...seeds[4].lesson,
-        prompt: seeds[4].lesson.prompt,
-        solution: seeds[4].lesson.solution,
-        hints: seeds[4].lesson.hints,
-        starter: seeds[4].lesson.starter,
-        teaches: seeds[4].lesson.teaches,
-        concept: {
-          ...seeds[4].lesson.concept,
-          example: { ...seeds[4].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[4].evidence },
-    },
-  ],
-};
+export const QUESTION_SET = authoredSet('003', 'beginner', [
+  {
+    title: 'Trim the report', prompt: 'Return all Perf rows with exactly TimeGenerated, Computer, CounterName and CounterValue, in that order.',
+    body: 'project chooses and orders columns. It does not filter rows. Keeping the counter name matters because CPU, memory and network values have different units.',
+    pattern: '<Table> | project <first>, <second>, <third>',
+    example: { query: 'Perf | take 3 | project Computer, CounterName', explain: 'Three observations still show which measurement each value belongs to.' },
+    solution: 'Perf | project TimeGenerated, Computer, CounterName, CounterValue', operators: ['project'],
+    validation: { mode: 'schema', expectedColumns: ['TimeGenerated', 'Computer', 'CounterName', 'CounterValue'], expectedRowCount: 3456 },
+    hints: ['Do not filter or summarize this report.', 'Name all four requested columns after project.'],
+    sourceIds: ['MLKQL-Part14'], sourceTerminalId: 'T-003-01',
+    evidence: { title: 'A readable independent export', detail: 'All 3,456 performance samples remain. This independent export contains three counters; its presence does not mean heartbeat uploads succeeded.', chainIndex: 3 },
+  },
+  {
+    title: 'Name the measurement', prompt: 'In Perf, drop InstanceName and ObjectName, then rename CounterValue to Value. Keep all rows.',
+    body: 'project-away removes named columns; project-rename changes a heading without losing its values. Rename syntax is New = Old.',
+    pattern: '<Table> | project-away <columns> | project-rename New = Old',
+    example: { query: 'Perf | take 2 | project-away InstanceName | project-rename Measurement = CounterName', explain: 'The counter values are unchanged while the heading becomes Measurement.' },
+    solution: 'Perf | project-away InstanceName, ObjectName | project-rename Value = CounterValue', operators: ['project-away', 'project-rename'],
+    validation: { mode: 'schema', expectedColumns: ['TimeGenerated', 'Computer', 'CounterName', 'Value'], expectedRowCount: 3456 },
+    hints: ['Drop the two metadata fields, not the counter name.', 'Write Value = CounterValue when renaming.'],
+    sourceIds: ['MLKQL-Part14'], sourceTerminalId: 'T-003-02',
+    evidence: { title: 'Units preserved, heading simplified', detail: 'The report still has 3,456 rows and retains CounterName alongside the renamed Value.', chainIndex: 3 },
+  },
+  {
+    title: 'Newest CPU first', prompt: 'Keep CPU (% Processor Time) samples, sort newest first, and report TimeGenerated, Computer and CounterValue.',
+    body: 'sort rearranges rows. Twelve machines share each sample time, so tied rows may appear in any order. The lesson checks descending timestamps, not arbitrary tie order.',
+    pattern: '<Table> | where <condition> | sort by TimeGenerated desc | project <columns>',
+    example: { query: 'Perf | where CounterName == "% Processor Time" | sort by TimeGenerated desc | take 3', explain: 'These samples are from the most recent recorded quarter hour.' },
+    solution: 'Perf | where CounterName == "% Processor Time" | sort by TimeGenerated desc | project TimeGenerated, Computer, CounterValue', operators: ['where', 'sort', 'project'],
+    validation: { mode: 'orderedBy', column: 'TimeGenerated', direction: 'desc', expectedRowCount: 1152, expectedColumns: ['TimeGenerated', 'Computer', 'CounterValue'] },
+    hints: ['Filter to the CPU counter before sorting.', 'Use TimeGenerated desc, then select the three report columns.'],
+    sourceIds: ['MLKQL-Part16'], sourceTerminalId: 'T-003-03',
+    evidence: { title: 'Perf continues to 11:45Z', detail: 'There are 1,152 CPU samples, with the newest at 11:45Z. This independent export continues after the heartbeat cutoff.', chainIndex: 3 },
+  },
+  {
+    title: 'Five largest CPU readings', prompt: 'Return the top five CPU readings by CounterValue descending. Report Computer, TimeGenerated and CounterValue; use top, not take.',
+    body: 'Filter to one counter before ranking: mixed units cannot be compared meaningfully. top chooses the largest values; take alone gives an arbitrary sample.',
+    pattern: '<Table> | where <counter filter> | top <N> by CounterValue desc | project <columns>',
+    example: { query: 'Perf | where CounterName == "% Processor Time" | top 2 by CounterValue desc', explain: 'SQL-01 and APP-01 have the two largest CPU samples.' },
+    solution: 'Perf | where CounterName == "% Processor Time" | top 5 by CounterValue desc | project Computer, TimeGenerated, CounterValue',
+    operators: ['where', 'top', 'project'], forbidden: ['take'], ordered: true,
+    hints: ['The largest memory or network value is not a CPU maximum.', 'Filter the CPU counter, then top 5 by CounterValue desc.'],
+    sourceIds: ['MLKQL-Part16'], sourceTerminalId: 'T-003-04',
+    evidence: { title: 'Peaks are not proof of cause', detail: 'The top values are 99.87, 98.41, 97.62, 96.15 and 95.33. Two peaks occur at 09:00Z, before the 09:12Z rule write.', chainIndex: 3 },
+  },
+  {
+    title: 'Put the change on the timeline', prompt: 'From NetworkChanges, report TimeGenerated, Ticket and Message for CHG-4471, to compare with the CPU peaks.',
+    body: 'A report should distinguish observed timing from inferred causation. The ticket supplies configuration evidence; CPU timing alone does not prove a retry storm or CPU starvation.',
+    pattern: 'NetworkChanges | where ChangeId == "<id>" | project <timeline fields>',
+    example: { query: 'NetworkChanges | project TimeGenerated, ChangeId | sort by TimeGenerated asc', explain: 'The synthetic baseline, incident and development review have distinct times.' },
+    solution: 'NetworkChanges | where ChangeId == "CHG-4471" | project TimeGenerated, Ticket, Message', operators: ['where', 'project'],
+    hints: ['The incident ticket is CHG-4471.', 'Keep the timestamp, ticket identifier and rule message in that order.'],
+    sourceIds: ['MLKQL-Part14', 'MLKQL-Part21'], sourceTerminalId: null,
+    adaptation: 'Added configuration-timeline terminal; replaces unsupported source claims that all CPU spikes were caused by retries.',
+    evidence: { title: 'Configuration is the stronger lead', detail: 'The synthetic ticket records outbound Deny on port 443 at 09:12Z. Peaks at 09:00Z cannot be effects of that later write; the 09:15Z peaks alone do not establish causation.', chainIndex: 1 },
+  },
+]);

@@ -1,0 +1,190 @@
+{
+  "NetworkChanges": [
+    {
+      "TimeGenerated": "2026-03-11T08:00:00Z",
+      "Caller": "ops-automation@contoso.com",
+      "ActivityStatusValue": "Succeeded",
+      "ResourceGroup": "rg-prod-network",
+      "_ResourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/rg-prod-network/providers/microsoft.network/networksecuritygroups/nsg-prod-outbound",
+      "ChangeId": "BASELINE-0800",
+      "Ticket": "BASELINE",
+      "Approved": true,
+      "Properties": "{\"before\":{\"name\":\"allow-oms-outbound\",\"access\":\"Allow\",\"port\":443,\"priority\":200,\"direction\":\"Outbound\"},\"after\":{\"name\":\"allow-oms-outbound\",\"access\":\"Allow\",\"port\":443,\"priority\":200,\"direction\":\"Outbound\"},\"affectedHosts\":[],\"rollbackRecorded\":false}",
+      "Changes": [
+        {
+          "name": "allow-oms-outbound",
+          "access": "Allow",
+          "port": 443,
+          "priority": 200,
+          "direction": "Outbound"
+        }
+      ],
+      "Message": "baseline outbound access=Allow port=443"
+    },
+    {
+      "TimeGenerated": "2026-03-11T09:12:00Z",
+      "Caller": "dana.whitfield@contoso.com",
+      "ActivityStatusValue": "Succeeded",
+      "ResourceGroup": "rg-prod-network",
+      "_ResourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/rg-prod-network/providers/microsoft.network/networksecuritygroups/nsg-prod-outbound",
+      "ChangeId": "CHG-4471",
+      "Ticket": "CHG-4471",
+      "Approved": true,
+      "Properties": "{\"before\":{\"name\":\"allow-oms-outbound\",\"access\":\"Allow\",\"port\":443,\"priority\":200,\"direction\":\"Outbound\"},\"after\":{\"name\":\"deny-all-outbound\",\"access\":\"Deny\",\"port\":443,\"priority\":100,\"direction\":\"Outbound\"},\"affectedHosts\":[\"PRD-WEB-01\",\"PRD-WEB-02\",\"PRD-APP-01\",\"PRD-APP-02\",\"PRD-SQL-01\"],\"rollbackRecorded\":false}",
+      "Changes": [
+        {
+          "name": "allow-oms-outbound",
+          "access": "Allow",
+          "port": 443,
+          "priority": 200,
+          "direction": "Outbound"
+        },
+        {
+          "name": "deny-all-outbound",
+          "access": "Deny",
+          "port": 443,
+          "priority": 100,
+          "direction": "Outbound"
+        }
+      ],
+      "Message": "changed outbound access=Deny port=443"
+    },
+    {
+      "TimeGenerated": "2026-03-11T09:30:00Z",
+      "Caller": "ops-automation@contoso.com",
+      "ActivityStatusValue": "Succeeded",
+      "ResourceGroup": "rg-dev",
+      "_ResourceId": "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/rg-dev/providers/microsoft.network/networksecuritygroups/nsg-dev",
+      "ChangeId": "CHG-4472",
+      "Ticket": "CHG-4472",
+      "Approved": true,
+      "Properties": "{\"before\":{\"name\":\"allow-oms-outbound\",\"access\":\"Allow\",\"port\":443,\"priority\":200,\"direction\":\"Outbound\"},\"after\":{\"name\":\"allow-oms-outbound\",\"access\":\"Allow\",\"port\":443,\"priority\":200,\"direction\":\"Outbound\"},\"affectedHosts\":[\"DEV-WEB-01\"],\"rollbackRecorded\":false}",
+      "Changes": [
+        {
+          "name": "allow-oms-outbound",
+          "access": "Allow",
+          "port": 443,
+          "priority": 200,
+          "direction": "Outbound"
+        }
+      ],
+      "Message": "reviewed outbound access=Allow port=443"
+    }
+  ],
+  "SigninLogs": [
+    {
+      "TimeGenerated": "2026-03-11T08:40:00Z",
+      "UserPrincipalName": "dana.whitfield@contoso.com",
+      "ResultType": 50074,
+      "IPAddress": "198.51.100.10",
+      "Location": "Corporate lab",
+      "AppDisplayName": "Azure Portal",
+      "IsApprovedAdmin": true,
+      "DeviceDetail": {
+        "operatingSystem": "Windows",
+        "isManaged": true
+      },
+      "AuthenticationDetails": [
+        {
+          "method": "Password",
+          "succeeded": false
+        }
+      ]
+    },
+    {
+      "TimeGenerated": "2026-03-11T08:42:00Z",
+      "UserPrincipalName": "dana.whitfield@contoso.com",
+      "ResultType": 0,
+      "IPAddress": "198.51.100.10",
+      "Location": "Corporate lab",
+      "AppDisplayName": "Azure Portal",
+      "IsApprovedAdmin": true,
+      "DeviceDetail": {
+        "operatingSystem": "Windows",
+        "isManaged": true
+      },
+      "AuthenticationDetails": [
+        {
+          "method": "MFA",
+          "succeeded": true
+        }
+      ]
+    },
+    {
+      "TimeGenerated": "2026-03-11T09:05:00Z",
+      "UserPrincipalName": "dana.whitfield@contoso.com",
+      "ResultType": 0,
+      "IPAddress": "198.51.100.10",
+      "Location": "Corporate lab",
+      "AppDisplayName": "Azure Portal",
+      "IsApprovedAdmin": true,
+      "DeviceDetail": {
+        "operatingSystem": "Windows",
+        "isManaged": true
+      },
+      "AuthenticationDetails": [
+        {
+          "method": "MFA",
+          "succeeded": true
+        }
+      ]
+    },
+    {
+      "TimeGenerated": "2026-03-11T10:00:00Z",
+      "UserPrincipalName": "dana.whitfield@contoso.com",
+      "ResultType": 0,
+      "IPAddress": "198.51.100.10",
+      "Location": "Corporate lab",
+      "AppDisplayName": "Azure Portal",
+      "IsApprovedAdmin": true,
+      "DeviceDetail": {
+        "operatingSystem": "Windows",
+        "isManaged": true
+      },
+      "AuthenticationDetails": [
+        {
+          "method": "MFA",
+          "succeeded": true
+        }
+      ]
+    },
+    {
+      "TimeGenerated": "2026-03-11T08:00:00Z",
+      "UserPrincipalName": "ops-automation@contoso.com",
+      "ResultType": 0,
+      "IPAddress": "198.51.100.20",
+      "Location": "Corporate lab",
+      "AppDisplayName": "Azure Portal",
+      "IsApprovedAdmin": true,
+      "DeviceDetail": {
+        "operatingSystem": "Windows",
+        "isManaged": true
+      },
+      "AuthenticationDetails": [
+        {
+          "method": "MFA",
+          "succeeded": true
+        }
+      ]
+    },
+    {
+      "TimeGenerated": "2026-03-11T09:30:00Z",
+      "UserPrincipalName": "ops-automation@contoso.com",
+      "ResultType": 0,
+      "IPAddress": "198.51.100.20",
+      "Location": "Corporate lab",
+      "AppDisplayName": "Azure Portal",
+      "IsApprovedAdmin": true,
+      "DeviceDetail": {
+        "operatingSystem": "Windows",
+        "isManaged": true
+      },
+      "AuthenticationDetails": [
+        {
+          "method": "MFA",
+          "succeeded": true
+        }
+      ]
+    }
+  ]
+}

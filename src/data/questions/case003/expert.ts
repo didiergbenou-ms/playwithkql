@@ -1,113 +1,64 @@
-import type { QuestionSet } from '../types';
-import { QUESTION_SET_PLACEHOLDER_NOTICE, reusedQuestion } from '../seed';
+import { authoredSet } from '../../curriculum/authoring';
 
-/**
- * All five slots reuse existing lessons, including beginner; no new questions or
- * increased difficulty are claimed. Each seed call deep-clones its slot.
- * Replace each lesson's prompt, solution, hints, starter, teaches, and concept
- * (including its example), review remaining lesson fields, and replace evidence.
- * Set each slot's source to 'authored' after replacement. Only after all five
- * slots are reviewed, set questionSetStatus to 'ready' and questionSetNotice to null.
- */
-const seeds = [
-  reusedQuestion(1),
-  reusedQuestion(2),
-  reusedQuestion(3),
-  reusedQuestion(4),
-  reusedQuestion(5),
-];
-
-export const QUESTION_SET: QuestionSet = {
-  id: '003:expert',
-  caseId: '003',
-  difficulty: 'expert',
-  questionSetStatus: 'placeholder',
-  questionSetNotice: QUESTION_SET_PLACEHOLDER_NOTICE,
-  slots: [
-    {
-      slot: 1,
-      source: 'reused',
-      lesson: {
-        ...seeds[0].lesson,
-        prompt: seeds[0].lesson.prompt,
-        solution: seeds[0].lesson.solution,
-        hints: seeds[0].lesson.hints,
-        starter: seeds[0].lesson.starter,
-        teaches: seeds[0].lesson.teaches,
-        concept: {
-          ...seeds[0].lesson.concept,
-          example: { ...seeds[0].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[0].evidence },
-    },
-    {
-      slot: 2,
-      source: 'reused',
-      lesson: {
-        ...seeds[1].lesson,
-        prompt: seeds[1].lesson.prompt,
-        solution: seeds[1].lesson.solution,
-        hints: seeds[1].lesson.hints,
-        starter: seeds[1].lesson.starter,
-        teaches: seeds[1].lesson.teaches,
-        concept: {
-          ...seeds[1].lesson.concept,
-          example: { ...seeds[1].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[1].evidence },
-    },
-    {
-      slot: 3,
-      source: 'reused',
-      lesson: {
-        ...seeds[2].lesson,
-        prompt: seeds[2].lesson.prompt,
-        solution: seeds[2].lesson.solution,
-        hints: seeds[2].lesson.hints,
-        starter: seeds[2].lesson.starter,
-        teaches: seeds[2].lesson.teaches,
-        concept: {
-          ...seeds[2].lesson.concept,
-          example: { ...seeds[2].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[2].evidence },
-    },
-    {
-      slot: 4,
-      source: 'reused',
-      lesson: {
-        ...seeds[3].lesson,
-        prompt: seeds[3].lesson.prompt,
-        solution: seeds[3].lesson.solution,
-        hints: seeds[3].lesson.hints,
-        starter: seeds[3].lesson.starter,
-        teaches: seeds[3].lesson.teaches,
-        concept: {
-          ...seeds[3].lesson.concept,
-          example: { ...seeds[3].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[3].evidence },
-    },
-    {
-      slot: 5,
-      source: 'reused',
-      lesson: {
-        ...seeds[4].lesson,
-        prompt: seeds[4].lesson.prompt,
-        solution: seeds[4].lesson.solution,
-        hints: seeds[4].lesson.hints,
-        starter: seeds[4].lesson.starter,
-        teaches: seeds[4].lesson.teaches,
-        concept: {
-          ...seeds[4].lesson.concept,
-          example: { ...seeds[4].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[4].evidence },
-    },
-  ],
-};
+export const QUESTION_SET = authoredSet('003', 'expert', [
+  {
+    title: 'Capstone: bound the symptom', prompt: 'Using only the exact MTU_MISMATCH Syslog records, summarize FirstSymptom, LastSymptom and Messages, then report them with BurstSeconds (elapsed seconds between first and last).',
+    body: 'Start the case file with observable boundaries. The first logged symptom is not necessarily the instant of failure. No union or hidden cross-table execution is needed for this scoped objective.',
+    pattern: '<Filter the exact symptom> | <aggregate first, last and count> | <calculate elapsed seconds>',
+    example: { query: 'Syslog | where SyslogMessage has "MTU_MISMATCH" | project TimeGenerated, Computer | sort by TimeGenerated asc', explain: 'The raw ordered records let you inspect the first and last symptom directly.' },
+    solution: 'Syslog | where SyslogMessage has "MTU_MISMATCH" | summarize FirstSymptom = min(TimeGenerated), LastSymptom = max(TimeGenerated), Messages = count() | extend BurstSeconds = datetime_diff("second", LastSymptom, FirstSymptom)',
+    operators: ['summarize'],
+    hints: ['Bound only the exact symptom token, not every mismatch decoy.', 'Find the minimum and maximum timestamp, then their difference in seconds.'],
+    sourceIds: ['MLKQL-Part21', 'MSLearn-path-monitoring'], sourceTerminalId: 'T-012-01',
+    adaptation: 'Capstone timeline scoped to one real exported table; no union. Retains three hints and a recap summarize gate for the current game contract rather than the source’s one-hint, operator-free mode.',
+    evidence: { title: 'A 117-second symptom burst', detail: 'Six records span 09:13:47Z to 09:15:44Z, 117 seconds. This follows the 09:12Z change and overlaps the heartbeat cutoff.', chainIndex: 1 },
+  },
+  {
+    title: 'Capstone: name account and resource', prompt: 'Find the unique successful network-security-rule write in AzureActivity. Use project to return Account, Resource, ChangedAt and Operation, mapped from Caller, _ResourceId, TimeGenerated and OperationNameValue.',
+    body: 'An incident report needs a stable resource identifier, a precise operation and attribution. Report the observed actor without claiming why the actor made the change.',
+    pattern: '<Select the successful rule write> | <project named entity and time fields>',
+    example: { query: 'AzureActivity | where OperationNameValue contains "SECURITYRULES/WRITE" | project TimeGenerated, ResourceGroup', explain: 'The unique write is at 09:12Z in rg-prod-network.' },
+    solution: 'AzureActivity | where ActivityStatusValue == "Succeeded" and OperationNameValue == "MICROSOFT.NETWORK/NETWORKSECURITYGROUPS/SECURITYRULES/WRITE" | project Account = Caller, Resource = _ResourceId, ChangedAt = TimeGenerated, Operation = OperationNameValue',
+    operators: ['project'],
+    hints: ['Use the full network-security-rule write operation or an equivalent precise filter.', 'Rename the four observed columns into the requested report fields.'],
+    sourceIds: ['MLKQL-Part21', 'MLKQL-Part14'], sourceTerminalId: 'T-012-02',
+    adaptation: 'Capstone actor/resource objective uses the supplied activity export and no join; three hints and a recap project gate retained instead of the source’s operator-free mode.',
+    evidence: { title: 'A precise audit identity', detail: 'The report identifies Dana, nsg-prod-outbound, 09:12Z and the successful SECURITYRULES/WRITE operation.', chainIndex: 0 },
+  },
+  {
+    title: 'Capstone: identify the mechanism', prompt: 'Use parse_json on NetworkChanges Properties to find changes from Allow to Deny on port 443. Report Ticket, OldRule, NewRule, Port and ConfiguredHosts from the before/after rule names and affectedHosts array.',
+    body: 'A mechanism needs more than temporal proximity. Read the actual before and after configuration in the synthetic enrichment, then compare the listed scope with the separately observed heartbeat evidence.',
+    pattern: '<Parse the ticket payload> | <filter the access transition> | <project rule names, port and scope size>',
+    example: { query: 'NetworkChanges | where ChangeId == "CHG-4471" | extend p = parse_json(Properties) | project Hosts = p.affectedHosts', explain: 'The five configured host identities can be compared with the last-seen report; no join is performed.' },
+    solution: 'NetworkChanges | extend p = parse_json(Properties) | where tostring(p.before.access) == "Allow" and tostring(p.after.access) == "Deny" and toint(p.after.port) == 443 | project Ticket, OldRule = tostring(p.before.name), NewRule = tostring(p.after.name), Port = toint(p.after.port), ConfiguredHosts = array_length(p.affectedHosts)',
+    operators: ['parse_json'],
+    hints: ['Filter the access transition rather than hard-coding the answer ticket.', 'Read rule names from before and after, and count the affectedHosts array.'],
+    sourceIds: ['MLKQL-Part21', 'MLKQL-Adv-Ch1'], sourceTerminalId: 'T-012-03',
+    adaptation: 'Mechanism is explicit authored ticket evidence, not a computed causal join or proof from timing alone; three hints and a recap parse_json gate retained instead of the source’s operator-free mode.',
+    evidence: { title: 'Allow rule replaced in the five-host scope', detail: 'CHG-4471 replaces allow-oms-outbound with deny-all-outbound on port 443 and lists five configured hosts.', chainIndex: 1 },
+  },
+  {
+    title: 'Capstone: quantify the visibility gap', prompt: 'For Heartbeat machines last seen at or before March 11 09:15Z, use summarize to report AffectedMachines, FirstLastSeen and LastLastSeen, then add SilenceMinutes from LastLastSeen to the fixed query clock.',
+    body: 'Collapse to one row per machine before measuring blast radius. The elapsed time is a visibility gap at the export clock, not a proven application outage duration or a recovery time.',
+    pattern: '<Latest timestamp per host> | <keep affected hosts> | <count and bound last-seen times> | <calculate minutes to now()>',
+    example: { query: 'Heartbeat | summarize LastSeen = max(TimeGenerated) by Computer | where LastSeen > datetime(2026-03-11 09:15:00) | summarize ReportingMachines = count()', explain: 'Seven machines have later heartbeat evidence.' },
+    solution: 'Heartbeat | summarize LastSeen = max(TimeGenerated) by Computer | where LastSeen <= datetime(2026-03-11 09:15:00) | summarize AffectedMachines = count(), FirstLastSeen = min(LastSeen), LastLastSeen = max(LastSeen) | extend SilenceMinutes = datetime_diff("minute", now(), LastLastSeen)',
+    operators: ['summarize'],
+    hints: ['A count of raw heartbeat rows is not the number of affected machines.', 'After collapsing per host and selecting the affected set, calculate minutes from 09:15Z to the case clock.'],
+    sourceIds: ['MLKQL-Part21', 'MSLearn-aggregation-functions'], sourceTerminalId: 'T-012-04',
+    adaptation: 'Blast radius reports machines and observed visibility minutes only; no invented impacted-user count or application outage duration. Retains three hints and a recap summarize gate instead of the source’s operator-free mode.',
+    evidence: { title: 'Five machines, 165 visibility minutes', detail: 'Five affected machines share first and last LastSeen boundaries of 09:15Z. At 12:00Z the visibility gap is 165 minutes.', chainIndex: 2 },
+  },
+  {
+    title: 'Capstone: close on the latest known state', prompt: 'For rg-prod-network, use arg_max to select the latest NetworkChanges row per _ResourceId. Parse its Properties and report Resource = _ResourceId, Ticket, Caller, Access = tostring(p.after.access), Port = toint(p.after.port), and RollbackRecorded = p.rollbackRecorded.',
+    body: 'Close the report on the latest known production state, not the latest event anywhere. The current snapshot and missing recorded rollback support a reviewed path-restoration recommendation, not an assertion that recovery was tested.',
+    pattern: '<Scope production> | <latest row per resource> | <parse current payload> | <report state and rollback evidence>',
+    example: { query: 'NetworkChanges | where ResourceGroup == "rg-prod-network" | project TimeGenerated, ChangeId | sort by TimeGenerated desc', explain: 'The newest supplied production record remains 09:12Z; the later development record is outside scope.' },
+    solution: 'NetworkChanges | where ResourceGroup == "rg-prod-network" | summarize arg_max(TimeGenerated, Ticket, Caller, Properties) by _ResourceId | extend p = parse_json(Properties) | project Resource = _ResourceId, Ticket, Caller, Access = tostring(p.after.access), Port = toint(p.after.port), RollbackRecorded = p.rollbackRecorded',
+    operators: ['arg_max'],
+    hints: ['Do not let the later rg-dev record stand in for production state.', 'Carry Properties from the latest production row before parsing its after rule and rollback flag.'],
+    sourceIds: ['MLKQL-Part21', 'MLKQL-Adv-Ch1'], sourceTerminalId: 'T-012-05',
+    adaptation: 'Original three-map closeout using real local query execution; no borrowed detective puzzle, hidden UDF, precomputed verdict or deployed remediation. Retains three hints and a recap arg_max gate instead of the source’s operator-free mode.',
+    evidence: { title: 'Restore and verify, do not blame the peaks', detail: 'The latest production snapshot is Dana’s CHG-4471: Deny, port 443, RollbackRecorded=false. Review and restore the needed outbound path, then verify fresh heartbeats; this export contains no recovery verification.', chainIndex: 3 },
+  },
+]);

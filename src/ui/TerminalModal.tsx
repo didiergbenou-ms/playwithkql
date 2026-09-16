@@ -3,7 +3,7 @@ import type { CaseDefinition } from '../data/cases/types';
 import type { ChallengeSpec } from '../kql/challenge';
 import type { GradeResult } from '../kql/challenge';
 import { toDisplayString } from '../kql/evaluator';
-import { collectFeatures, KqlError, parse } from '../kql/index';
+import { collectFeatures, KqlError, parse, type QueryResult } from '../kql/index';
 import { gradeInWorker, queryInWorker, type WorkerTask } from '../kql/workerClient';
 import { formatKql, withSourceTable } from '../kql/format';
 import type { Table } from '../kql/types';
@@ -12,6 +12,8 @@ import { Collapsible } from './Collapsible';
 import { audio } from '../game/audio';
 import { DEFAULT_CASE_ID, getCase } from '../data/cases';
 import { CaseDifficulty } from './CaseDifficulty';
+import { ResultChart } from './ResultChart';
+import { ContentSources } from './ContentSources';
 
 interface Props {
   caseDef?: CaseDefinition;
@@ -138,7 +140,7 @@ export function TerminalModal({
   const [pane, setPane] = useState<'learn' | 'task'>(
     alreadySolved || initialQuery !== undefined ? 'task' : 'learn',
   );
-  const [exampleResult, setExampleResult] = useState<Table | null>(null);
+  const [exampleResult, setExampleResult] = useState<QueryResult | null>(null);
   const [exampleError, setExampleError] = useState<string | null>(null);
 
   useEffect(() => () => {
@@ -176,8 +178,8 @@ export function TerminalModal({
   /** The table this challenge is really about — drives the preview panel. */
   const focusTable = useMemo(() => {
     const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)/.exec(spec.solution);
-    return m?.[1] ?? 'Heartbeat';
-  }, [spec.solution]);
+    return m && db[m[1]] ? m[1] : caseDef.tableMeta[0]?.name ?? '';
+  }, [spec.solution, db, caseDef]);
 
   const preview = useMemo(() => {
     const source = db[focusTable];
@@ -233,8 +235,8 @@ export function TerminalModal({
     setExampleError(null);
     let current = true;
     const task = queryInWorker(spec.concept.example.query, db, caseDef.now);
-    task.promise.then(({ table }) => {
-      if (current) setExampleResult(table);
+    task.promise.then((result) => {
+      if (current) setExampleResult(result);
     }, (error: unknown) => {
       if (current) setExampleError(error instanceof Error ? error.message : String(error));
     });
@@ -282,6 +284,8 @@ export function TerminalModal({
       </header>
 
       <CaseDifficulty caseDef={caseDef} notice />
+      <p className="muted">Case clock: {caseDef.now.toISOString().replace('T', ' ').replace('.000Z', ' UTC')}. now() and ago() use this fixed time.</p>
+      {spec.contentNote && <p className="curriculum-notice">{spec.contentNote}</p>}
       <div className="pane-tabs">
         <button className={pane === 'learn' ? 'on' : ''} onClick={() => setPane('learn')}>
           1 · Learn
@@ -309,7 +313,10 @@ export function TerminalModal({
           <pre className="learn-example">{formatKql(spec.concept.example.query)}</pre>
           <p className="learn-body">{spec.concept.example.explain}</p>
           <p className="example-caption">What that example returns:</p>
-          {exampleResult ? <ResultTable table={exampleResult} meta={caseDef.tableMeta} showTypes />
+          {exampleResult ? <>
+            {exampleResult.visualization && <ResultChart table={exampleResult.table} kind={exampleResult.visualization.kind} />}
+            <ResultTable table={exampleResult.table} meta={caseDef.tableMeta} showTypes />
+          </>
             : exampleError ? <p role="alert" className="hint-line">Example could not run: {exampleError}</p>
               : <p role="status" className="muted">Loading example result...</p>}
 
@@ -517,6 +524,7 @@ export function TerminalModal({
             {graded?.table ? (
               <>
                 {!resultCurrent && <p className="sample-warn">Previous run output - it does not describe the current editor.</p>}
+                {graded.visualization && <ResultChart table={graded.table} kind={graded.visualization.kind} />}
                 <ResultTable table={graded.table} meta={caseDef.tableMeta} showTypes />
               </>
             ) : (
@@ -541,6 +549,7 @@ export function TerminalModal({
         </div>
       )}
 
+      {spec.sourceIds && <ContentSources ids={spec.sourceIds} />}
       {solvedNow && (
         <footer className="modal-foot">
           <span className="solved-flag">Lock disengaged — evidence filed.</span>

@@ -36,7 +36,7 @@ export function formatKql(src: string): string {
 
   /** Appends a space unless one is already pending, so runs collapse. */
   const pushSpace = () => {
-    if (cur.length > 0 && !cur.endsWith(' ')) cur += ' ';
+    if (cur.length > 0 && !/\s$/.test(cur)) cur += ' ';
   };
 
   while (i < src.length) {
@@ -61,10 +61,10 @@ export function formatKql(src: string): string {
       continue;
     }
 
-    // line comment runs to the end of the line
+    // Keep the newline so following code cannot become part of the comment.
     if (c === '/' && src[i + 1] === '/') {
       const nl = src.indexOf('\n', i);
-      const stop = nl === -1 ? src.length : nl;
+      const stop = nl === -1 ? src.length : nl + 1;
       cur += src.slice(i, stop);
       i = stop;
       continue;
@@ -126,14 +126,14 @@ function collapseOutsideStrings(src: string): string {
 
     if (c === '/' && src[i + 1] === '/') {
       const nl = src.indexOf('\n', i);
-      const stop = nl === -1 ? src.length : nl;
+      const stop = nl === -1 ? src.length : nl + 1;
       out += src.slice(i, stop);
       i = stop;
       continue;
     }
 
     if (/\s/.test(c)) {
-      if (out.length > 0 && !out.endsWith(' ')) out += ' ';
+      if (out.length > 0 && !/\s$/.test(out)) out += ' ';
       i++;
       continue;
     }
@@ -160,17 +160,41 @@ export function pipeNeedsNewline(value: string, caret: number): boolean {
  * The schema buttons used to prepend the name, which turned `Heartbeat | take
  * 10` into `Heartbeat Heartbeat | take 10` — not a valid query, and a
  * confusing thing to hand someone who is still learning the syntax. A query
- * has exactly one source table, so switching it means replacing the leading
- * identifier rather than adding another.
+ * has one source (a table or a search), so switching it means replacing that
+ * source rather than adding another.
  */
 export function withSourceTable(query: string, table: string): string {
   const trimmed = query.trim();
   if (!trimmed) return table;
 
-  // The source is the leading identifier, before any pipe. A query that
-  // already starts with a pipe has no source yet, so the table goes in front.
-  const leading = /^[A-Za-z_][A-Za-z0-9_]*/.exec(trimmed);
+  const skipTrivia = (start: number): number => {
+    let i = start;
+    while (i < trimmed.length) {
+      if (/\s/.test(trimmed[i])) i++;
+      else if (trimmed.startsWith('//', i)) {
+        const end = trimmed.indexOf('\n', i);
+        i = end === -1 ? trimmed.length : end + 1;
+      } else break;
+    }
+    return i;
+  };
+  const start = skipTrivia(0);
+  const leading = /^[A-Za-z_][A-Za-z0-9_]*/.exec(trimmed.slice(start));
   if (!leading) return formatKql(`${table}\n${trimmed}`);
 
-  return formatKql(table + trimmed.slice(leading[0].length));
+  let end = start + leading[0].length;
+  let trivia = '';
+  if (leading[0].toLowerCase() === 'search') {
+    const literalStart = skipTrivia(end);
+    const quote = trimmed[literalStart];
+    if (quote === '"' || quote === "'") {
+      trivia = trimmed.slice(end, literalStart);
+      end = literalStart + 1;
+      while (end < trimmed.length && trimmed[end] !== quote) {
+        end += trimmed[end] === '\\' ? 2 : 1;
+      }
+      if (end < trimmed.length) end++;
+    }
+  }
+  return formatKql(trimmed.slice(0, start) + table + trivia + trimmed.slice(end));
 }

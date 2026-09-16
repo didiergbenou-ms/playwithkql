@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { audio, type AudioSettings } from '../game/audio';
 import { TRACKS } from '../game/music';
+import { ContentSources } from './ContentSources';
 
 export function OptionsModal({ onClose }: { onClose: () => void }) {
   const [s, setS] = useState<AudioSettings>(() => audio.getSettings());
@@ -111,6 +112,7 @@ export function OptionsModal({ onClose }: { onClose: () => void }) {
           Done
         </button>
       </footer>
+      <ContentSources />
     </div>
   );
 }

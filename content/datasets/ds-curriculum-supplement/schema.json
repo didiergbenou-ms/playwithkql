@@ -1,0 +1,98 @@
+{
+  "datasetId": "ds-curriculum-supplement",
+  "queryTime": "2026-03-11T12:00:00Z",
+  "tables": [
+    {
+      "name": "NetworkChanges",
+      "columns": [
+        {
+          "name": "TimeGenerated",
+          "type": "datetime"
+        },
+        {
+          "name": "Caller",
+          "type": "string"
+        },
+        {
+          "name": "ActivityStatusValue",
+          "type": "string"
+        },
+        {
+          "name": "ResourceGroup",
+          "type": "string"
+        },
+        {
+          "name": "_ResourceId",
+          "type": "string"
+        },
+        {
+          "name": "ChangeId",
+          "type": "string"
+        },
+        {
+          "name": "Ticket",
+          "type": "string"
+        },
+        {
+          "name": "Approved",
+          "type": "bool"
+        },
+        {
+          "name": "Properties",
+          "type": "string"
+        },
+        {
+          "name": "Changes",
+          "type": "dynamic"
+        },
+        {
+          "name": "Message",
+          "type": "string"
+        }
+      ],
+      "rowCount": 3
+    },
+    {
+      "name": "SigninLogs",
+      "columns": [
+        {
+          "name": "TimeGenerated",
+          "type": "datetime"
+        },
+        {
+          "name": "UserPrincipalName",
+          "type": "string"
+        },
+        {
+          "name": "ResultType",
+          "type": "int"
+        },
+        {
+          "name": "IPAddress",
+          "type": "string"
+        },
+        {
+          "name": "Location",
+          "type": "string"
+        },
+        {
+          "name": "AppDisplayName",
+          "type": "string"
+        },
+        {
+          "name": "IsApprovedAdmin",
+          "type": "bool"
+        },
+        {
+          "name": "DeviceDetail",
+          "type": "dynamic"
+        },
+        {
+          "name": "AuthenticationDetails",
+          "type": "dynamic"
+        }
+      ],
+      "rowCount": 6
+    }
+  ]
+}

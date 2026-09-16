@@ -11,6 +11,7 @@ export type Expr =
   | { k: 'star' }
   | { k: 'call'; name: string; args: Expr[]; pos: number }
   | { k: 'bin'; op: string; l: Expr; r: Expr; pos: number }
+  | { k: 'between'; expr: Expr; lo: Expr; hi: Expr; negated: boolean; pos: number }
   | { k: 'un'; op: string; e: Expr }
   | { k: 'member'; obj: Expr; name: string }
   | { k: 'index'; obj: Expr; idx: Expr }
@@ -29,6 +30,9 @@ export interface SortItem {
 export type Op =
   | { kind: 'where'; expr: Expr }
   | { kind: 'project'; items: NamedExpr[] }
+  | { kind: 'project-away' | 'project-keep'; patterns: string[] }
+  | { kind: 'project-rename'; items: { name: string; oldName: string; pos: number }[] }
+  | { kind: 'render'; visualization: 'timechart' | 'columnchart' }
   | { kind: 'extend'; items: NamedExpr[] }
   | { kind: 'take'; n: number }
   | { kind: 'count' }
@@ -40,6 +44,8 @@ export type Op =
 export interface Query {
   table: string;
   tablePos: number;
+  /** Root-only ASCII word/underscore literal; case-insensitive `has`, no wildcards or predicates. */
+  search?: string;
   ops: Op[];
 }
 
@@ -62,6 +68,9 @@ const WORD_OPS = new Set([
 const KNOWN_OPERATORS = [
   'where',
   'project',
+  'project-away',
+  'project-keep',
+  'project-rename',
   'extend',
   'take',
   'limit',
@@ -71,6 +80,7 @@ const KNOWN_OPERATORS = [
   'sort',
   'order',
   'top',
+  'render',
 ];
 
 class Parser {
@@ -177,8 +187,26 @@ class Parser {
       );
     }
     const table = this.next();
+    let search: string | undefined;
+    if (table.value.toLowerCase() === 'search') {
+      const literal = this.next();
+      if (literal.kind !== 'str' || !/^[A-Za-z0-9_]+$/.test(literal.value)) {
+        throw new KqlError(
+          'search supports only one non-empty quoted term (letters, digits and underscores).',
+          literal.pos,
+          'Wildcards, in(...), kind=, column predicates and compound searches are not supported.',
+        );
+      }
+      search = literal.value;
+      if (!this.atPunc('|') && this.peek().kind !== 'eof') {
+        throw new KqlError('Unsupported search syntax after the literal; use a pipeline for further filtering.', this.peek().pos);
+      }
+    }
     const ops: Op[] = [];
     while (this.eatPunc('|')) {
+      if (ops.at(-1)?.kind === 'render') {
+        throw new KqlError("'render' must be the final pipeline operator.", this.peek().pos);
+      }
       ops.push(this.parseOp());
     }
     const end = this.peek();
@@ -189,7 +217,7 @@ class Parser {
         "Each operator must be separated by a pipe '|'.",
       );
     }
-    return { table: table.value, tablePos: table.pos, ops };
+    return { table: table.value, tablePos: table.pos, ops, ...(search === undefined ? {} : { search }) };
   }
 
   private parseOp(): Op {
@@ -197,7 +225,17 @@ class Parser {
     if (t.kind !== 'ident') {
       throw new KqlError(`Expected an operator after '|' but found '${t.value}'.`, t.pos);
     }
-    const name = t.value.toLowerCase();
+    let name = t.value.toLowerCase();
+    if (name === 'project' && this.peek(1).value === '-' &&
+        this.peek(1).pos === t.pos + t.value.length &&
+        this.peek(2).kind === 'ident' && this.peek(2).pos === this.peek(1).pos + 1) {
+      name += '-' + this.peek(2).value.toLowerCase();
+      if (!['project-away', 'project-keep', 'project-rename'].includes(name)) {
+        throw new KqlError(`Unsupported operator '${name}'.`, t.pos);
+      }
+      this.next();
+      this.next();
+    }
 
     switch (name) {
       case 'where':
@@ -208,6 +246,36 @@ class Parser {
       case 'project':
         this.next();
         return { kind: 'project', items: this.parseNamedList() };
+
+      case 'project-away':
+      case 'project-keep':
+        this.next();
+        return { kind: name, patterns: this.parseColumnPatterns() };
+
+      case 'project-rename': {
+        this.next();
+        const items: Extract<Op, { kind: 'project-rename' }>['items'] = [];
+        do {
+          const renamed = this.expectColumn();
+          this.expectPunc('=');
+          const old = this.expectColumn();
+          items.push({ name: renamed.value, oldName: old.value, pos: old.pos });
+        } while (this.eatPunc(','));
+        return { kind: 'project-rename', items };
+      }
+
+      case 'render': {
+        this.next();
+        const chart = this.next();
+        const visualization = chart.value.toLowerCase();
+        if (chart.kind !== 'ident' || (visualization !== 'timechart' && visualization !== 'columnchart')) {
+          throw new KqlError("'render' supports only timechart or columnchart.", chart.pos);
+        }
+        if (this.peek().kind !== 'eof') {
+          throw new KqlError("'render' must be final and does not support properties.", this.peek().pos);
+        }
+        return { kind: 'render', visualization };
+      }
 
       case 'extend':
         this.next();
@@ -280,6 +348,33 @@ class Parser {
     }
   }
 
+  private expectColumn(): Token {
+    const t = this.peek();
+    if (t.kind !== 'ident') throw new KqlError(`Expected a column name, found '${t.value}'.`, t.pos);
+    return this.next();
+  }
+
+  private parseColumnPatterns(): string[] {
+    const patterns: string[] = [];
+    do {
+      const first = this.peek();
+      if (first.kind !== 'ident' && !this.atPunc('*')) {
+        throw new KqlError('Expected a column name or star wildcard pattern.', first.pos);
+      }
+      let part = this.next();
+      let pattern = part.value;
+      while (this.peek().pos === part.pos + part.value.length &&
+             (this.atPunc('*') || (pattern.includes('*') &&
+               ['ident', 'num', 'timespan'].includes(this.peek().kind) &&
+               /^[A-Za-z0-9_]+$/.test(this.peek().value)))) {
+        part = this.next();
+        pattern += part.value;
+      }
+      patterns.push(pattern);
+    } while (this.eatPunc(','));
+    return patterns;
+  }
+
   /** `a, b = expr, c` — optional `name =` prefix on each item. */
   private parseNamedList(stopAtBy = false): NamedExpr[] {
     const items: NamedExpr[] = [];
@@ -346,6 +441,24 @@ class Parser {
   private parseComparison(): Expr {
     const l = this.parseAdditive();
     const t = this.peek();
+
+    const negated = this.atPunc('!') && this.peek(1).kind === 'ident' &&
+      this.peek(1).value.toLowerCase() === 'between';
+    if (this.atIdent('between') || negated) {
+      this.next();
+      if (negated) this.next();
+      this.expectPunc('(');
+      this.enter(t.pos);
+      try {
+        const lo = this.parseExpr();
+        this.expectPunc('..');
+        const hi = this.parseExpr();
+        this.expectPunc(')');
+        return { k: 'between', expr: l, lo, hi, negated, pos: t.pos };
+      } finally {
+        this.leave();
+      }
+    }
 
     if (t.kind === 'punc' && ['==', '!=', '<', '<=', '>', '>=', '=~', '!~'].includes(t.value)) {
       this.next();
@@ -460,6 +573,7 @@ class Parser {
 
     if (t.kind === 'num') return { k: 'num', v: t.num! };
     if (t.kind === 'str') return { k: 'str', v: t.value };
+    if (t.kind === 'datetime') return { k: 'str', v: t.value };
     if (t.kind === 'timespan') return { k: 'ts', ms: t.ms! };
 
     if (t.kind === 'punc' && t.value === '(') {
@@ -493,6 +607,12 @@ class Parser {
             } while (this.eatPunc(','));
           }
           this.expectPunc(')');
+          if (lower === 'case' && (args.length < 3 || args.length % 2 !== 1)) {
+            throw new KqlError("'case()' needs condition/value pairs followed by one else value.", t.pos);
+          }
+          if (lower === 'datetime_diff' && args.length !== 3) {
+            throw new KqlError("'datetime_diff()' needs exactly three arguments: period, end, start.", t.pos);
+          }
           return { k: 'call', name: lower, args, pos: t.pos };
         } finally {
           this.leave();

@@ -91,11 +91,13 @@ check('registry: definitions are stable and cases do not share mutable lesson st
   eq(JSON.stringify(a.database()), before, 'database clone contents');
 });
 
-check('case001 adapter: preserves shipped flags and debrief intent', () => {
+check('case001 adapter: adopts the supplied timeline without changing case identity', () => {
   eq(CASE001.placeholder, false, 'case001 placeholder');
   eq(CASE001.placeholderNotice, null, 'case001 placeholder notice');
   eq(CASE001.email.from, 'j.alvarez@contoso.com', 'case001 email from');
-  assert(CASE001.debrief.title.includes('Proxy'), 'case001 debrief title');
+  assert(CASE001.debrief.title.includes('NSG'), 'case001 debrief title');
+  eq(CASE001.now.toISOString(), '2026-03-11T12:00:00.000Z', 'pinned curriculum clock');
+  eq(CASE001.fleetSize, 12, 'supplied fleet size');
   assert(!CASE001.debrief.followUp.includes('that is Case 002'), 'follow-up must not claim case002 already teaches parse_json');
 });
 

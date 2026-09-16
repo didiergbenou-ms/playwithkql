@@ -1,113 +1,56 @@
-import type { QuestionSet } from '../types';
-import { QUESTION_SET_PLACEHOLDER_NOTICE, reusedQuestion } from '../seed';
+import { authoredSet } from '../../curriculum/authoring';
 
-/**
- * All five slots reuse existing lessons, including beginner; no new questions or
- * increased difficulty are claimed. Each seed call deep-clones its slot.
- * Replace each lesson's prompt, solution, hints, starter, teaches, and concept
- * (including its example), review remaining lesson fields, and replace evidence.
- * Set each slot's source to 'authored' after replacement. Only after all five
- * slots are reviewed, set questionSetStatus to 'ready' and questionSetNotice to null.
- */
-const seeds = [
-  reusedQuestion(1),
-  reusedQuestion(2),
-  reusedQuestion(3),
-  reusedQuestion(4),
-  reusedQuestion(5),
-];
-
-export const QUESTION_SET: QuestionSet = {
-  id: '001:beginner',
-  caseId: '001',
-  difficulty: 'beginner',
-  questionSetStatus: 'placeholder',
-  questionSetNotice: QUESTION_SET_PLACEHOLDER_NOTICE,
-  slots: [
-    {
-      slot: 1,
-      source: 'reused',
-      lesson: {
-        ...seeds[0].lesson,
-        prompt: seeds[0].lesson.prompt,
-        solution: seeds[0].lesson.solution,
-        hints: seeds[0].lesson.hints,
-        starter: seeds[0].lesson.starter,
-        teaches: seeds[0].lesson.teaches,
-        concept: {
-          ...seeds[0].lesson.concept,
-          example: { ...seeds[0].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[0].evidence },
-    },
-    {
-      slot: 2,
-      source: 'reused',
-      lesson: {
-        ...seeds[1].lesson,
-        prompt: seeds[1].lesson.prompt,
-        solution: seeds[1].lesson.solution,
-        hints: seeds[1].lesson.hints,
-        starter: seeds[1].lesson.starter,
-        teaches: seeds[1].lesson.teaches,
-        concept: {
-          ...seeds[1].lesson.concept,
-          example: { ...seeds[1].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[1].evidence },
-    },
-    {
-      slot: 3,
-      source: 'reused',
-      lesson: {
-        ...seeds[2].lesson,
-        prompt: seeds[2].lesson.prompt,
-        solution: seeds[2].lesson.solution,
-        hints: seeds[2].lesson.hints,
-        starter: seeds[2].lesson.starter,
-        teaches: seeds[2].lesson.teaches,
-        concept: {
-          ...seeds[2].lesson.concept,
-          example: { ...seeds[2].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[2].evidence },
-    },
-    {
-      slot: 4,
-      source: 'reused',
-      lesson: {
-        ...seeds[3].lesson,
-        prompt: seeds[3].lesson.prompt,
-        solution: seeds[3].lesson.solution,
-        hints: seeds[3].lesson.hints,
-        starter: seeds[3].lesson.starter,
-        teaches: seeds[3].lesson.teaches,
-        concept: {
-          ...seeds[3].lesson.concept,
-          example: { ...seeds[3].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[3].evidence },
-    },
-    {
-      slot: 5,
-      source: 'reused',
-      lesson: {
-        ...seeds[4].lesson,
-        prompt: seeds[4].lesson.prompt,
-        solution: seeds[4].lesson.solution,
-        hints: seeds[4].lesson.hints,
-        starter: seeds[4].lesson.starter,
-        teaches: seeds[4].lesson.teaches,
-        concept: {
-          ...seeds[4].lesson.concept,
-          example: { ...seeds[4].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[4].evidence },
-    },
-  ],
-};
+export const QUESTION_SET = authoredSet('001', 'beginner', [
+  {
+    title: 'First contact', prompt: 'Sample ten rows from Heartbeat to inspect the available fields.',
+    body: 'A pipe passes rows to the next operator. take limits a sample; it does not promise the newest or largest rows.',
+    pattern: '<Table> | take <rows>',
+    example: { query: 'Heartbeat | take 3', explain: 'Three observations, not necessarily three different machines.' },
+    solution: 'Heartbeat | take 10', operators: ['take'],
+    validation: { mode: 'rowCount', expectedRowCount: 10 },
+    hints: ['Start with the Heartbeat table; no filter is needed.', 'Use take with the requested sample size.'],
+    sourceIds: ['MLKQL-Part02', 'MLKQL-Part09', 'MSLearn-common-operators'], sourceTerminalId: 'T-001-01',
+    evidence: { title: 'An observation, not a machine', detail: 'The sample exposes timestamps and machine identity. A ten-row sample alone cannot establish fleet size or health.', chainIndex: 0 },
+  },
+  {
+    title: 'Narrow the window', prompt: 'Keep every heartbeat strictly later than three hours before the fixed 12:00Z query time.',
+    body: 'where filters rows. Here ago(3h) is March 11 at 09:00Z, regardless of the real date. A strict greater-than excludes the 09:00 rows.',
+    pattern: '<Table> | where TimeGenerated > ago(<duration>)',
+    example: { query: 'Heartbeat | where TimeGenerated > ago(1h) | take 4', explain: 'A small sample from strictly after 11:00Z.' },
+    solution: 'Heartbeat | where TimeGenerated > ago(3h)', operators: ['where', 'ago'],
+    hints: ['Filter TimeGenerated relative to the case clock.', 'Use > rather than >= to exclude the boundary.'],
+    sourceIds: ['MLKQL-Part08', 'MLKQL-Part03'], sourceTerminalId: 'T-001-02',
+    evidence: { title: '260 recent observations', detail: 'There are 260 rows after 09:00Z. This scopes the investigation but does not yet identify which hosts are missing.', chainIndex: 0 },
+  },
+  {
+    title: 'Count per machine', prompt: 'Within that same three-hour window, return Computer and the heartbeat count named Beats for each machine.',
+    body: 'summarize count() by Computer produces one row per computer. A grouped count measures observations, not uptime.',
+    pattern: '<Table> | where <condition> | summarize Beats = count() by Computer',
+    example: { query: 'Heartbeat | summarize Observations = count() by ComputerEnvironment', explain: 'Environment groups are a different way to partition the observations.' },
+    solution: 'Heartbeat | where TimeGenerated > ago(3h) | summarize Beats = count() by Computer', operators: ['where', 'summarize', 'count'],
+    hints: ['Count inside each machine group, not across the whole table.', 'Name count() as Beats and group by Computer.'],
+    sourceIds: ['MLKQL-Part10', 'MLKQL-Part11'], sourceTerminalId: 'T-001-03',
+    evidence: { title: 'Five low-count machines', detail: 'Twelve machines appear: seven have 35 recent beats and five have only three.', chainIndex: 2 },
+  },
+  {
+    title: 'Last confirmed contact', prompt: 'Return Computer and LastSeen for machines whose last heartbeat is at or before March 11, 09:15Z.',
+    body: 'max(TimeGenerated) finds the latest observation per group. Filter the aggregated LastSeen column after summarize, not the raw timestamps before it.',
+    pattern: '<Table> | summarize LastSeen = max(TimeGenerated) by Computer | where LastSeen <= datetime(<UTC>)',
+    example: { query: 'Heartbeat | summarize LastSeen = max(TimeGenerated) by Computer | where Computer == "PRD-WEB-03"', explain: 'The healthy comparison host was last observed at 11:55Z.' },
+    solution: 'Heartbeat | summarize LastSeen = max(TimeGenerated) by Computer | where LastSeen <= datetime(2026-03-11 09:15:00)', operators: ['summarize', 'max', 'where'],
+    hints: ['Find each host’s latest timestamp across the entire export.', 'Keep LastSeen values no later than the incident boundary.'],
+    sourceIds: ['MLKQL-Part11', 'MSLearn-common-operators'], sourceTerminalId: 'T-001-04',
+    evidence: { title: 'Shared 09:15Z boundary', detail: 'PRD-WEB-01, PRD-WEB-02, PRD-APP-01, PRD-APP-02 and PRD-SQL-01 all have LastSeen 09:15Z.', chainIndex: 2 },
+  },
+  {
+    title: 'Read the change ticket', prompt: 'From NetworkChanges, select CHG-4471 and report TimeGenerated, Caller, Ticket and Message in that order.',
+    body: 'A precise filter followed by project creates a readable evidence extract. NetworkChanges is explicitly synthetic ticket enrichment, not an extra raw Azure audit field.',
+    pattern: 'NetworkChanges | where ChangeId == "<id>" | project <columns>',
+    example: { query: 'NetworkChanges | where ChangeId == "BASELINE-0800" | project TimeGenerated, Message', explain: 'The authored baseline records outbound Allow on port 443.' },
+    solution: 'NetworkChanges | where ChangeId == "CHG-4471" | project TimeGenerated, Caller, Ticket, Message', operators: ['where', 'project'],
+    hints: ['Use the incident ticket identifier, not the later development ticket.', 'Select the four report columns in the requested order.'],
+    sourceIds: ['MLKQL-Part08', 'MLKQL-Part14'], sourceTerminalId: null,
+    adaptation: 'Added configuration-evidence terminal before the map verdict; payload details are locally authored synthetic enrichment.',
+    evidence: { title: 'Outbound 443 denied', detail: 'CHG-4471 records Dana’s 09:12Z change and the message changed outbound access=Deny port=443. This precedes the shared last heartbeat by three minutes.', chainIndex: 1 },
+  },
+]);

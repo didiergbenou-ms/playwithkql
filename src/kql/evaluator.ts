@@ -174,6 +174,28 @@ function hasToken(haystack: string, needle: string, caseSensitive: boolean): boo
   return h.split(/[^A-Za-z0-9_]+/).includes(n);
 }
 
+/** This subset counts UTC period boundaries, not truncated elapsed durations. */
+const DATETIME_PERIODS = new Map([
+  ['day', 86_400_000], ['hour', 3_600_000], ['minute', 60_000],
+  ['second', 1000], ['millisecond', 1],
+]);
+
+function parseDatetime(text: string): Date | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})(?:[Tt ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,7}))?)?([Zz]|[+-]\d{2}:\d{2})?)?$/.exec(text);
+  let normalized = text;
+  if (parts) {
+    const [, year, month, day, hour = '00', minute = '00', second = '00', fraction = '', zone = 'Z'] = parts;
+    const y = Number(year);
+    const days = [31, y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    if (Number(month) < 1 || Number(month) > 12 || Number(day) < 1 ||
+        Number(day) > days[Number(month) - 1] || Number(hour) > 23 ||
+        Number(minute) > 59 || Number(second) > 59) return null;
+    normalized = `${year}-${month}-${day}T${hour}:${minute}:${second}.${fraction.padEnd(3, '0').slice(0, 3)}${zone.toUpperCase()}`;
+  }
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 // ---- scalar function library ----------------------------------------------
 
 function callScalar(name: string, args: KValue[], ctx: Ctx, pos: number): KValue {
@@ -207,8 +229,23 @@ function callScalar(name: string, args: KValue[], ctx: Ctx, pos: number): KValue
       return new Date(toNumber(a0)).getUTCHours();
     case 'datetime':
     case 'todatetime': {
-      const d = new Date(s(a0));
-      return isNaN(d.getTime()) ? null : d;
+      return parseDatetime(s(a0));
+    }
+    case 'datetime_diff': {
+      if (args.length !== 3) {
+        throw new KqlError("'datetime_diff()' needs exactly three arguments: period, end, start.", pos);
+      }
+      const step = typeof a0 === 'string' ? DATETIME_PERIODS.get(a0.toLowerCase()) : undefined;
+      if (step === undefined) {
+        throw new KqlError("'datetime_diff()' supports only day, hour, minute, second and millisecond.", pos);
+      }
+      const [, end, start] = args;
+      if (end === null || start === null) return null;
+      if (!isDate(end) || !isDate(start)) {
+        throw new KqlError("'datetime_diff()' requires datetime end and start values.", pos);
+      }
+      if (!Number.isFinite(end.getTime()) || !Number.isFinite(start.getTime())) return null;
+      return Math.floor(end.getTime() / step) - Math.floor(start.getTime() / step);
     }
     case 'totimespan':
       return isTimespan(a0) ? a0 : timespan(toNumber(a0));
@@ -347,6 +384,19 @@ function evalExpr(e: Expr, row: Row, ctx: Ctx): KValue {
           `Try: | summarize ${e.name}(...) by SomeColumn`,
         );
       }
+      if (e.name === 'case') {
+        if (e.args.length < 3 || e.args.length % 2 !== 1) {
+          throw new KqlError("'case()' needs condition/value pairs followed by one else value.", e.pos);
+        }
+        for (let i = 0; i < e.args.length - 1; i += 2) {
+          const predicate = evalExpr(e.args[i], row, ctx);
+          if (predicate !== null && typeof predicate !== 'boolean') {
+            throw new KqlError("'case()' conditions must be boolean.", e.pos);
+          }
+          if (predicate === true) return evalExpr(e.args[i + 1], row, ctx);
+        }
+        return evalExpr(e.args[e.args.length - 1], row, ctx);
+      }
       const args = e.args.map((a) => evalExpr(a, row, ctx));
       return callScalar(e.name, args, ctx, e.pos);
     }
@@ -376,6 +426,18 @@ function evalExpr(e: Expr, row: Row, ctx: Ctx): KValue {
 
     case 'list':
       return e.items.map((it) => evalExpr(it, row, ctx));
+
+    case 'between': {
+      const values = [e.expr, e.lo, e.hi].map((value) => evalExpr(value, row, ctx));
+      if (values.some((value) => value === null)) return null;
+      if (!values.every((value) => typeof value === 'number') && !values.every(isDate)) {
+        throw new KqlError("'between' requires all numeric values or all datetime values; timespan bounds are not supported.", e.pos);
+      }
+      const [value, lo, hi] = values.map(toNumber);
+      if (![value, lo, hi].every(Number.isFinite)) return null;
+      const inside = value >= lo && value <= hi;
+      return e.negated ? !inside : inside;
+    }
 
     case 'bin':
       return evalBinary(e, row, ctx);
@@ -639,6 +701,41 @@ function buildAggregate(
 
 // ---- pipeline --------------------------------------------------------------
 
+/** Star-only matching with bounded O(pattern length * column length) work, no user regex. */
+function matchesColumn(pattern: string, column: string): boolean {
+  let matches = Array<boolean>(column.length + 1).fill(false);
+  matches[0] = true;
+  for (const char of pattern) {
+    const next = Array<boolean>(column.length + 1).fill(false);
+    next[0] = char === '*' && matches[0];
+    for (let i = 1; i <= column.length; i++) {
+      next[i] = char === '*' ? matches[i] || next[i - 1] : matches[i - 1] && char === column[i - 1];
+    }
+    matches = next;
+  }
+  return matches[column.length];
+}
+
+function searchDatabase(term: string, db: Database, pos: number): Table {
+  if (!/^[A-Za-z0-9_]+$/.test(term)) {
+    throw new KqlError('search supports only one non-empty quoted term (letters, digits and underscores).', pos);
+  }
+  const columns = ['$table', ...new Set(Object.values(db).flatMap((table) => table.columns).filter((c) => c !== '$table'))];
+  const rows: Row[] = [];
+  // Search only supplied tables. Existing has-token semantics deliberately include underscores.
+  for (const [name, table] of Object.entries(db)) {
+    const declared = new Set(table.columns);
+    for (const row of table.rows) {
+      if (!table.columns.some((column) =>
+        Object.hasOwn(row, column) && hasToken(s(row[column] ?? null), term, false))) continue;
+      rows.push(Object.fromEntries(columns.map((column) =>
+        [column, column === '$table' ? name :
+          (declared.has(column) && Object.hasOwn(row, column) ? row[column] ?? null : null)])));
+    }
+  }
+  return { name: 'search', columns, rows };
+}
+
 function applySort(rows: Row[], items: SortItem[], ctx: Ctx): Row[] {
   return [...rows].sort((a, b) => {
     for (const it of items) {
@@ -656,7 +753,7 @@ export function evaluate(query: Query, db: Database, opts: EvalOptions = {}): Ta
   const sourceKey = Object.keys(db).find(
     (k) => k.toLowerCase() === query.table.toLowerCase(),
   );
-  if (!sourceKey) {
+  if (query.search === undefined && !sourceKey) {
     const suggestion = didYouMean(query.table, Object.keys(db));
     throw new KqlError(
       `Unknown table '${query.table}'.`,
@@ -667,7 +764,9 @@ export function evaluate(query: Query, db: Database, opts: EvalOptions = {}): Ta
     );
   }
 
-  const source = db[sourceKey];
+  const source = query.search === undefined
+    ? db[sourceKey!]
+    : searchDatabase(query.search, db, query.tablePos);
   let rows: Row[] = source.rows;
   let columns: string[] = [...source.columns];
   const ctx: Ctx = { now, columns };
@@ -677,7 +776,7 @@ export function evaluate(query: Query, db: Database, opts: EvalOptions = {}): Ta
     ctx.columns = cols;
   };
 
-  for (const op of query.ops) {
+  for (const [opIndex, op] of query.ops.entries()) {
     switch (op.kind) {
       case 'where':
         rows = rows.filter((r) => truthy(evalExpr(op.expr, r, ctx)));
@@ -690,6 +789,46 @@ export function evaluate(query: Query, db: Database, opts: EvalOptions = {}): Ta
       case 'count':
         rows = [{ Count: rows.length }];
         setColumns(['Count']);
+        break;
+
+      case 'project-away':
+      case 'project-keep': {
+        // Missing names/patterns match nothing. Keep and away are complements,
+        // both preserving the original schema order and every input row.
+        const names = columns.filter((column) => {
+          const matched = op.patterns.some((pattern) => matchesColumn(pattern, column));
+          return op.kind === 'project-keep' ? matched : !matched;
+        });
+        rows = rows.map((row) => Object.fromEntries(names.map((name) => [name, row[name] ?? null])));
+        setColumns(names);
+        break;
+      }
+
+      case 'project-rename': {
+        const renames = new Map<string, string>();
+        for (const item of op.items) {
+          if (!columns.includes(item.oldName)) {
+            throw new KqlError(`Unknown column '${item.oldName}' in project-rename.`, item.pos);
+          }
+          if (renames.has(item.oldName)) {
+            throw new KqlError(`Column '${item.oldName}' is renamed more than once.`, item.pos);
+          }
+          renames.set(item.oldName, item.name);
+        }
+        const names = columns.map((name) => renames.get(name) ?? name);
+        if (new Set(names).size !== names.length) {
+          throw new KqlError('project-rename would produce duplicate column names.', op.items[0]?.pos);
+        }
+        rows = rows.map((row) => Object.fromEntries(columns.map((name, i) => [names[i], row[name] ?? null])));
+        setColumns(names);
+        break;
+      }
+
+      case 'render':
+        if (opIndex !== query.ops.length - 1 ||
+            !['timechart', 'columnchart'].includes(op.visualization)) {
+          throw new KqlError("'render' supports only a final timechart or columnchart without properties.");
+        }
         break;
 
       case 'project': {
@@ -785,5 +924,8 @@ export function evaluate(query: Query, db: Database, opts: EvalOptions = {}): Ta
     }
   }
 
+  if (query.search !== undefined && rows.length > maxRows) {
+    throw new KqlError(`Query produced more than ${maxRows} rows. Add a filter or 'take'.`);
+  }
   return { name: source.name, columns, rows };
 }

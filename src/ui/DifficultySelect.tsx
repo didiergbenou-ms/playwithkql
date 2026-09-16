@@ -53,6 +53,7 @@ export function DifficultySelect({ caseDef, selected, onSelect, onContinue, onBa
       <section className="panel">
         <CaseDifficulty caseDef={caseDef} notice />
         <p className="muted">Progress is tracked separately for each case and difficulty. Movement and character abilities do not change.</p>
+        {caseDef.questionSetRevision && <p className="muted">Completion shown here is for these lesson versions. Earlier scores and completion history are preserved separately.</p>}
         <footer className="brief-actions">
           <button className="ghost" onClick={onBack}>Back to cases</button>
           <button className="primary big" onClick={onContinue}>Choose recruit</button>

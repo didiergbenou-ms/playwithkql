@@ -23,7 +23,7 @@ export interface RootCauseOption {
 
 export interface ColumnMeta {
   name: string;
-  type: 'datetime' | 'string' | 'int' | 'dynamic';
+  type: 'datetime' | 'string' | 'int' | 'real' | 'bool' | 'dynamic';
   doc: string;
 }
 
@@ -35,6 +35,8 @@ export interface TableMeta {
 
 /** Everything needed to select, play, grade and debrief one case. */
 export interface CaseDefinition {
+  /** Revision of replacement lessons; old completion records remain historical. */
+  questionSetRevision?: string;
   id: string;
   difficulty?: Difficulty;
   questionSetStatus?: 'placeholder' | 'ready';

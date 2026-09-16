@@ -10,7 +10,6 @@ import type { CaseDefinition } from '../src/data/cases/types';
 import { DEFAULT_DIFFICULTY, DIFFICULTIES, caseDifficultyKey, requireDifficulty } from '../src/data/difficulties';
 import type { Difficulty } from '../src/data/difficulties';
 import { QUESTION_SETS, createCaseVariant, validateQuestionSet } from '../src/data/questions';
-import { reusedQuestion } from '../src/data/questions/seed';
 import type { QuestionLesson, QuestionSet } from '../src/data/questions';
 import type { ChallengeSpec } from '../src/kql/challenge';
 
@@ -99,7 +98,7 @@ function wiringOf(challenge: ChallengeSpec) {
 }
 
 function sharedContent(item: CaseDefinition) {
-  const { difficulty, questionSetStatus, questionSetNotice, now, database, tableMeta,
+  const { difficulty, questionSetStatus, questionSetNotice, questionSetRevision, now, database, tableMeta,
     challenges, evidence, skills, ...content } = item;
   return content;
 }
@@ -117,7 +116,15 @@ function fixture(base = CASE001, difficulty: Difficulty = DEFAULT_DIFFICULTY): Q
     difficulty,
     questionSetStatus: 'placeholder',
     questionSetNotice: NOTICE,
-    slots: [reusedQuestion(1), reusedQuestion(2), reusedQuestion(3), reusedQuestion(4), reusedQuestion(5)],
+    slots: base.challenges.map((challenge, index) => {
+      const evidence = base.evidence.find(item => item.id === challenge.evidenceId)!;
+      return {
+        slot: (index + 1) as 1 | 2 | 3 | 4 | 5,
+        source: 'reused',
+        lesson: structuredClone(lessonOf(challenge)),
+        evidence: { title: evidence.title, detail: evidence.detail, chainIndex: evidence.chainIndex },
+      };
+    }),
   };
 }
 

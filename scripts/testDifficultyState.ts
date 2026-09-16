@@ -5,7 +5,7 @@ import { parseLevel } from '../src/game/levels/heartbeatHills';
 import { gradeChallenge } from '../src/kql/challenge';
 import { getQueryDraft, saveQueryDraft } from '../src/state/queryDrafts';
 import {
-  currentObjective, evidenceById, getCaseResult, mergePersistedState, roomProgress, scoreRun, useStore,
+  caseCompletionKey, currentObjective, evidenceById, getCaseResult, mergePersistedState, roomProgress, scoreRun, useStore,
 } from '../src/state/store';
 
 let passed = 0;
@@ -326,7 +326,7 @@ try {
     assert.equal(expected.character, legacy.character);
     for (const achievement of legacy.achievements) assert.ok(expected.achievements.includes(achievement));
     assert.deepEqual(expected.caseResults, {
-      [caseDifficultyKey('001', 'intermediate')]: { completions: 1, bestScore: 1000 },
+      [caseCompletionKey('001', 'intermediate')]: { completions: 1, bestScore: 1000 },
     });
     const run = useStore.getState().run;
     useStore.setState(mergePersistedState({ profile: expected }, useStore.getState()));

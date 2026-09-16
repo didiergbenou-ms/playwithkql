@@ -68,20 +68,21 @@ four characters, and three selectable case files.
 
 | Case | Map | Content status |
 |---|---|---|
-| 001 | Heartbeat Hills | Original investigation, five terminals and a final verdict |
-| 002 | Signal Harbor | New four-room map; reuses Case 001 lessons and data for now |
-| 003 | Relay Ruins | New four-room map; reuses Case 001 lessons and data for now |
+| 001 | Heartbeat Hills | Fleet scope, aggregation and structured configuration evidence |
+| 002 | Signal Harbor | Log discovery, timelines and administrator audit context |
+| 003 | Relay Ruins | Performance reports, calculations and incident closeout |
 
-Cases 002 and 003 are playable scaffolds for later content authoring, not new
-support diagnoses. Each has its own terminal, gate, evidence and note IDs.
-Choose a case before choosing a recruit; replay and switching start fresh runs.
+The three maps investigate one synthetic March 11 network-path incident through
+different evidence. Each has its own terminal, gate, evidence and note IDs.
+Choose a case, difficulty and recruit; replay and switching start fresh runs.
 Profiles remain shared across cases, and in-progress runs are not saved on reload.
 
 Each case now has **Beginner, Intermediate and Expert** question sets. The flow
-is **case -> difficulty -> recruit -> investigation**. That prepares **9 sets
-of 5 terminals: 45 question/answer slots**, without adding maps or changing
-movement. All difficulty sets currently contain explicitly labelled copies of
-the existing training questions; the new questions and answers are pending.
+is **case -> difficulty -> recruit -> investigation**. There are **9 sets
+of 5 terminals: 45 executable questions**, without adding maps or changing
+movement. The supplied curriculum's 12 Beginner questions have three additions;
+the higher tiers are adapted to supported local analysis. All adapted content
+remains labelled for editorial review, with sources and license notices.
 Completion and best scores are recorded separately for each case/difficulty.
 Older aggregate profile history is retained but is not assigned to any tier.
 

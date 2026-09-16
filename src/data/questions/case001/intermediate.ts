@@ -1,113 +1,63 @@
-import type { QuestionSet } from '../types';
-import { QUESTION_SET_PLACEHOLDER_NOTICE, reusedQuestion } from '../seed';
+import { authoredSet } from '../../curriculum/authoring';
 
-/**
- * All five slots reuse existing lessons, including beginner; no new questions or
- * increased difficulty are claimed. Each seed call deep-clones its slot.
- * Replace each lesson's prompt, solution, hints, starter, teaches, and concept
- * (including its example), review remaining lesson fields, and replace evidence.
- * Set each slot's source to 'authored' after replacement. Only after all five
- * slots are reviewed, set questionSetStatus to 'ready' and questionSetNotice to null.
- */
-const seeds = [
-  reusedQuestion(1),
-  reusedQuestion(2),
-  reusedQuestion(3),
-  reusedQuestion(4),
-  reusedQuestion(5),
-];
-
-export const QUESTION_SET: QuestionSet = {
-  id: '001:intermediate',
-  caseId: '001',
-  difficulty: 'intermediate',
-  questionSetStatus: 'placeholder',
-  questionSetNotice: QUESTION_SET_PLACEHOLDER_NOTICE,
-  slots: [
-    {
-      slot: 1,
-      source: 'reused',
-      lesson: {
-        ...seeds[0].lesson,
-        prompt: seeds[0].lesson.prompt,
-        solution: seeds[0].lesson.solution,
-        hints: seeds[0].lesson.hints,
-        starter: seeds[0].lesson.starter,
-        teaches: seeds[0].lesson.teaches,
-        concept: {
-          ...seeds[0].lesson.concept,
-          example: { ...seeds[0].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[0].evidence },
-    },
-    {
-      slot: 2,
-      source: 'reused',
-      lesson: {
-        ...seeds[1].lesson,
-        prompt: seeds[1].lesson.prompt,
-        solution: seeds[1].lesson.solution,
-        hints: seeds[1].lesson.hints,
-        starter: seeds[1].lesson.starter,
-        teaches: seeds[1].lesson.teaches,
-        concept: {
-          ...seeds[1].lesson.concept,
-          example: { ...seeds[1].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[1].evidence },
-    },
-    {
-      slot: 3,
-      source: 'reused',
-      lesson: {
-        ...seeds[2].lesson,
-        prompt: seeds[2].lesson.prompt,
-        solution: seeds[2].lesson.solution,
-        hints: seeds[2].lesson.hints,
-        starter: seeds[2].lesson.starter,
-        teaches: seeds[2].lesson.teaches,
-        concept: {
-          ...seeds[2].lesson.concept,
-          example: { ...seeds[2].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[2].evidence },
-    },
-    {
-      slot: 4,
-      source: 'reused',
-      lesson: {
-        ...seeds[3].lesson,
-        prompt: seeds[3].lesson.prompt,
-        solution: seeds[3].lesson.solution,
-        hints: seeds[3].lesson.hints,
-        starter: seeds[3].lesson.starter,
-        teaches: seeds[3].lesson.teaches,
-        concept: {
-          ...seeds[3].lesson.concept,
-          example: { ...seeds[3].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[3].evidence },
-    },
-    {
-      slot: 5,
-      source: 'reused',
-      lesson: {
-        ...seeds[4].lesson,
-        prompt: seeds[4].lesson.prompt,
-        solution: seeds[4].lesson.solution,
-        hints: seeds[4].lesson.hints,
-        starter: seeds[4].lesson.starter,
-        teaches: seeds[4].lesson.teaches,
-        concept: {
-          ...seeds[4].lesson.concept,
-          example: { ...seeds[4].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[4].evidence },
-    },
-  ],
-};
+export const QUESTION_SET = authoredSet('001', 'intermediate', [
+  {
+    title: 'Machines versus observations', prompt: 'For each ComputerEnvironment, calculate Machines = dcount(Computer) and Beats = count() across the complete Heartbeat export.',
+    body: 'count measures rows; dcount measures distinct identities. Grouping by environment separates fleet size from observation volume.',
+    pattern: '<Table> | summarize Machines = dcount(Computer), Beats = count() by ComputerEnvironment',
+    example: { query: 'Heartbeat | summarize Machines = dcount(Computer), Beats = count()', explain: 'The full export contains 12 machines and 3,296 observations.' },
+    solution: 'Heartbeat | summarize Machines = dcount(Computer), Beats = count() by ComputerEnvironment', operators: ['summarize', 'dcount', 'count'],
+    hints: ['Do not apply the incident time filter; this is the complete inventory.', 'Use both aggregations in one summarize, grouped by ComputerEnvironment.'],
+    sourceIds: ['MLKQL-Part11', 'MSLearn-aggregation-functions'], sourceTerminalId: 'T-004-01',
+    adaptation: 'Aggregation outline adapted from sign-in counts to the existing fleet incident; not a travelling-account scenario.',
+    evidence: { title: 'Nine production machines', detail: 'Production contains nine machines and 2,432 beats; Development contains two and 576; UAT contains one and 288.', chainIndex: 0 },
+  },
+  {
+    title: 'Keep the denominator', prompt: 'Find LastSeen for each Computer and OSType. Then return Machines = count() and Silent = countif(LastSeen <= 09:15Z on March 11), grouped by OSType.',
+    body: 'A conditional count preserves healthy hosts in the denominator. First collapse observations into machines; counting raw rows would count heartbeats instead of machines.',
+    pattern: 'Heartbeat | summarize LastSeen = max(TimeGenerated) by Computer, OSType | summarize Machines = count(), Silent = countif(<condition>) by OSType',
+    example: { query: 'Heartbeat | summarize LastSeen = max(TimeGenerated) by Computer | summarize Machines = count(), Recent = countif(LastSeen > ago(1h))', explain: 'Seven of the twelve hosts have an observation after 11:00Z.' },
+    solution: 'Heartbeat | summarize LastSeen = max(TimeGenerated) by Computer, OSType | summarize Machines = count(), Silent = countif(LastSeen <= datetime(2026-03-11 09:15:00)) by OSType',
+    operators: ['summarize', 'max', 'count', 'countif'],
+    hints: ['Build a per-machine LastSeen result before counting.', 'Use countif instead of filtering away healthy hosts.'],
+    sourceIds: ['MLKQL-Part11', 'MSLearn-aggregation-functions'], sourceTerminalId: 'T-004-03',
+    adaptation: 'Conditional-count topic adapted to cross-OS heartbeat loss; no security failure narrative.',
+    evidence: { title: 'Not Linux-only', detail: 'Linux has nine machines, four silent; Windows has three, one silent. Both operating-system groups are affected.', chainIndex: 2 },
+  },
+  {
+    title: 'Carry the latest context', prompt: 'For each Computer, use arg_max to retain its latest TimeGenerated, OSType and ResourceGroup. Keep only hosts last seen at or before 09:15Z on March 11.',
+    body: 'max returns a value; arg_max also carries fields from the winning row. This keeps the machine’s operating system and resource group attached to its last observation.',
+    pattern: 'Heartbeat | summarize arg_max(TimeGenerated, OSType, ResourceGroup) by Computer | where <condition>',
+    example: { query: 'Heartbeat | where Computer == "PRD-WEB-03" | summarize arg_max(TimeGenerated, OSType, ResourceGroup) by Computer', explain: 'The latest healthy web-server row retains Linux and rg-prod-web.' },
+    solution: 'Heartbeat | summarize arg_max(TimeGenerated, OSType, ResourceGroup) by Computer | where TimeGenerated <= datetime(2026-03-11 09:15:00)',
+    operators: ['summarize', 'arg_max', 'where'],
+    hints: ['The winning timestamp is still named TimeGenerated.', 'Ask arg_max for OSType and ResourceGroup, then filter the latest timestamps.'],
+    sourceIds: ['MLKQL-Part11'], sourceTerminalId: 'T-004-04',
+    adaptation: 'Latest-state outline adapted to heartbeat records rather than sign-ins.',
+    evidence: { title: 'Three production workload groups', detail: 'The five latest rows belong to rg-prod-web, rg-prod-app and rg-prod-data, including Windows PRD-SQL-01.', chainIndex: 2 },
+  },
+  {
+    title: 'Quantify the uneven coverage', prompt: 'After 09:00Z (strictly), return ResourceGroup, Machines = dcount(Computer) and Beats = count() for Heartbeat.',
+    body: 'Multiple aggregates reveal different dimensions of a group. Recent identity presence alone can hide a partial outage: a machine with only three early beats still counts as present.',
+    pattern: 'Heartbeat | where <time filter> | summarize Machines = dcount(Computer), Beats = count() by ResourceGroup',
+    example: { query: 'Heartbeat | where TimeGenerated > ago(3h) | summarize Observations = count(), DistinctHosts = dcount(Computer)', explain: 'All twelve identities remain in the window even though five stop early.' },
+    solution: 'Heartbeat | where TimeGenerated > ago(3h) | summarize Machines = dcount(Computer), Beats = count() by ResourceGroup',
+    operators: ['where', 'summarize', 'dcount', 'count'],
+    hints: ['Use the same strict three-hour window as the beginner investigation.', 'Group by ResourceGroup rather than by individual computer.'],
+    sourceIds: ['MLKQL-Part11', 'MSLearn-aggregation-functions'], sourceTerminalId: 'T-004-02',
+    adaptation: 'Distinct-count outline adapted to resource-group coverage rather than geographic sign-in counts.',
+    evidence: { title: 'Presence is not continuity', detail: 'The web and app groups each have three identities but only 41 beats; the data group has two identities and 38 beats. Identity counts alone miss the outage.', chainIndex: 2 },
+  },
+  {
+    title: 'Latest production configuration', prompt: 'In NetworkChanges for rg-prod-network, return the latest TimeGenerated, ChangeId and Message with arg_max, grouped by ResourceGroup.',
+    body: 'A latest-state summary is useful only within the correct scope. Exclude the development resource before selecting the most recent production record.',
+    pattern: 'NetworkChanges | where <resource filter> | summarize arg_max(TimeGenerated, ChangeId, Message) by ResourceGroup',
+    example: { query: 'NetworkChanges | summarize Snapshots = count() by ResourceGroup', explain: 'There are two production snapshots and one separate development snapshot.' },
+    solution: 'NetworkChanges | where ResourceGroup == "rg-prod-network" | summarize arg_max(TimeGenerated, ChangeId, Message) by ResourceGroup',
+    operators: ['where', 'summarize', 'arg_max'],
+    hints: ['The 09:30 development record is not a production rollback.', 'Select the latest production row and carry its ChangeId and Message.'],
+    sourceIds: ['MLKQL-Part11'], sourceTerminalId: 'T-004-05',
+    adaptation: 'Replaces travelling-account verdict with latest synthetic production configuration; no compromise or location claims.',
+    evidence: { title: 'No later production allow snapshot', detail: 'The latest supplied production snapshot is CHG-4471 at 09:12Z with outbound Deny on port 443. This export contains no later production rollback.', chainIndex: 1 },
+  },
+]);

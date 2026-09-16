@@ -16,6 +16,7 @@ export interface QuestionSlot {
 }
 
 export interface QuestionSet {
+  revision?: string;
   /** Must equal caseDifficultyKey(caseId, difficulty). */
   id: string;
   caseId: string;

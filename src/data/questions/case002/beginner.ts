@@ -1,113 +1,58 @@
-import type { QuestionSet } from '../types';
-import { QUESTION_SET_PLACEHOLDER_NOTICE, reusedQuestion } from '../seed';
+import { authoredSet } from '../../curriculum/authoring';
 
-/**
- * All five slots reuse existing lessons, including beginner; no new questions or
- * increased difficulty are claimed. Each seed call deep-clones its slot.
- * Replace each lesson's prompt, solution, hints, starter, teaches, and concept
- * (including its example), review remaining lesson fields, and replace evidence.
- * Set each slot's source to 'authored' after replacement. Only after all five
- * slots are reviewed, set questionSetStatus to 'ready' and questionSetNotice to null.
- */
-const seeds = [
-  reusedQuestion(1),
-  reusedQuestion(2),
-  reusedQuestion(3),
-  reusedQuestion(4),
-  reusedQuestion(5),
-];
-
-export const QUESTION_SET: QuestionSet = {
-  id: '002:beginner',
-  caseId: '002',
-  difficulty: 'beginner',
-  questionSetStatus: 'placeholder',
-  questionSetNotice: QUESTION_SET_PLACEHOLDER_NOTICE,
-  slots: [
-    {
-      slot: 1,
-      source: 'reused',
-      lesson: {
-        ...seeds[0].lesson,
-        prompt: seeds[0].lesson.prompt,
-        solution: seeds[0].lesson.solution,
-        hints: seeds[0].lesson.hints,
-        starter: seeds[0].lesson.starter,
-        teaches: seeds[0].lesson.teaches,
-        concept: {
-          ...seeds[0].lesson.concept,
-          example: { ...seeds[0].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[0].evidence },
-    },
-    {
-      slot: 2,
-      source: 'reused',
-      lesson: {
-        ...seeds[1].lesson,
-        prompt: seeds[1].lesson.prompt,
-        solution: seeds[1].lesson.solution,
-        hints: seeds[1].lesson.hints,
-        starter: seeds[1].lesson.starter,
-        teaches: seeds[1].lesson.teaches,
-        concept: {
-          ...seeds[1].lesson.concept,
-          example: { ...seeds[1].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[1].evidence },
-    },
-    {
-      slot: 3,
-      source: 'reused',
-      lesson: {
-        ...seeds[2].lesson,
-        prompt: seeds[2].lesson.prompt,
-        solution: seeds[2].lesson.solution,
-        hints: seeds[2].lesson.hints,
-        starter: seeds[2].lesson.starter,
-        teaches: seeds[2].lesson.teaches,
-        concept: {
-          ...seeds[2].lesson.concept,
-          example: { ...seeds[2].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[2].evidence },
-    },
-    {
-      slot: 4,
-      source: 'reused',
-      lesson: {
-        ...seeds[3].lesson,
-        prompt: seeds[3].lesson.prompt,
-        solution: seeds[3].lesson.solution,
-        hints: seeds[3].lesson.hints,
-        starter: seeds[3].lesson.starter,
-        teaches: seeds[3].lesson.teaches,
-        concept: {
-          ...seeds[3].lesson.concept,
-          example: { ...seeds[3].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[3].evidence },
-    },
-    {
-      slot: 5,
-      source: 'reused',
-      lesson: {
-        ...seeds[4].lesson,
-        prompt: seeds[4].lesson.prompt,
-        solution: seeds[4].lesson.solution,
-        hints: seeds[4].lesson.hints,
-        starter: seeds[4].lesson.starter,
-        teaches: seeds[4].lesson.teaches,
-        concept: {
-          ...seeds[4].lesson.concept,
-          example: { ...seeds[4].lesson.concept.example },
-        },
-      },
-      evidence: { ...seeds[4].evidence },
-    },
-  ],
-};
+export const QUESTION_SET = authoredSet('002', 'beginner', [
+  {
+    title: 'Find the drawer', prompt: 'Search all available tables for MTU_MISMATCH. Keep the search result including its source-table field.',
+    body: 'search is useful when the table is unknown. The $table column identifies the source; once found, prefer a table-specific filter. This local engine makes no index-performance guarantee.',
+    pattern: 'search "<term>"',
+    example: { query: 'search "oversized"', explain: 'All six matching records originate in Syslog. The local search accepts one quoted term, not a phrase or wildcard expression.' },
+    solution: 'search "MTU_MISMATCH"', operators: ['search'],
+    validation: { mode: 'rowCount', expectedRowCount: 6 },
+    hints: ['There is no table name before a workspace-wide search.', 'Search for the complete supplied token in quotes.'],
+    sourceIds: ['MLKQL-Part04'], sourceTerminalId: 'T-002-01',
+    evidence: { title: 'The phrase lives in Syslog', detail: 'Six search hits come from Syslog. A network symptom has been located, not yet explained.', chainIndex: 1 },
+  },
+  {
+    title: 'Filter the exact token', prompt: 'Return the six Syslog rows containing the term MTU_MISMATCH using where and has, without search.',
+    body: 'has tests a term; contains tests a substring. In this training tokenizer MTU_MISMATCH is a single underscore-containing term. contains "mismatch" also finds 14 unrelated messages.',
+    pattern: 'Syslog | where SyslogMessage has "<term>"',
+    example: { query: 'Syslog | where SyslogMessage contains "mismatch" | summarize Matches = count()', explain: 'The broader substring produces 20 matches, not six.' },
+    solution: 'Syslog | where SyslogMessage has "MTU_MISMATCH"', operators: ['where', 'has'], forbidden: ['search'],
+    hints: ['The message field is SyslogMessage.', 'Use has with the full token, rather than contains with a fragment.'],
+    sourceIds: ['MLKQL-Part08'], sourceTerminalId: 'T-002-02',
+    evidence: { title: 'Six specific symptom records', detail: 'The full token isolates six messages on five silent fleet machines and PRD-NET-FW01. The firewall is not in the 12-host Heartbeat fleet.', chainIndex: 1 },
+  },
+  {
+    title: 'Inventory operations', prompt: 'List the distinct OperationNameValue values in AzureActivity.',
+    body: 'distinct removes duplicate combinations. An operation inventory reveals what kinds of changes to investigate, but cannot identify a caller by itself.',
+    pattern: '<Table> | distinct <column>',
+    example: { query: 'AzureActivity | distinct Caller', explain: 'This separate inventory lists the five recorded caller identities.' },
+    solution: 'AzureActivity | distinct OperationNameValue', operators: ['distinct'],
+    hints: ['The operation name, not the result status, identifies what happened.', 'Apply distinct to OperationNameValue.'],
+    sourceIds: ['MLKQL-Part15'], sourceTerminalId: 'T-002-03',
+    evidence: { title: 'Seven operation types', detail: 'The inventory includes a network-security-rule write among seven operation types. Frequency and timing still need investigation.', chainIndex: 0 },
+  },
+  {
+    title: 'Who changed the wire?', prompt: 'Between 09:00Z and 09:20Z inclusive on March 11, find the SECURITYRULES/WRITE operation. Report TimeGenerated, Caller and ActivityStatusValue.',
+    body: 'between includes both endpoints. SECURITYRULES/WRITE spans slash-separated terms, so use contains for that substring, not has. Project only the requested report columns.',
+    pattern: 'AzureActivity | where TimeGenerated between (datetime(<start>) .. datetime(<end>)) | where OperationNameValue contains "<fragment>" | project <columns>',
+    example: { query: 'AzureActivity | where OperationNameValue contains "SECURITYRULES/WRITE" | project ResourceGroup', explain: 'The unique rule write targets rg-prod-network.' },
+    solution: 'AzureActivity | where TimeGenerated between (datetime(2026-03-11 09:00) .. datetime(2026-03-11 09:20)) | where OperationNameValue contains "SECURITYRULES/WRITE" | project TimeGenerated, Caller, ActivityStatusValue',
+    operators: ['where', 'between', 'contains', 'project'],
+    hints: ['First isolate the incident time window.', 'Use contains for the slash-containing operation fragment, then select the three requested columns.'],
+    sourceIds: ['MLKQL-Part08', 'MLKQL-Part14'], sourceTerminalId: 'T-002-04',
+    adaptation: 'Corrected source has "SECURITYRULES/WRITE" to contains: this fragment is not one term.',
+    evidence: { title: 'Dana’s successful write at 09:12Z', detail: 'The one result names dana.whitfield@contoso.com, 09:12Z and Succeeded. The audit proves the write identity, not malicious intent.', chainIndex: 0 },
+  },
+  {
+    title: 'Pin the affected resource', prompt: 'From NetworkChanges, return the production-network CHG-4471 row with _ResourceId, Ticket and Message.',
+    body: 'Resource identity prevents confusing similar operations across environments. Require both the production resource group and the incident change ID before writing the report.',
+    pattern: 'NetworkChanges | where ResourceGroup == "<group>" and ChangeId == "<id>" | project <columns>',
+    example: { query: 'NetworkChanges | where ResourceGroup == "rg-dev" | project ChangeId, Message', explain: 'The later development change allows traffic and is not the production incident.' },
+    solution: 'NetworkChanges | where ResourceGroup == "rg-prod-network" and ChangeId == "CHG-4471" | project _ResourceId, Ticket, Message', operators: ['where', 'project'],
+    hints: ['Exclude the development change and the baseline.', 'Filter the resource group and ChangeId together, then project the resource, ticket and message.'],
+    sourceIds: ['MLKQL-Part05', 'MLKQL-Part14'], sourceTerminalId: null,
+    adaptation: 'Added ticket-to-resource evidence using the local synthetic enrichment; no joins or lookup claimed.',
+    evidence: { title: 'Production NSG, not a workspace key', detail: 'The incident ticket names nsg-prod-outbound and outbound Deny on port 443. The same resource appears in the supplied AzureActivity write.', chainIndex: 1 },
+  },
+]);

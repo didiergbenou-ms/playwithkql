@@ -71,6 +71,7 @@ def main():
     legacy = {
         "lifetimeScore": 1234, "bestScore": 700, "casesClosed": 2,
         "totalQueries": 8, "achievements": ["first-query"], "character": "quill",
+        "caseResults": {"001:expert": {"completions": 2, "bestScore": 700}},
     }
     with sync_playwright() as p:
         browser = p.chromium.launch(channel=args.channel, headless=True)
@@ -85,9 +86,11 @@ def main():
             page.reload(wait_until="networkidle")
             for key, value in legacy.items():
                 assert profile(page)[key] == value, f"Legacy profile lost {key}"
-            assert not profile(page).get("caseResults"), "Legacy aggregate history was assigned to difficulty records"
+            assert profile(page)["caseResults"] == legacy["caseResults"], "Legacy records were changed during hydration"
             expect(page.get_by_role("group", name="Available case files").get_by_role("button")).to_have_count(3)
             choose_case(page, *CASES[0])
+            for _, label in DIFFICULTIES:
+                expect(page.get_by_role("button", name=f"Select {label} difficulty", exact=True)).to_contain_text("Not completed")
             assert not page.evaluate("""performance.getEntriesByType('resource')
                 .some(r=>/assets\\/(PhaserGame|phaser)-/.test(r.name))"""), "Engine loaded before recruit selection"
             page.get_by_role("button", name="Select Expert difficulty", exact=True).click()
@@ -95,12 +98,15 @@ def main():
             page.get_by_role("button", name="Back", exact=True).click()
             expect(page.get_by_role("button", name="Select Expert difficulty", exact=True)).to_have_attribute("aria-pressed", "true")
             page.get_by_role("button", name="Back to cases", exact=True).click()
-            completed = set()
+            completed = set(legacy["caseResults"])
             query_count = 0
             for case_id, title in CASES:
                 for difficulty, label in DIFFICULTIES:
                     enter(page, case_id, title, difficulty, label)
                     expect(page.locator(".obj-count")).to_have_text("0/5")
+                    revision = page.evaluate("__kql.game.scene.getScene('Game').caseDef.questionSetRevision")
+                    suffix = f"@{revision}" if revision else ""
+                    pending = page.evaluate("__kql.game.scene.getScene('Game').caseDef.questionSetStatus==='placeholder'")
                     challenges = page.evaluate("""__kql.game.scene.getScene('Game').caseDef.challenges
                         .map(c=>({id:c.id,solution:c.solution,starter:c.starter,gate:c.unlocksGate}))""")
                     assert len(challenges) == 5
@@ -110,7 +116,10 @@ def main():
                     for index, challenge in enumerate(challenges):
                         interact(page, "terminal", challenge["id"])
                         expect(page.locator(".terminal-modal .case-difficulty")).to_contain_text(label)
-                        expect(page.locator(".terminal-modal .case-difficulty")).to_contain_text("Questions pending")
+                        if pending:
+                            expect(page.locator(".terminal-modal .case-difficulty")).to_contain_text("Questions pending")
+                        else:
+                            expect(page.locator(".terminal-modal .case-difficulty")).not_to_contain_text("Questions pending")
                         page.get_by_role("button", name="2 \u00b7 Solve it", exact=True).click()
                         editor = page.get_by_role("combobox", name="KQL query editor")
                         if index == 0:
@@ -120,6 +129,14 @@ def main():
                         expect(page.locator(".verdict-box.correct")).to_be_visible()
                         page.locator(".celebrate").wait_for(state="detached")
                         expect(page.locator(".result-block table")).to_be_visible()
+                        if re.search(r"\|\s*render\s+(timechart|columnchart)\s*$", challenge["solution"]):
+                            expect(page.locator(".result-block .query-chart svg")).to_be_visible()
+                        if page.locator(".content-attribution").count():
+                            page.locator(".content-attribution > summary").click()
+                            expect(page.locator(".content-attribution")).to_contain_text("licensed under")
+                        clock = page.evaluate("__kql.game.scene.getScene('Game').caseDef.now.toISOString()")
+                        expect(page.locator(".terminal-modal")).to_contain_text(
+                            clock.replace("T", " ").replace(".000Z", " UTC"))
                         assert page.evaluate("""id=>__kql.game.scene.getScene('Game').gateSprites
                           .filter(g=>g.gateId===id).every(g=>!g.sprite.body?.enable)""", challenge["gate"])
                         page.get_by_role("button", name="Back to the field", exact=True).click()
@@ -130,11 +147,12 @@ def main():
                     page.get_by_role("button", name=re.compile("^" + re.escape(correct))).click()
                     page.get_by_role("button", name="Submit verdict", exact=True).click()
                     expect(page.locator(".debrief-main .case-difficulty")).to_contain_text(label)
-                    completed.add(f"{case_id}:{difficulty}")
+                    completed.add(f"{case_id}:{difficulty}{suffix}")
                     records = profile(page).get("caseResults", {})
                     assert set(records) == completed, records
-                    assert records[f"{case_id}:{difficulty}"]["completions"] == 1
-                    assert records[f"{case_id}:{difficulty}"]["bestScore"] > 0
+                    assert records[f"{case_id}:{difficulty}{suffix}"]["completions"] == 1
+                    assert records[f"{case_id}:{difficulty}{suffix}"]["bestScore"] > 0
+                    assert records["001:expert"] == legacy["caseResults"]["001:expert"]
                     page.get_by_role("button", name="Replay case", exact=True).click()
                     page.wait_for_function("""([id,d])=>{
                       const s=window.__kql?.game.scene.getScene('Game');
@@ -153,7 +171,7 @@ def main():
                     expect(card).to_contain_text("Completed 1 time")
                     for other, other_label in DIFFICULTIES:
                         other_card = page.get_by_role("button", name=f"Select {other_label} difficulty", exact=True)
-                        expect(other_card).to_contain_text("Completed 1 time" if f"{case_id}:{other}" in completed else "Not completed")
+                        expect(other_card).to_contain_text("Completed 1 time" if f"{case_id}:{other}{suffix}" in completed else "Not completed")
                     page.get_by_role("button", name="Back to cases", exact=True).click()
                     print(f"{case_id}/{difficulty}: five queries, gates, scoped completion and fresh replay passed.", flush=True)
             assert query_count == 45

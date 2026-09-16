@@ -39,6 +39,7 @@ export function createCaseVariant(base: CaseDefinition, set: QuestionSet): CaseD
     difficulty: set.difficulty,
     questionSetStatus: set.questionSetStatus,
     questionSetNotice: set.questionSetNotice,
+    questionSetRevision: set.revision,
     // Object.freeze(Date) still permits setTime(). Expose a fresh clock instead.
     get now() { return new Date(timestamp); },
     database: () => cloneDatabase(database()),

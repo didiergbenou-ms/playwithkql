@@ -20,9 +20,9 @@ This map includes the contributor toolkit added after the multi-case scaffolds a
 ## What exists today
 
 - React + TypeScript owns screens and overlays; Phaser 4.2.1 (pinned) owns the platformer; Zustand owns progression and the persisted profile.
-- Three selectable cases each span four rooms and five terminals: Heartbeat Hills (001), Signal Harbor (002), and Relay Ruins (003). The two new maps deliberately reuse Case 001 lessons and synthetic data; their new incident content is still pending.
-- Every case has Beginner, Intermediate and Expert question sets: nine editable sets and 45 slots. All difficulty-specific questions currently use labelled copies pending new content. Difficulty changes questions, not maps, physics or the case's root cause.
-- The current lesson sequence is `take`, `distinct`, `where` with `ago()`, `summarize` with `max()`, then applying known syntax to a second table.
+- Three selectable cases each span four rooms and five terminals: Heartbeat Hills (001), Signal Harbor (002), and Relay Ruins (003). They investigate the synthetic March 11 NSG/outbound-path incident using different evidence.
+- Every case has Beginner, Intermediate and Expert question sets: nine editable sets and 45 executable tasks. Twelve supplied Beginner tasks plus three additions and adapted higher-tier lessons are ready to run but labelled for editorial review. Difficulty changes questions, not maps, physics or the case's root cause.
+- Beginner focuses on sampling, time filters, grouping, search and shaping. Higher tiers use aggregation, real charts, calculations, dynamic payloads and scoped audit/capstone analysis; they do not pretend to execute unsupported joins or anomaly-series functions.
 - The README's AI coach, mastery dashboard, and broader mission roadmap are goals, not evidence those features exist.
 - No Azure account, credentials, backend, or database is needed to play locally. The optional API is not connected to the game.
 
@@ -35,8 +35,9 @@ This map includes the contributor toolkit added after the multi-case scaffolds a
 | Independent case starter and content checks | `src/authoring/caseStarter.ts`, `catalog.ts`, `validateCase.ts` | `scripts/checkContent.ts`, `testAuthoring.ts`, case-specific expected results |
 | Direct content preview | `src/dev/ContentPreview.tsx`, `contentPreview.css`, `src/main.tsx` | `TerminalModal.tsx`, pure verdict view, `testContentPreview.tsx`; dev URL `?author=1` |
 | Room layout, platforms, pits, spikes, pickups | `src/game/levels/heartbeatHills.ts`, `signalHarbor.ts`, `relayRuins.ts` | `parseLevel(caseDef.level)`, `GameScene.ts`, `reach.ts`, case tests |
-| A terminal's lesson, query, hints, evidence or gate | `src/data/cases/case001.ts`, `case002.ts`, `case003.ts` | Original `src/data/case001.ts`, `placeholder.ts`, map digits, `ChallengeSpec`, terminal UI |
-| Synthetic logs or table columns | `src/data/case001.ts`: `buildDatabase`, `TABLE_META`, `CASE_NOW` | Every affected reference query, example, hint, completion and evidence assertion |
+| A terminal's lesson, query, hints, evidence or gate | `src/data/questions/case001`, `case002`, `case003` | `src/data/curriculum/authoring.ts`, case adapters, map digits, `ChallengeSpec`, terminal UI |
+| Synthetic logs or table columns | `src/data/curriculum/dataset.ts`, `seed/curriculum/`, `content/datasets/` | Every affected query/example/hint and independent fixtures in `testCurriculumContent.ts`; legacy `src/data/case001.ts` remains a regression corpus |
+| Chart result display or curriculum attribution | `src/ui/ResultChart.tsx`, `chartData.ts`, `ContentSources.tsx` | QueryResult/GradeResult visualization, workerProtocol, `curriculumSources.ts`, `SOURCES.md` |
 | Query language behavior | `src/kql/lexer.ts`, `parser.ts`, `evaluator.ts`, `types.ts` | `index.ts`, `challenge.ts`, `complete.ts`, `highlight.ts`, `format.ts` |
 | Query execution, cancellation or timeout | `src/kql/workerClient.ts`, `query.worker.ts`, `workerProtocol.ts` | `TerminalModal.tsx`, `testQueryWorker.ts`, `testKqlBrowser.py` |
 | Terminal drafts and stale results | `src/state/queryDrafts.ts`, `TerminalModal.tsx` | `App.tsx`, `store.ts` run initialization, `testQueryDrafts.ts` |
@@ -130,7 +131,7 @@ Current dimensions: `TILE = 16`, `ROOM_WIDTH = 46`, `ROWS = 13`. Each room is 73
 
 ## Terminal authoring: connect the whole chain
 
-Case 001 wiring (the two placeholder factories prefix these IDs with `case002-` or `case003-`):
+Case 001 wiring (other map adapters preserve the `case002-` / `case003-` prefixes):
 
 | Map digit | Challenge ID | Room index | Gate marker / ID |
 |---|---|---|---|
@@ -143,7 +144,7 @@ Case 001 wiring (the two placeholder factories prefix these IDs with `case002-` 
 `parseLevel` accepts **only digits 1-5** and stores `Number(char) - 1`. The scene uses that as an index into the selected case's `challenges`. Adding a sixth array entry or typing `6` into the map does not register a terminal. Reordering a case's challenges changes what its map digits mean.
 
 1. Read `src/kql/challenge.ts`: `ChallengeSpec` and `ChallengeConcept` define the contract.
-2. Author the selected case's challenge definition: stable ID, zero-based `room`, `points`, objective `prompt`, optional `flavour`, `starter`, reference `solution`, progressive `hints`, and post-success `teaches`. For 002/003, the current `createPlaceholderCase` call copies the original lessons; replace it with an independent `CaseDefinition` when writing bespoke content. Do not edit the shared source expecting only one placeholder case to change.
+2. Edit the chosen question-set file, using `authoredSet` or explicit `QuestionSet` slots. It supplies objective, lesson, example, solution, hints, evidence and attribution. Map room/gate/points identities come from the case adapter. Do not edit the legacy source or a shared seed expecting a change to affect only one playable set.
 3. Supply `concept.title`, `body`, `pattern`, and a working `example.query` with `example.explain`. Keep Level 1 to one new idea at a time.
 4. Set `requiredOperators` only for deliberate learning requirements; equivalent valid queries should otherwise pass. Use `ordered` when the lesson actually requires ordered output.
 5. Connect `evidenceId` to that case's `evidence`. Put observable expected result text in `evidenceTokens`; never claim the query proves something it does not return.
@@ -186,6 +187,9 @@ validation surface. New selection/replay creates a fresh run ID to cancel stale
 workers and clear drafts; do not mutate the active difficulty while playing.
 Completion records are scoped to case+difficulty. Never infer tier completions
 from old aggregate saves or let a Beginner solve mark Expert complete.
+Replacement question sets additionally have a revision; `caseCompletionKey`
+keeps earlier completion records without crediting unseen replacement lessons.
+Preserve history and aggregate profile values when changing curriculum revisions.
 
 ## Query engine, assistance and state invariants
 
@@ -195,6 +199,10 @@ from old aggregate saves or let a Beginner solve mark Expert complete.
 - A result and its feedback belong to the submitted query. All edit paths (typing, formatting, schema buttons, examples and solutions) must invalidate a pending run or mark old output stale. Never apply a late response to another query, terminal or run; do not award progress twice.
 - Use dedicated cancellable workers for browser query execution, including worked examples. Never add a synchronous fallback on worker failure. Cancel/unmount/timeout must terminate the worker and release handlers/timers; infrastructure failures and cancellations are not player mistakes or scored attempts.
 - Keep typed result comparison separate from display formatting. Distinguish strings/numbers, null/empty strings, Dates/timespans and dynamic values; preserve duplicate rows and array order. Feedback may explain mismatch categories, but must not expose hidden answer values or the reference query.
+- Optional `validation` supports rowCount (sample count + column set), schema (column order + typed multiset), orderedBy (same rows with monotonic key, ties in any order), and resultSet with an independent expected fixture. Sampling does not prove arbitrary row provenance. `forbiddenOperators` blocks shortcuts via AST features; canonical aliases are limit/take and order/sort, never project-away/project-keep.
+- `render timechart` / `columnchart` is final-only metadata on actual worker results, not an execution engine or a canned picture. Preserve the underlying result table, stale-result labels and chart limits (2,000 plotted values, 24 series). Empty examples need explicit `allowEmpty: true`; keep general nonempty-example checks.
+- The curriculum clock is 2026-03-11T12:00:00Z; load declared datetime fields as Dates. NetworkChanges and SigninLogs are synthetic enrichment, not supplied production logs. Changes to rows require regenerated seed files and independent expected results, not only grading a reference against itself.
+- Preserve `sourceIds`/`sourceTerminalId`/`contentNote`, ledger and license notices. The original pack's 12-case campaign, skip rules, alternate save key, scoring, automatic hints and precomputed fallback are not adopted. Editorially provisional does not mean execution can be simulated.
 - Keep malformed calls, invalid dates, deep unary/binary expressions and missing aggregate arguments on diagnostic paths. Add regression cases for the specific failure, not just successful queries.
 - `safeRegex` is currently a native-RegExp heuristic with caps, **not a demonstrated security or execution-time bound**. Do not extend it and claim safety from a few timing examples. For regex-safety work, evaluate a non-backtracking engine or terminable isolation; run adversarial cases only in killable child processes with hard deadlines.
 - `hintsRevealed` answers how many progressive hints to display. `hintsSeen` answers whether assistance was used, including `solutionRevealed`. Do not interchange them.
@@ -260,6 +268,10 @@ node scripts\run.mjs scripts\testQueryDrafts.ts
 node scripts\run.mjs scripts\testQuestionSets.ts
 node scripts\run.mjs scripts\testDifficultyState.ts
 node scripts\run.mjs scripts\testDifficultyUi.tsx
+node scripts\run.mjs scripts\testCurriculumLanguage.ts
+node scripts\run.mjs scripts\testCurriculumGrading.ts
+node scripts\run.mjs scripts\testCurriculumContent.ts
+node scripts\run.mjs scripts\testCurriculumUi.tsx
 node scripts\run.mjs scripts\fuzzKql.ts
 node node_modules\vite\bin\vite.js build
 ```
@@ -273,6 +285,7 @@ The test commands share `.tmp/test.mjs` and delete `.tmp`; running them concurre
 - `testPhaserBrowser.py` uses Playwright against a running production preview and runs in CI for both WebGL and `--canvas` fallback. It checks real queries/gates/notes, effects, pause/teardown/replay, all recruits and source-pixel orientation at 1x/2x; see the local guide for Python/browser setup. It positions players at interactables, so still traverse affected routes manually for physics or map changes.
 - `test:reliability` covers grading, worker transport and drafts. `testKqlBrowser.py` exercises real editor drafts, empty drafts, stale results and cancellation/failure recovery. Use isolated worker fixtures to test a blocked task, never remove regex guards or run a known pathological expression on the main thread.
 - `test:difficulties` covers all nine sets, scoped state/profile behavior and authoring deep links. `testDifficultiesBrowser.py` plays the 45 slots and checks fresh replay, tier isolation and legacy profile preservation. Existing browser flows must now choose difficulty before a recruit.
+- `seed:curriculum` regenerates original and supplemental synthetic JSON and verifies the original 23 planted facts. `test:curriculum` checks the language extensions, grading modes, all 45 independent expected outputs, fixed clocks, typed snapshots, charts and notices. CI also rejects generated dataset drift.
 - Do not run known catastrophic regex or deliberately remove safety guards in the main process or working tree. Prefer isolated fixtures or child processes with enforced deadlines and reliable cleanup. A timing assertion after a blocking call cannot interrupt it.
 - For gameplay changes, test the real route and interaction, not only store mutations or presence of strings in a bundle. State explicitly when browser testing is unavailable.
 - Save text as UTF-8. Do not round-trip native `git show` output through an ambiguously decoded PowerShell text pipeline; this previously corrupted arrows and punctuation. Use byte-preserving reads/copies or explicit UTF-8, and inspect the diff.

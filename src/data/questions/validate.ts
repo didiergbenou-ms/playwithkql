@@ -5,7 +5,8 @@ import { QUESTION_SET_PLACEHOLDER_NOTICE } from './seed';
 
 const LESSON_FIELDS = [
   'prompt', 'flavour', 'concept', 'teaches', 'hints', 'starter', 'solution',
-  'requiredOperators', 'ordered', 'evidenceTokens',
+  'requiredOperators', 'ordered', 'evidenceTokens', 'validation', 'forbiddenOperators',
+  'sourceIds', 'sourceTerminalId', 'contentNote',
 ];
 
 /** Cheap structural checks only. Run validateCase(createCaseVariant(base, set)) for executable checks. */
@@ -15,6 +16,7 @@ export function validateQuestionSet(set: QuestionSet, base?: CaseDefinition): st
   const text = (value: unknown) => typeof value === 'string' && value.trim().length > 0;
   try {
     requireDifficulty(set.difficulty);
+    if (set.revision !== undefined) check(text(set.revision) && /^[a-z0-9-]+$/.test(set.revision), 'revision must be a nonempty lowercase identifier');
     check(text(set.caseId) && set.caseId === set.caseId.trim(), 'caseId must be nonempty text without surrounding whitespace');
     check(set.id === caseDifficultyKey(set.caseId, set.difficulty), 'id must match caseId:difficulty');
     if (base) {

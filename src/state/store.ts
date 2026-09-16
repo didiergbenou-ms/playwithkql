@@ -78,12 +78,18 @@ export interface Profile {
   caseResults?: Record<string, CaseResult>;
 }
 
+export function caseCompletionKey(caseId: string, difficulty: Difficulty): string {
+  const key = caseDifficultyKey(caseId, difficulty);
+  const revision = getCase(caseId, difficulty).questionSetRevision;
+  return revision ? `${key}@${revision}` : key;
+}
+
 export function getCaseResult(
   profile: Profile,
   caseId: string,
   difficulty: Difficulty,
 ): CaseResult | undefined {
-  return profile.caseResults?.[caseDifficultyKey(caseId, difficulty)];
+  return profile.caseResults?.[caseCompletionKey(caseId, difficulty)];
 }
 
 export interface Rank {
@@ -548,7 +554,7 @@ export const useStore = create<Store>()(
             casesClosed: s.profile.casesClosed + 1,
             caseResults: {
               ...s.profile.caseResults,
-              [caseDifficultyKey(run.caseId, run.difficulty)]: {
+              [caseCompletionKey(run.caseId, run.difficulty)]: {
                 completions: (getCaseResult(s.profile, run.caseId, run.difficulty)?.completions ?? 0) + 1,
                 bestScore: Math.max(
                   getCaseResult(s.profile, run.caseId, run.difficulty)?.bestScore ?? 0,

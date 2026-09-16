@@ -168,11 +168,11 @@ workbench and `check:content`; it does not change the normal game menu. Keep
 each draft's expected-result assertions with its own tests. Register a finished
 new case in `src/data/cases/index.ts` only when it is intended to be playable.
 
-Cases 002 and 003 currently use `createPlaceholderCase`, which deliberately
-copies Case 001's lessons and database. To give one its own investigation,
-replace that placeholder construction with an independent `CaseDefinition`.
-Keep its existing map and identity links. Do not change `src/data/case001.ts`
-expecting a change to affect only one placeholder.
+Playable cases use `createCurriculumCase` and their nine authored question sets.
+To change a terminal, edit the selected case/difficulty file. To change a case's
+investigation, coordinate its narrative, datasets and all three difficulty sets.
+Keep its map and identity links. `createPlaceholderCase` and the original
+`src/data/case001.ts` remain for legacy fixtures, not current playable questions.
 
 Author the complete evidence chain together: synthetic rows and schema,
 terminal objective, worked example, reference answer, progressive hints,
@@ -230,6 +230,12 @@ route, or the final verdict is accessible.
 
 Each file exports one `QUESTION_SET` with five numbered `slots`:
 
+The current files use `authoredSet` to define five complete lesson drafts.
+Edit the draft's `prompt`, `solution`, two progressive hints, example, evidence
+and source information; the helper produces the third complete-query hint and
+stable slots. Ready means executable: provisional adaptations remain labelled
+in `contentNote` until editorial review.
+
 | Case | Beginner | Intermediate | Expert |
 |---|---|---|---|
 | 001 | `src/data/questions/case001/beginner.ts` | `src/data/questions/case001/intermediate.ts` | `src/data/questions/case001/expert.ts` |
@@ -257,6 +263,11 @@ Until then the UI must disclose the reused/pending questions. Run
 that tier. Add independent expected-result assertions for the final questions;
 reference queries comparing against themselves are not proof of content quality.
 
+The March adaptation has revision `march-2026-v1`. Completion records are keyed
+by case, difficulty and revision, so old placeholder scores remain history rather
+than automatically completing the replacement lessons. Retain the revision for
+copy corrections; use a new one when materially replacing the exercises.
+
 ### Handoff
 
 Open a PR targeting `develop`. State the changed case/subsystem, how the
@@ -280,6 +291,7 @@ npm run test:authoring
 npm run test:performance
 npm run test:reliability
 npm run test:difficulties
+npm run test:curriculum
 npm run fuzz
 npm run build
 ```
@@ -295,6 +307,12 @@ use `npm run dev` for everyday development. Stop either server with **Ctrl+C**.
 
 Run checks **sequentially**: the TypeScript test scripts share `.tmp/test.mjs`.
 Do not launch multiple suites at the same time.
+
+For data changes, run `npm run seed:curriculum` before the tests. It regenerates
+the three supplied datasets plus the small synthetic enrichment dataset. Commit
+the generator and generated JSON together; CI checks for drift. The original
+August prototype corpus remains under `src/data/case001.ts` for regression
+fixtures, not as the source of current playable lessons.
 
 ### Engine and renderer checks
 
