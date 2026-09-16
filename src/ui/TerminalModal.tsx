@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CaseDefinition } from '../data/cases/types';
 import type { ChallengeSpec } from '../kql/challenge';
-import { gradeChallenge, type GradeResult } from '../kql/challenge';
+import type { GradeResult } from '../kql/challenge';
 import { toDisplayString } from '../kql/evaluator';
-import { collectFeatures, KqlError, parse, runQuery } from '../kql/index';
+import { collectFeatures, KqlError, parse } from '../kql/index';
+import { gradeInWorker, queryInWorker, type WorkerTask } from '../kql/workerClient';
 import { formatKql, withSourceTable } from '../kql/format';
 import type { Table } from '../kql/types';
 import { KqlEditor } from './KqlEditor';
@@ -14,6 +15,8 @@ import { DEFAULT_CASE_ID, getCase } from '../data/cases';
 interface Props {
   caseDef?: CaseDefinition;
   spec: ChallengeSpec;
+  initialQuery?: string;
+  onQueryChange?: (query: string) => void;
   alreadySolved: boolean;
   /**
    * Hints already revealed for this challenge, however they were paid for.
@@ -107,6 +110,8 @@ function ResultTable({
 export function TerminalModal({
   caseDef = getCase(DEFAULT_CASE_ID),
   spec,
+  initialQuery,
+  onQueryChange,
   alreadySolved,
   hintsUsed,
   crystalsLeft,
@@ -119,13 +124,53 @@ export function TerminalModal({
   onClose,
 }: Props) {
   const db = useMemo(() => caseDef.database(), [caseDef]);
-  const [query, setQuery] = useState(() => formatKql(spec.starter));
-  const [result, setResult] = useState<GradeResult | null>(null);
+  const [query, setQuery] = useState(() => initialQuery ?? formatKql(spec.starter));
+  const queryRef = useRef(query);
+  const [result, setResult] = useState<{ query: string; grade: GradeResult } | null>(null);
+  const [running, setRunning] = useState(false);
+  const [executionMessage, setExecutionMessage] = useState<string | null>(null);
+  const pending = useRef<WorkerTask<GradeResult> | null>(null);
   const [revealed, setRevealed] = useState(hintsUsed);
   const [showSolution, setShowSolution] = useState(false);
   const [solvedNow, setSolvedNow] = useState(alreadySolved);
   /** New terminals open on Learn; revisits go straight to the task. */
-  const [pane, setPane] = useState<'learn' | 'task'>(alreadySolved ? 'task' : 'learn');
+  const [pane, setPane] = useState<'learn' | 'task'>(
+    alreadySolved || initialQuery !== undefined ? 'task' : 'learn',
+  );
+  const [exampleResult, setExampleResult] = useState<Table | null>(null);
+  const [exampleError, setExampleError] = useState<string | null>(null);
+
+  useEffect(() => () => {
+    const task = pending.current;
+    pending.current = null;
+    task?.cancel();
+  }, []);
+
+  const cancelRun = (message: string | null) => {
+    const task = pending.current;
+    pending.current = null;
+    task?.cancel();
+    setRunning(false);
+    setExecutionMessage(message);
+  };
+
+  const changeQuery = (next: string) => {
+    if (next === queryRef.current) return;
+    if (pending.current) cancelRun('Query changed. Run it again to get a current result.');
+    else setExecutionMessage(null);
+    queryRef.current = next;
+    setQuery(next);
+    onQueryChange?.(next);
+  };
+
+  const resetQuery = () => {
+    cancelRun(null);
+    const starter = formatKql(spec.starter);
+    queryRef.current = starter;
+    setQuery(starter);
+    onQueryChange?.(starter);
+    setResult(null);
+  };
 
   /** The table this challenge is really about — drives the preview panel. */
   const focusTable = useMemo(() => {
@@ -134,12 +179,9 @@ export function TerminalModal({
   }, [spec.solution]);
 
   const preview = useMemo(() => {
-    try {
-      return runQuery(`${focusTable} | take 8`, db, { now: caseDef.now }).table;
-    } catch {
-      return null;
-    }
-  }, [caseDef, focusTable, db]);
+    const source = db[focusTable];
+    return source ? { ...source, rows: source.rows.slice(0, 8) } : null;
+  }, [focusTable, db]);
 
   const focusMeta = caseDef.tableMeta.find((table) => table.name.toLowerCase() === focusTable.toLowerCase());
   const evidence = spec.evidenceId
@@ -147,16 +189,34 @@ export function TerminalModal({
     : undefined;
 
   const run = () => {
-    const graded = gradeChallenge(spec, query, db, caseDef.now);
-    setResult(graded);
-    onAttempt();
-    if (graded.status === 'correct' && !solvedNow) {
-      setSolvedNow(true);
-      onSolved(query);
-    } else if (graded.status !== 'correct') {
-      // falling minor third — corrects without scolding
-      audio.play('wrong');
-    }
+    if (pending.current) return;
+    const submittedQuery = queryRef.current;
+    const task = gradeInWorker(spec, submittedQuery, db, caseDef.now);
+    pending.current = task;
+    setRunning(true);
+    setExecutionMessage(null);
+    task.promise.then((graded) => {
+      if (pending.current !== task) return;
+      pending.current = null;
+      setRunning(false);
+      setResult({ query: submittedQuery, grade: graded });
+      if (graded.errorSource === 'reference' || graded.errorSource === 'comparison') {
+        setExecutionMessage('The terminal could not grade this query. No attempt recorded.');
+        return;
+      }
+      onAttempt();
+      if (graded.status === 'correct' && !solvedNow) {
+        setSolvedNow(true);
+        onSolved(submittedQuery);
+      } else if (graded.status !== 'correct') {
+        audio.play('wrong');
+      }
+    }, (error: unknown) => {
+      if (pending.current !== task) return;
+      pending.current = null;
+      setRunning(false);
+      setExecutionMessage(`${error instanceof Error ? error.message : String(error)} No attempt recorded.`);
+    });
   };
 
   const revealHint = () => {
@@ -166,20 +226,30 @@ export function TerminalModal({
     if (!onSpendCrystal()) onHint();
   };
 
-  /** The worked example from the Learn tab, executed for real. */
-  const exampleResult = useMemo(() => {
-    try {
-      return runQuery(spec.concept.example.query, db, { now: caseDef.now }).table;
-    } catch {
-      return null;
-    }
-  }, [caseDef, spec, db]);
+  useEffect(() => {
+    if (pane !== 'learn') return;
+    setExampleResult(null);
+    setExampleError(null);
+    let current = true;
+    const task = queryInWorker(spec.concept.example.query, db, caseDef.now);
+    task.promise.then(({ table }) => {
+      if (current) setExampleResult(table);
+    }, (error: unknown) => {
+      if (current) setExampleError(error instanceof Error ? error.message : String(error));
+    });
+    return () => {
+      current = false;
+      task.cancel();
+    };
+  }, [caseDef, spec, db, pane]);
 
   // live check state, shown before the player runs anything
   const usedOps = useMemo(() => {
     return getLiveQueryFeatures(query);
   }, [query]);
 
+  const graded = result?.grade;
+  const resultCurrent = result !== null && result.query === query && !running;
   const checks = [
     ...(spec.requiredOperators ?? []).map((op) => ({
       label: (
@@ -191,7 +261,7 @@ export function TerminalModal({
     })),
     {
       label: <>Result matches the expected answer</>,
-      done: result?.status === 'correct',
+      done: resultCurrent && graded?.status === 'correct',
     },
   ];
 
@@ -236,18 +306,16 @@ export function TerminalModal({
           <h3>Worked example</h3>
           <pre className="learn-example">{formatKql(spec.concept.example.query)}</pre>
           <p className="learn-body">{spec.concept.example.explain}</p>
-          {exampleResult && (
-            <>
-              <p className="example-caption">What that example returns:</p>
-              <ResultTable table={exampleResult} meta={caseDef.tableMeta} showTypes />
-            </>
-          )}
+          <p className="example-caption">What that example returns:</p>
+          {exampleResult ? <ResultTable table={exampleResult} meta={caseDef.tableMeta} showTypes />
+            : exampleError ? <p role="alert" className="hint-line">Example could not run: {exampleError}</p>
+              : <p role="status" className="muted">Loading example result...</p>}
 
           <div className="learn-actions">
             <button
               className="ghost"
               onClick={() => {
-                setQuery(formatKql(spec.concept.example.query));
+                changeQuery(formatKql(spec.concept.example.query));
                 setPane('task');
               }}
             >
@@ -282,7 +350,7 @@ export function TerminalModal({
           {focusMeta && (
             <div className="focus-cols">
               <span className="focus-cols-label">
-                Columns in <button className="schema-name" onClick={() => setQuery((q) => withSourceTable(q, focusTable))}>{focusTable}</button>
+                Columns in <button className="schema-name" onClick={() => changeQuery(withSourceTable(query, focusTable))}>{focusTable}</button>
               </span>
               <div className="schema-cols">
                 {focusMeta.columns.map((c) => (
@@ -298,7 +366,7 @@ export function TerminalModal({
             {caseDef.tableMeta.map((t) => (
               <div key={t.name} className={`schema-table ${t.name === focusTable ? 'focus' : ''}`}>
                 <div className="schema-head">
-                  <button className="schema-name" onClick={() => setQuery((q) => withSourceTable(q, t.name))}>
+                  <button className="schema-name" onClick={() => changeQuery(withSourceTable(query, t.name))}>
                     {t.name}
                   </button>
                   <span className="schema-rows">{db[t.name]?.rows.length ?? 0} rows</span>
@@ -363,7 +431,7 @@ export function TerminalModal({
               <div className="solution">
                 <strong>Reference solution</strong>
                 <code>{formatKql(spec.solution)}</code>
-                <button className="ghost small" onClick={() => setQuery(formatKql(spec.solution))}>
+                <button className="ghost small" onClick={() => changeQuery(formatKql(spec.solution))}>
                   Copy into editor
                 </button>
               </div>
@@ -373,18 +441,19 @@ export function TerminalModal({
 
         <div className="editor-col">
           <span className="step-label">Step 2 · Write the query</span>
-          <KqlEditor value={query} onChange={setQuery} onRun={run} meta={caseDef.tableMeta} autoFocus />
+          <KqlEditor value={query} onChange={changeQuery} onRun={run} meta={caseDef.tableMeta} autoFocus />
 
           <div className="editor-actions">
-            <button className="primary big" onClick={run}>
+            <button className="primary big" onClick={run} disabled={running}>
               Run query <kbd>Ctrl</kbd>+<kbd>Enter</kbd>
             </button>
-            <button className="ghost small" onClick={() => setQuery(formatKql(spec.starter))}>
+            {running && <button className="ghost small" onClick={() => cancelRun('Query cancelled. No attempt recorded.')}>Cancel query</button>}
+            <button className="ghost small" onClick={resetQuery}>
               Reset
             </button>
             <button
               className="ghost small"
-              onClick={() => setQuery((q) => formatKql(q))}
+              onClick={() => changeQuery(formatKql(query))}
               title="One operator per line"
             >
               Format
@@ -394,24 +463,31 @@ export function TerminalModal({
             <kbd>Ctrl</kbd>+<kbd>Space</kbd> suggestions · wrong answers cost nothing
           </span>
 
-          {result && (
-            <div className={`verdict-box ${result.status}`}>
+          {running && <p role="status">Running query... You can cancel without losing your draft.</p>}
+          {executionMessage && <p role="alert" className="hint-line">{executionMessage}</p>}
+          {result && graded && (
+            <div className={`verdict-box ${resultCurrent ? graded.status : 'stale'}`}>
               <strong>
-                {result.status === 'correct'
+                {!resultCurrent
+                  ? 'PREVIOUS RESULT'
+                  : graded.errorSource === 'reference' || graded.errorSource === 'comparison'
+                    ? 'TERMINAL ERROR'
+                    : graded.status === 'correct'
                   ? 'ACCEPTED'
-                  : result.status === 'error'
+                  : graded.status === 'error'
                     ? 'QUERY ERROR'
                     : 'NOT QUITE'}
               </strong>
-              <p>{result.message}</p>
-              {result.caret && <pre className="caret">{result.caret}</pre>}
-              {result.hint && <p className="hint-line">{result.hint}</p>}
-              {result.diff?.map((d, i) => (
+              {!resultCurrent && <p role="status">This result is from the previous run, not a new evaluation of the editor. Run query to update it.</p>}
+              <p>{graded.message}</p>
+              {graded.caret && <pre className="caret">{graded.caret}</pre>}
+              {graded.hint && <p className="hint-line">{graded.hint}</p>}
+              {graded.diff?.map((d, i) => (
                 <p key={i} className="hint-line">
                   {d}
                 </p>
               ))}
-              {result.status === 'correct' && (
+              {resultCurrent && graded.status === 'correct' && (
                 <>
                   <p className="teaches">
                     <span className="tag tag-cyan">WHY IT WORKS</span> {spec.teaches}
@@ -436,8 +512,11 @@ export function TerminalModal({
               something, and sample data is a separate, clearly-marked box. */}
           <div className="step-block result-block">
             <span className="step-label">Step 3 · Your result</span>
-            {result?.table ? (
-              <ResultTable table={result.table} meta={caseDef.tableMeta} showTypes />
+            {graded?.table ? (
+              <>
+                {!resultCurrent && <p className="sample-warn">Previous run output - it does not describe the current editor.</p>}
+                <ResultTable table={graded.table} meta={caseDef.tableMeta} showTypes />
+              </>
             ) : (
               <p className="result-empty">
                 Nothing yet — press <strong>Run query</strong> and the rows land here.

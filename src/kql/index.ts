@@ -1,5 +1,6 @@
 import { parse, type Expr, type Query } from './parser';
-import { evaluate, toDisplayString, type EvalOptions } from './evaluator';
+import { evaluate, type EvalOptions } from './evaluator';
+import { rowSignature } from './comparison';
 import { KqlError, type Database, type Table } from './types';
 
 export * from './types';
@@ -101,12 +102,10 @@ export function formatError(err: unknown, src: string): { message: string; hint?
   };
 }
 
-/** Stable signature of a result table, used to compare answers. */
+/** Type-aware answer signature. Unordered tables retain row multiplicities. */
 export function tableSignature(t: Table, ordered: boolean): string {
   const cols = ordered ? t.columns : [...t.columns].sort();
-  const rowKey = (r: Table['rows'][number]) =>
-    cols.map((c) => `${c}=${toDisplayString(r[c] ?? null)}`).join('\u0001');
-  const keys = t.rows.map(rowKey);
+  const keys = t.rows.map(row => rowSignature(row, cols));
   if (!ordered) keys.sort();
-  return `${cols.join('\u0002')}\u0003${keys.join('\u0004')}`;
+  return JSON.stringify([cols, keys]);
 }

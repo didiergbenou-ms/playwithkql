@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { DEFAULT_CASE_ID, getCase } from '../data/cases';
 import { parseLevel } from '../game/levels/heartbeatHills';
+import { beginDraftRun } from './queryDrafts';
 
 export type Screen = 'menu' | 'select' | 'briefing' | 'playing' | 'debrief';
 
@@ -116,9 +117,11 @@ function emptyRun(
   caseId = DEFAULT_CASE_ID,
 ): RunState {
   const caseDef = getCase(caseId);
+  const runId = ++nextRunId;
+  beginDraftRun(runId, caseId);
   return {
     caseId,
-    runId: ++nextRunId,
+    runId,
     startedAt: Date.now(),
     finishedAt: null,
     fragments: 0,

@@ -36,6 +36,8 @@ This map includes the contributor toolkit added after the multi-case scaffolds a
 | A terminal's lesson, query, hints, evidence or gate | `src/data/cases/case001.ts`, `case002.ts`, `case003.ts` | Original `src/data/case001.ts`, `placeholder.ts`, map digits, `ChallengeSpec`, terminal UI |
 | Synthetic logs or table columns | `src/data/case001.ts`: `buildDatabase`, `TABLE_META`, `CASE_NOW` | Every affected reference query, example, hint, completion and evidence assertion |
 | Query language behavior | `src/kql/lexer.ts`, `parser.ts`, `evaluator.ts`, `types.ts` | `index.ts`, `challenge.ts`, `complete.ts`, `highlight.ts`, `format.ts` |
+| Query execution, cancellation or timeout | `src/kql/workerClient.ts`, `query.worker.ts`, `workerProtocol.ts` | `TerminalModal.tsx`, `testQueryWorker.ts`, `testKqlBrowser.py` |
+| Terminal drafts and stale results | `src/state/queryDrafts.ts`, `TerminalModal.tsx` | `App.tsx`, `store.ts` run initialization, `testQueryDrafts.ts` |
 | Editor, autocomplete, schema buttons | `src/ui/KqlEditor.tsx`, `TerminalModal.tsx` | KQL helpers, `ModalScrim.tsx`, `App.tsx` keyboard handling, styles |
 | Gate opening or objective waypoint | `src/game/bus.ts`, `GameScene.ts` | `App.tsx`, `store.ts`: `solveChallenge`, `currentObjective`, `roomProgress` |
 | Movement, collisions, respawn, interaction | `src/game/scenes/GameScene.ts` | `characters.ts`, `physics.ts`, `textures.ts`, map and reachability tests |
@@ -173,6 +175,10 @@ Live operator ticks in `TerminalModal.getLiveQueryFeatures` only parse and colle
 
 - Language work may touch `lexer.ts`, `parser.ts`, `evaluator.ts`, `types.ts`, feature collection in `index.ts`, completion in `complete.ts`, highlighting in `highlight.ts`, and reference content in `store.ts`. Inspect how the nearest supported feature is wired; not every new function requires a new token.
 - Preserve one pipe per line using `formatKql`, but never change quoted literal contents or comment meaning. Schema source changes use `withSourceTable`, not blind table-name prepending.
+- Drafts are per-run, per-case and per-terminal in a nonpersisted cache. Preserve exact text, including empty strings, on reopen; Reset changes only the draft/result, not hints, solved state or earned progress. Do not persist the profile on every keystroke.
+- A result and its feedback belong to the submitted query. All edit paths (typing, formatting, schema buttons, examples and solutions) must invalidate a pending run or mark old output stale. Never apply a late response to another query, terminal or run; do not award progress twice.
+- Use dedicated cancellable workers for browser query execution, including worked examples. Never add a synchronous fallback on worker failure. Cancel/unmount/timeout must terminate the worker and release handlers/timers; infrastructure failures and cancellations are not player mistakes or scored attempts.
+- Keep typed result comparison separate from display formatting. Distinguish strings/numbers, null/empty strings, Dates/timespans and dynamic values; preserve duplicate rows and array order. Feedback may explain mismatch categories, but must not expose hidden answer values or the reference query.
 - Keep malformed calls, invalid dates, deep unary/binary expressions and missing aggregate arguments on diagnostic paths. Add regression cases for the specific failure, not just successful queries.
 - `safeRegex` is currently a native-RegExp heuristic with caps, **not a demonstrated security or execution-time bound**. Do not extend it and claim safety from a few timing examples. For regex-safety work, evaluate a non-backtracking engine or terminable isolation; run adversarial cases only in killable child processes with hard deadlines.
 - `hintsRevealed` answers how many progressive hints to display. `hintsSeen` answers whether assistance was used, including `solutionRevealed`. Do not interchange them.
@@ -232,6 +238,9 @@ node scripts\run.mjs scripts\testAuthoring.ts
 node scripts\run.mjs scripts\testContentPreview.tsx
 node scripts\run.mjs scripts\testAudioScheduling.ts
 node scripts\run.mjs scripts\testPerfUi.tsx
+node scripts\run.mjs scripts\testGrading.ts
+node scripts\run.mjs scripts\testQueryWorker.ts
+node scripts\run.mjs scripts\testQueryDrafts.ts
 node scripts\run.mjs scripts\fuzzKql.ts
 node node_modules\vite\bin\vite.js build
 ```
@@ -243,6 +252,7 @@ The test commands share `.tmp/test.mjs` and delete `.tmp`; running them concurre
 - `testAudioScheduling.ts` uses a monotonic fake clock with coalesced overdue timers for fade cancellation, silent scheduling, SFX isolation and long stalls. `testPerfUi.tsx` checks syntax-only features, independent thumbnail cell parity/cache reuse and failed-import recovery. These run sequentially via `test:performance` and CI.
 - `checkContent.ts` reports authoring errors for the registered cases and independent starter. `testAuthoring.ts` exercises valid and deliberately broken content; `testContentPreview.tsx` covers preview helpers/rendering. Also verify browser case/terminal switching, query/hint/reset/verdict actions, unchanged persisted profile, and exclusion from a production build.
 - `testPhaserBrowser.py` uses Playwright against a running production preview and runs in CI for both WebGL and `--canvas` fallback. It checks real queries/gates/notes, effects, pause/teardown/replay, all recruits and source-pixel orientation at 1x/2x; see the local guide for Python/browser setup. It positions players at interactables, so still traverse affected routes manually for physics or map changes.
+- `test:reliability` covers grading, worker transport and drafts. `testKqlBrowser.py` exercises real editor drafts, empty drafts, stale results and cancellation/failure recovery. Use isolated worker fixtures to test a blocked task, never remove regex guards or run a known pathological expression on the main thread.
 - Do not run known catastrophic regex or deliberately remove safety guards in the main process or working tree. Prefer isolated fixtures or child processes with enforced deadlines and reliable cleanup. A timing assertion after a blocking call cannot interrupt it.
 - For gameplay changes, test the real route and interaction, not only store mutations or presence of strings in a bundle. State explicitly when browser testing is unavailable.
 - Save text as UTF-8. Do not round-trip native `git show` output through an ambiguously decoded PowerShell text pipeline; this previously corrupted arrows and punctuation. Use byte-preserving reads/copies or explicit UTF-8, and inspect the diff.

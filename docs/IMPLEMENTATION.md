@@ -169,6 +169,40 @@ player's query, then compares result tables — plus an optional
 `requiredOperators` gate so a terminal that is teaching `arg_max` cannot be
 brute-forced with `sort by ... | take 1`.
 
+### Query reliability
+
+Query drafts live in `src/state/queryDrafts.ts`, scoped to the current run, case
+and terminal. Closing a terminal retains exact draft text, including an empty
+draft. A fresh run clears drafts. They are not browser-persisted, and typing
+does not rewrite the saved profile. Reset restores the authored starter without
+removing previously used hints, a solved gate or the winning query.
+
+Results belong to the submitted text, not whichever text is currently in the
+editor. Editing marks the previous output as stale and clears the result-match
+indicator until the current query is run. Existing earned progress is not undone.
+
+Player queries and authored worked examples execute in dedicated, lazily created
+Web Workers. Cancel, changing an in-flight query, closing the terminal and
+timeouts terminate the worker; there is no synchronous browser fallback.
+The worker has a 10-second startup deadline and a separate 2-second execution
+deadline after it signals readiness. Successful tasks also release their worker.
+Cancelled or failed worker tasks do not record an attempt or award progress.
+Syntax errors returned by a completed grading task still count as attempts.
+Bad reference queries and unsafe-to-compare result values are reported as
+terminal faults without charging a player attempt.
+Raw sample previews only slice the existing case table; they do not evaluate
+player expressions.
+
+`runQuery` and `gradeChallenge` remain synchronous pure APIs inside the worker
+and for trusted authoring/CLI tests. The regex heuristics themselves are not a
+proof of bounded execution: the browser's protection is worker termination.
+Do not test potentially blocking expressions on the UI thread or in the shared
+test runner.
+
+`npm run test:reliability` covers typed grading, worker transport and run-scoped
+drafts. Browser reliability checks run through `scripts/testKqlBrowser.py`
+against the production preview.
+
 ### Lightweight performance safeguards
 
 - `App.tsx` lazy-loads `PhaserGame` and preloads it during recruit selection.

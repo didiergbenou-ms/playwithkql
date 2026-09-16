@@ -11,6 +11,7 @@ import {
 } from './state/store';
 import { audio } from './game/audio';
 import { GameplayLoadError } from './game/GameplayLoadError';
+import { getQueryDraft, saveQueryDraft } from './state/queryDrafts';
 import { Celebration, type CelebrationData } from './ui/Celebration';
 import { MainMenu } from './ui/MainMenu';
 import { CharacterSelect } from './ui/CharacterSelect';
@@ -342,13 +343,16 @@ export default function App() {
         >
           {activeSpec && overlay.kind === 'terminal' && (
             <TerminalModal
-              key={`${runCaseDef.id}-${activeSpec.id}`}
+              key={`${run.runId}-${runCaseDef.id}-${activeSpec.id}`}
               caseDef={runCaseDef}
               spec={activeSpec}
+              initialQuery={getQueryDraft(run.runId, runCaseDef.id, activeSpec.id)}
+              onQueryChange={(query) => saveQueryDraft(run.runId, runCaseDef.id, activeSpec.id, query)}
               alreadySolved={run.challenges[activeSpec.id]?.solved ?? false}
               hintsUsed={hintsRevealed(run.challenges[activeSpec.id])}
               crystalsLeft={run.crystals - run.crystalsSpent}
               onAttempt={() => {
+                if (useStore.getState().screen !== 'playing' || useStore.getState().run.runId !== run.runId) return;
                 registerAttempt(activeSpec.id);
                 award('first-query');
               }}
@@ -363,6 +367,7 @@ export default function App() {
                 revealSolution(activeSpec.id);
               }}
               onSolved={(q) => {
+                if (useStore.getState().screen !== 'playing' || useStore.getState().run.runId !== run.runId) return;
                 solveChallenge(activeSpec.id, q);
                 if (activeSpec.unlocksGate) {
                   bus.emit('ui:openGate', {
