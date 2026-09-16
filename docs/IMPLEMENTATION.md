@@ -132,7 +132,7 @@ KQL is the same for everyone.
 | Question from the brief | Decision | Reasoning |
 |---|---|---|
 | Phaser-only or React + Phaser? | **React + Phaser** | React owns menus, HUD, modals and progression; Phaser owns physics and world. They never touch each other's state — they talk over a typed event bus (`src/game/bus.ts`). This is what lets five developers work in parallel. |
-| Phaser version | **3.90.0**, not 4.2.x | Phaser 4 is a renderer rewrite with breaking changes and a thinner plugin ecosystem. For a one-month prototype, 3.90 is the safe, well-documented API. |
+| Phaser version | **4.2.1**, pinned | Migrated from 3.90.0 for issue #6 using the upstream v3-to-v4 guide. React/TypeScript ownership, Arcade physics and game content remain unchanged. |
 | Art style | **True 8-bit pixel art**, generated at runtime | 16px tiles, a fixed 16-colour palette, hard edges only. Sprites are authored as string maps (`src/game/textures.ts`) so an artist edits pixels, not drawing code. |
 | Resolution | **640x360 canvas, 2x camera zoom** (`src/game/config.ts`) | 320x180 world pixels visible — about 20 x 11 tiles, roughly an NES field of view, so the character reads clearly. Canvas scale and camera zoom are both integers, so pixels stay square. |
 | UI style | **NES chrome** | Zero border-radius, chunky bevels via layered inset box-shadows, hard pixel drop shadows, CRT scanline overlay, Press Start 2P. |
@@ -191,6 +191,44 @@ brute-forced with `sort by ... | take 1`.
 thumbnail cell parity/cache reuse and load-error recovery UI. Browser checks
 are still needed for delayed downloads, overlays during loading, pause/resume,
 gate updates, abandoning before boot or while asleep, and replay.
+
+### Phaser 4 migration
+
+Issue [#6](https://github.com/didiergbenou-ms/playwithkql/issues/6) selects Phaser
+with React and TypeScript. The migration follows the
+[upstream migration skill](https://github.com/phaserjs/phaser/blob/master/skills/v3-to-v4-migration/SKILL.md)
+and pins `phaser` to **4.2.1** so renderer upgrades are deliberate.
+
+The game already uses compatible APIs: `createCanvas`/`refresh` for procedural
+textures, Blitters for terrain, TileSprites for parallax and standard Arcade
+sprites, particles and camera effects. It does not use removed pipelines,
+preFX/postFX, BitmapMask, `setTintFill`, `Geom.Point`, `Phaser.Struct.Set/Map`,
+Mesh/Plane, or `TextureManager.generate`. Do not replace the game's own
+`generateTextures` function just because the engine removed `textures.generate`.
+
+`Phaser.AUTO` is retained: WebGL is the primary renderer; the deprecated Canvas
+fallback still works. Keep explicit `pixelArt: true` and `roundPixels: true`.
+Do not blanket-force `vertexRoundMode` on scaled objects. The existing 2x camera,
+world-view parallax anchoring and READY/sleep/wake/destruction lifecycle remain.
+
+The skyline has slightly different edge pixels under v4: TileSprite samples
+the original 320x160 image directly instead of v3's power-of-two resampling.
+Source artwork, repeat dimensions and scroll speeds are unchanged. Do not add
+a resampling workaround merely to match the old renderer's blurred edges.
+Canvas also retains its pre-existing half-pixel expansion of rounded sprite
+quads; the renderer test accounts for that rather than changing game geometry.
+
+The v4 engine chunk is larger (about 358 KB gzip versus 319 KB in the v3 build
+measured during migration). It is still deferred until recruit selection, so
+the initial menu does not fetch it. No frame-rate improvement is promised.
+
+`scripts/testPhaserBrowser.py` exercises the real production game in WebGL and
+Canvas: all three cases, query results, gates, notes, effects cleanup, sleeping
+overlays, all recruit movements and replay/destruction. Controlled pixel probes
+compare procedural textures and terrain against direct 2D source rendering at
+1x and 2x. CI runs both modes after building; see the local development guide
+for the same commands. These smoke tests do not replace full map traversal or
+device testing.
 
 ---
 

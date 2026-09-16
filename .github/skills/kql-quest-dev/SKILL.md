@@ -19,7 +19,7 @@ This map includes the contributor toolkit added after the multi-case scaffolds a
 
 ## What exists today
 
-- React + TypeScript owns screens and overlays; Phaser 3 owns the platformer; Zustand owns progression and the persisted profile.
+- React + TypeScript owns screens and overlays; Phaser 4.2.1 (pinned) owns the platformer; Zustand owns progression and the persisted profile.
 - Three selectable cases each span four rooms and five terminals: Heartbeat Hills (001), Signal Harbor (002), and Relay Ruins (003). The two new maps deliberately reuse Case 001 lessons and synthetic data; their new incident content is still pending.
 - The current lesson sequence is `take`, `distinct`, `where` with `ago()`, `summarize` with `max()`, then applying known syntax to a second table.
 - The README's AI coach, mastery dashboard, and broader mission roadmap are goals, not evidence those features exist.
@@ -51,6 +51,7 @@ This map includes the contributor toolkit added after the multi-case scaffolds a
 | Background music and effects | `src/game/music.ts`, `audio.ts` | `App.tsx` room/overlay events, `OptionsModal.tsx`, music tests |
 | Developer shortcuts | `src/dev/secret.ts`, `src/ui/DevPanel.tsx` | Store dev actions and scene `ui:teleport` handling |
 | Development server or CI | `package.json`, `vite.config.ts`, `.github/workflows/ci.yml` | `scripts/serve.mjs`, `scripts/run.mjs`, local development guide |
+| Engine migration or renderer regression | `package.json`, `package-lock.json`, `src/game/PhaserGame.tsx`, `textures.ts` | `scripts/testPhaserBrowser.py`, scene lifecycle, upstream Phaser migration skill |
 
 In this table, `GameScene.ts` means `src/game/scenes/GameScene.ts`; `store.ts` means `src/state/store.ts`; other game helpers live in `src/game/`.
 
@@ -193,6 +194,7 @@ Live operator ticks in `TerminalModal.getLiveQueryFeatures` only parse and colle
 - Menu thumbnails cache merged geometry by level object identity. Treat case/map definitions as immutable; preserve every colored cell when changing the compaction.
 - With camera zoom, parallax uses `camera.worldView.x`, not an assumption that `scrollX` is the visible left edge.
 - Pixel sprites have fixed dimensions and collision offsets. Ragged sprite rows or trailing transparent rows under bottom-origin props can cause broken rendering or floating terminals.
+- Phaser4 uses render nodes and filters, not v3 custom pipelines/preFX/postFX. The game's procedural textures use `createCanvas`/`refresh`, not the removed `TextureManager.generate`. Keep AUTO fallback and explicit pixelArt/roundPixels. Native TileSprite sampling can differ from v3's power-of-two-resampled edges; preserve source pixels rather than reproducing old blur. Consult the linked migration section in `docs/IMPLEMENTATION.md`.
 - Music lives in `music.ts` (tracks, patterns, room mapping) and `audio.ts` (voices, scheduling, gains). Preserve user volume/on-off settings, modal ducking and focus fade. Keep channels aligned and use original compositions/assets.
 - After focus fade, stop music scheduling and owned sources, not SFX. Resume preserves track/step but rebases stale audio time; music off/volume zero must not synthesize. Preserve cancellation tokens for rapid focus changes and the stalled-scheduler bound.
 - Motion settings can change while playing. Check actual shake, camera zoom and particle behavior, not just the text in Options.
@@ -232,6 +234,7 @@ The test commands share `.tmp/test.mjs` and delete `.tmp`; running them concurre
 - `testKql.ts` covers original engine/content/game helpers; `testUi.tsx` includes rendering/state assertions; `testCaseContent.ts` covers registry/maps/lessons; `testCases.ts` covers cross-case state, scoring and replay; `fuzzKql.ts` probes robustness and formatting equivalence. Their passing does not prove browser interaction, audio quality or full physical reachability.
 - `testAudioScheduling.ts` uses a monotonic fake clock with coalesced overdue timers for fade cancellation, silent scheduling, SFX isolation and long stalls. `testPerfUi.tsx` checks syntax-only features, independent thumbnail cell parity/cache reuse and failed-import recovery. These run sequentially via `test:performance` and CI.
 - `checkContent.ts` reports authoring errors for the registered cases and independent starter. `testAuthoring.ts` exercises valid and deliberately broken content; `testContentPreview.tsx` covers preview helpers/rendering. Also verify browser case/terminal switching, query/hint/reset/verdict actions, unchanged persisted profile, and exclusion from a production build.
+- `testPhaserBrowser.py` uses Playwright against a running production preview and runs in CI for both WebGL and `--canvas` fallback. It checks real queries/gates/notes, effects, pause/teardown/replay, all recruits and source-pixel orientation at 1x/2x; see the local guide for Python/browser setup. It positions players at interactables, so still traverse affected routes manually for physics or map changes.
 - Do not run known catastrophic regex or deliberately remove safety guards in the main process or working tree. Prefer isolated fixtures or child processes with enforced deadlines and reliable cleanup. A timing assertion after a blocking call cannot interrupt it.
 - For gameplay changes, test the real route and interaction, not only store mutations or presence of strings in a bundle. State explicitly when browser testing is unavailable.
 - Save text as UTF-8. Do not round-trip native `git show` output through an ambiguously decoded PowerShell text pipeline; this previously corrupted arrows and punctuation. Use byte-preserving reads/copies or explicit UTF-8, and inspect the diff.
