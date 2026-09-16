@@ -1,4 +1,5 @@
 import type { ChallengeSpec } from '../../kql/challenge';
+import type { Difficulty } from '../difficulties';
 import type { Database } from '../../kql/types';
 import type { LevelDefinition } from '../../game/levels/heartbeatHills';
 import type { TrackId } from '../../game/music';
@@ -35,6 +36,9 @@ export interface TableMeta {
 /** Everything needed to select, play, grade and debrief one case. */
 export interface CaseDefinition {
   id: string;
+  difficulty?: Difficulty;
+  questionSetStatus?: 'placeholder' | 'ready';
+  questionSetNotice?: string | null;
   title: string;
   customer: string;
   summary: string;

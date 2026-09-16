@@ -1,4 +1,5 @@
 import type { CaseDefinition, ColumnMeta } from '../data/cases/types';
+import { requireDifficulty } from '../data/difficulties';
 import { gradeChallenge } from '../kql/challenge';
 import { runQuery, toDisplayString } from '../kql/index';
 import type { Database } from '../kql/types';
@@ -55,7 +56,7 @@ function snapshotSignature(value: unknown): string {
  */
 export function validateCase(caseDef: CaseDefinition): string[] {
   const errors: string[] = [];
-  const prefix = `Case ${caseDef?.id || '<missing id>'}`;
+  const prefix = `Case ${caseDef?.id || '<missing id>'}${caseDef?.difficulty ? `:${caseDef.difficulty}` : ''}`;
   const check = (condition: unknown, message: string) => {
     if (!condition) errors.push(`${prefix}: ${message}`);
   };
@@ -76,6 +77,15 @@ export function validateCase(caseDef: CaseDefinition): string[] {
 
   inspect('structure', () => {
     for (const key of ['id', 'title', 'customer', 'summary'] as const) text(caseDef[key], key);
+    if (caseDef.difficulty !== undefined) requireDifficulty(caseDef.difficulty);
+    if (caseDef.questionSetStatus !== undefined) {
+      check(caseDef.difficulty !== undefined, 'questionSetStatus requires difficulty');
+      check(['placeholder', 'ready'].includes(caseDef.questionSetStatus), 'questionSetStatus must be placeholder or ready');
+      if (caseDef.questionSetStatus === 'placeholder') text(caseDef.questionSetNotice, 'questionSetNotice');
+      if (caseDef.questionSetStatus === 'ready') check(caseDef.questionSetNotice === null, 'ready questionSetNotice must be null');
+    } else {
+      check(caseDef.questionSetNotice === undefined || caseDef.questionSetNotice === null, 'questionSetNotice requires questionSetStatus');
+    }
     check(caseDef.id === caseDef.id.trim(), 'id must not have surrounding whitespace');
     check(typeof caseDef.placeholder === 'boolean', 'placeholder must be a boolean');
     if (caseDef.placeholder) text(caseDef.placeholderNotice, 'placeholderNotice');

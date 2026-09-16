@@ -2,6 +2,7 @@ import type { CaseDefinition } from '../data/cases/types';
 import { bus } from '../game/bus';
 import { useStore } from '../state/store';
 import { disableDev } from '../dev/secret';
+import { CaseDifficulty } from './CaseDifficulty';
 
 interface Props {
   caseDef: CaseDefinition;
@@ -71,6 +72,7 @@ export function DevPanel({ caseDef, onClose, onOpenVerdict }: Props) {
         </button>
       </header>
 
+      <CaseDifficulty caseDef={caseDef} />
       {caseDef.placeholderNotice && <p className="case-notice compact">{caseDef.placeholderNotice}</p>}
 
       <p className="dev-warn">

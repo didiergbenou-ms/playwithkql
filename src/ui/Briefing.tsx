@@ -1,4 +1,5 @@
 import type { CaseDefinition } from '../data/cases/types';
+import { CaseDifficulty } from './CaseDifficulty';
 
 export function Briefing({
   caseDef,
@@ -17,6 +18,7 @@ export function Briefing({
         <header>
           <span className="tag tag-amber">CASE {caseDef.id} — ACTIVE</span>
           <h1>{caseDef.title}</h1>
+          <CaseDifficulty caseDef={caseDef} notice />
           <p className="muted">
             Customer: {caseDef.customer} · Fleet: {caseDef.fleetSize} machines · Severity A
           </p>
@@ -57,8 +59,8 @@ export function Briefing({
             ))}
           </div>
           <p className="muted">
-            {caseDef.challenges.length} terminals, one new idea each. No prior KQL needed — every
-            terminal explains itself before it asks you anything.
+            {caseDef.challenges.length} terminals for the selected question set. Every terminal
+            includes a lesson before its task.
           </p>
         </section>
 

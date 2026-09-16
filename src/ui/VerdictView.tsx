@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CaseDefinition } from '../data/cases/types';
 import { Collapsible } from './Collapsible';
+import { CaseDifficulty } from './CaseDifficulty';
 
 interface Props {
   caseDef: CaseDefinition;
@@ -44,6 +45,7 @@ export function VerdictView({ caseDef, evidenceIds, onClose, onCorrect }: Props)
         </button>
       </header>
 
+      <CaseDifficulty caseDef={caseDef} />
       {caseDef.placeholderNotice && <p className="case-notice compact">{caseDef.placeholderNotice}</p>}
 
       <p className="verdict-lede">

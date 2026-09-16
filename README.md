@@ -77,6 +77,14 @@ support diagnoses. Each has its own terminal, gate, evidence and note IDs.
 Choose a case before choosing a recruit; replay and switching start fresh runs.
 Profiles remain shared across cases, and in-progress runs are not saved on reload.
 
+Each case now has **Beginner, Intermediate and Expert** question sets. The flow
+is **case -> difficulty -> recruit -> investigation**. That prepares **9 sets
+of 5 terminals: 45 question/answer slots**, without adding maps or changing
+movement. All difficulty sets currently contain explicitly labelled copies of
+the existing training questions; the new questions and answers are pending.
+Completion and best scores are recorded separately for each case/difficulty.
+Older aggregate profile history is retained but is not assigned to any tier.
+
 **New to the project?** Follow the [local development guide](docs/LOCAL_DEVELOPMENT.md)
 for the full steps to install the tools, clone `develop`, and run the game on
 Windows, macOS, or Linux.

@@ -21,6 +21,7 @@ This map includes the contributor toolkit added after the multi-case scaffolds a
 
 - React + TypeScript owns screens and overlays; Phaser 4.2.1 (pinned) owns the platformer; Zustand owns progression and the persisted profile.
 - Three selectable cases each span four rooms and five terminals: Heartbeat Hills (001), Signal Harbor (002), and Relay Ruins (003). The two new maps deliberately reuse Case 001 lessons and synthetic data; their new incident content is still pending.
+- Every case has Beginner, Intermediate and Expert question sets: nine editable sets and 45 slots. All difficulty-specific questions currently use labelled copies pending new content. Difficulty changes questions, not maps, physics or the case's root cause.
 - The current lesson sequence is `take`, `distinct`, `where` with `ago()`, `summarize` with `max()`, then applying known syntax to a second table.
 - The README's AI coach, mastery dashboard, and broader mission roadmap are goals, not evidence those features exist.
 - No Azure account, credentials, backend, or database is needed to play locally. The optional API is not connected to the game.
@@ -30,6 +31,7 @@ This map includes the contributor toolkit added after the multi-case scaffolds a
 | Change | Start here | Also inspect |
 |---|---|---|
 | Case registration, selection and shared contract | `src/data/cases/index.ts`, `types.ts` | `MainMenu.tsx`, `App.tsx`, `store.ts`: `selectCase`, `startRun` |
+| Difficulty questions and selection | `src/data/questions/`, `src/data/difficulties.ts`, `src/ui/DifficultySelect.tsx` | `getCase(caseId, difficulty)`, run.difficulty, profile case/difficulty results, authoring preview |
 | Independent case starter and content checks | `src/authoring/caseStarter.ts`, `catalog.ts`, `validateCase.ts` | `scripts/checkContent.ts`, `testAuthoring.ts`, case-specific expected results |
 | Direct content preview | `src/dev/ContentPreview.tsx`, `contentPreview.css`, `src/main.tsx` | `TerminalModal.tsx`, pure verdict view, `testContentPreview.tsx`; dev URL `?author=1` |
 | Room layout, platforms, pits, spikes, pickups | `src/game/levels/heartbeatHills.ts`, `signalHarbor.ts`, `relayRuins.ts` | `parseLevel(caseDef.level)`, `GameScene.ts`, `reach.ts`, case tests |
@@ -152,7 +154,7 @@ Case 001 wiring (the two placeholder factories prefix these IDs with `case002-` 
 
 Runtime flow:
 
-`map digit -> GameScene interact -> game:terminal -> App overlay -> TerminalModal -> gradeChallenge -> runQuery -> parse/evaluate/collectFeatures -> result comparison -> App onSolved -> store.solveChallenge + ui:openGate -> scene gate/terminal update -> currentObjective -> ui:objective`
+`case + difficulty -> cached getCase variant -> map digit -> GameScene interact -> game:terminal -> App overlay -> TerminalModal -> grading worker -> gradeChallenge -> runQuery -> typed result comparison -> App onSolved -> store.solveChallenge + ui:openGate -> scene gate/terminal update -> currentObjective -> ui:objective`
 
 `gradeChallenge` compares actual result tables against the reference query plus optional operator constraints. Do not replace this with query-text matching. `evidenceTokens` is an authoring-test contract, not a substitute for checking actual rendered output.
 
@@ -170,6 +172,20 @@ Live operator ticks in `TerminalModal.getLiveQueryFeatures` only parse and colle
 - Run initialization, challenge progress and scoring. The store records `run.caseId` plus a monotonic `runId`, and changing cases or replaying initializes a fresh run.
 
 `getCase` returns stable configuration; never mutate it as gameplay state. Each case's `database()` returns a separate snapshot. Keep case-local challenge, gate, evidence, root-cause and note IDs distinct. Do not report a case complete until it can be selected, played through, solved and replayed without leaking another case's state. Mark unfinished lesson/narrative content explicitly with `placeholder` and `placeholderNotice`.
+
+Difficulty question status is separate from case/incident placeholder status.
+Edit the chosen case/tier file under `src/data/questions/`, not the shared seed
+or another tier. Keep its five slot identities and evidence links consistent.
+Only mark a set ready once its new queries, hints, examples, schema and evidence
+are authored; a different label alone is not harder content.
+
+Gameplay must resolve `getCase(run.caseId, run.difficulty)` everywhere, including
+scoring, objectives, notes, dev actions and the Phaser seed. `CASES` contains
+three Beginner menu definitions, not nine worlds. `CASE_VARIANTS` is the nine-set
+validation surface. New selection/replay creates a fresh run ID to cancel stale
+workers and clear drafts; do not mutate the active difficulty while playing.
+Completion records are scoped to case+difficulty. Never infer tier completions
+from old aggregate saves or let a Beginner solve mark Expert complete.
 
 ## Query engine, assistance and state invariants
 
@@ -241,6 +257,9 @@ node scripts\run.mjs scripts\testPerfUi.tsx
 node scripts\run.mjs scripts\testGrading.ts
 node scripts\run.mjs scripts\testQueryWorker.ts
 node scripts\run.mjs scripts\testQueryDrafts.ts
+node scripts\run.mjs scripts\testQuestionSets.ts
+node scripts\run.mjs scripts\testDifficultyState.ts
+node scripts\run.mjs scripts\testDifficultyUi.tsx
 node scripts\run.mjs scripts\fuzzKql.ts
 node node_modules\vite\bin\vite.js build
 ```
@@ -253,6 +272,7 @@ The test commands share `.tmp/test.mjs` and delete `.tmp`; running them concurre
 - `checkContent.ts` reports authoring errors for the registered cases and independent starter. `testAuthoring.ts` exercises valid and deliberately broken content; `testContentPreview.tsx` covers preview helpers/rendering. Also verify browser case/terminal switching, query/hint/reset/verdict actions, unchanged persisted profile, and exclusion from a production build.
 - `testPhaserBrowser.py` uses Playwright against a running production preview and runs in CI for both WebGL and `--canvas` fallback. It checks real queries/gates/notes, effects, pause/teardown/replay, all recruits and source-pixel orientation at 1x/2x; see the local guide for Python/browser setup. It positions players at interactables, so still traverse affected routes manually for physics or map changes.
 - `test:reliability` covers grading, worker transport and drafts. `testKqlBrowser.py` exercises real editor drafts, empty drafts, stale results and cancellation/failure recovery. Use isolated worker fixtures to test a blocked task, never remove regex guards or run a known pathological expression on the main thread.
+- `test:difficulties` covers all nine sets, scoped state/profile behavior and authoring deep links. `testDifficultiesBrowser.py` plays the 45 slots and checks fresh replay, tier isolation and legacy profile preservation. Existing browser flows must now choose difficulty before a recruit.
 - Do not run known catastrophic regex or deliberately remove safety guards in the main process or working tree. Prefer isolated fixtures or child processes with enforced deadlines and reliable cleanup. A timing assertion after a blocking call cannot interrupt it.
 - For gameplay changes, test the real route and interaction, not only store mutations or presence of strings in a bundle. State explicitly when browser testing is unavailable.
 - Save text as UTF-8. Do not round-trip native `git show` output through an ambiguously decoded PowerShell text pipeline; this previously corrupted arrows and punctuation. Use byte-preserving reads/copies or explicit UTF-8, and inspect the diff.

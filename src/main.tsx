@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { GameplayLoadError } from './game/GameplayLoadError';
 import './styles.css';
+import './ui/difficulty.css';
 
 let resetRoot = () => window.location.reload();
 const loadRoot = async () => {

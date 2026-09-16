@@ -4,6 +4,7 @@ import { GameScene } from './scenes/GameScene';
 import { bus } from './bus';
 import { GAME_HEIGHT, GAME_WIDTH } from './config';
 import { DEFAULT_CASE_ID } from '../data/cases';
+import { DEFAULT_DIFFICULTY, type Difficulty } from '../data/difficulties';
 
 declare global {
   interface Window {
@@ -16,6 +17,7 @@ interface Props {
   openGates: string[];
   characterId: string;
   caseId?: string;
+  difficulty?: Difficulty;
 }
 
 export function PhaserGame({
@@ -23,11 +25,12 @@ export function PhaserGame({
   openGates,
   characterId,
   caseId = DEFAULT_CASE_ID,
+  difficulty = DEFAULT_DIFFICULTY,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   // captured once — the scene is seeded on boot, then driven by the event bus
-  const seed = useRef({ solvedChallenges, openGates, characterId, caseId });
+  const seed = useRef({ solvedChallenges, openGates, characterId, caseId, difficulty });
 
   useEffect(() => {
     if (!hostRef.current || gameRef.current) return;

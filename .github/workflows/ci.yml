@@ -61,6 +61,12 @@ jobs:
           node scripts/run.mjs scripts/testQueryWorker.ts
           node scripts/run.mjs scripts/testQueryDrafts.ts
 
+      - name: Difficulty question sets and progression
+        run: |
+          node scripts/run.mjs scripts/testQuestionSets.ts
+          node scripts/run.mjs scripts/testDifficultyState.ts
+          node scripts/run.mjs scripts/testDifficultyUi.tsx
+
       # Adversarial input against the KQL parser. This is what caught the
       # stack overflow on deeply nested parentheses.
       - name: Fuzz
@@ -90,6 +96,7 @@ jobs:
           python scripts/testPhaserBrowser.py
           python scripts/testPhaserBrowser.py --canvas
           python scripts/testKqlBrowser.py
+          python scripts/testDifficultiesBrowser.py
 
       # Lets a reviewer download and open the actual build for a PR without
       # having to check the branch out and install anything.

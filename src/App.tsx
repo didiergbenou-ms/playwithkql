@@ -15,6 +15,7 @@ import { getQueryDraft, saveQueryDraft } from './state/queryDrafts';
 import { Celebration, type CelebrationData } from './ui/Celebration';
 import { MainMenu } from './ui/MainMenu';
 import { CharacterSelect } from './ui/CharacterSelect';
+import { DifficultySelect } from './ui/DifficultySelect';
 import { Briefing } from './ui/Briefing';
 import { Hud } from './ui/Hud';
 import { TerminalModal } from './ui/TerminalModal';
@@ -74,6 +75,8 @@ export default function App() {
   const dismissToast = useStore((s) => s.dismissToast);
   const character = useStore((s) => s.profile.character);
   const selectedCaseId = useStore((s) => s.selectedCaseId);
+  const selectedDifficulty = useStore((s) => s.selectedDifficulty);
+  const selectDifficulty = useStore((s) => s.selectDifficulty);
   const selectCaseFromStore = useStore((s) => s.selectCase);
 
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -90,8 +93,8 @@ export default function App() {
   }, []);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
 
-  const selectedCaseDef = getCase(selectedCaseId);
-  const runCaseDef = getCase(run.caseId);
+  const selectedCaseDef = getCase(selectedCaseId, selectedDifficulty);
+  const runCaseDef = getCase(run.caseId, run.difficulty);
   const selectedLevel = useMemo(() => parseLevel(selectedCaseDef.level), [selectedCaseDef]);
 
   useEffect(() => {
@@ -216,9 +219,9 @@ export default function App() {
   const solvedKey = solvedIds.join(',');
 
   const pushObjective = useCallback((ids: string[]) => {
-    const obj = currentObjective(ids, runCaseDef.id);
+    const obj = currentObjective(ids, runCaseDef.id, run.difficulty);
     bus.emit('ui:objective', { challengeId: obj.challengeId, finale: obj.finale });
-  }, [runCaseDef]);
+  }, [runCaseDef, run.difficulty]);
 
   useEffect(() => {
     if (screen !== 'playing') return;
@@ -248,10 +251,17 @@ export default function App() {
   }, [toasts, dismissToast]);
 
   const begin = useCallback(() => {
-    startRun(selectedLevel.totalFragments, selectedLevel.totalCrystals, selectedCaseDef.id);
+    startRun(selectedLevel.totalFragments, selectedLevel.totalCrystals, selectedCaseDef.id, selectedDifficulty);
     setOverlay(null);
     setCelebration(null);
-  }, [startRun, selectedCaseDef, selectedLevel]);
+  }, [startRun, selectedCaseDef, selectedLevel, selectedDifficulty]);
+
+  const replay = useCallback(() => {
+    const level = parseLevel(runCaseDef.level);
+    startRun(level.totalFragments, level.totalCrystals, runCaseDef.id, run.difficulty);
+    setOverlay(null);
+    setCelebration(null);
+  }, [startRun, runCaseDef, run.difficulty]);
 
   const selectCase = useCallback(
     (caseId: string) => {
@@ -274,16 +284,27 @@ export default function App() {
           cases={CASES}
           selectedCaseId={selectedCaseId}
           onSelectCase={selectCase}
-          onStart={() => setScreen('select')}
+          onStart={() => setScreen('difficulty')}
           onOptions={() => setOverlay({ kind: 'options' })}
+        />
+      )}
+
+      {screen === 'difficulty' && (
+        <DifficultySelect
+          caseDef={selectedCaseDef}
+          selected={selectedDifficulty}
+          onSelect={selectDifficulty}
+          onContinue={() => setScreen('select')}
+          onBack={() => setScreen('menu')}
         />
       )}
 
       {screen === 'select' && (
         <CharacterSelect
           caseTitle={selectedCaseDef.title}
+          caseDef={selectedCaseDef}
           onPick={() => setScreen('briefing')}
-          onBack={() => setScreen('menu')}
+          onBack={() => setScreen('difficulty')}
         />
       )}
 
@@ -310,9 +331,10 @@ export default function App() {
             </div>
           }>
             <PhaserGame
-              key={`${run.runId}-${runCaseDef.id}-${character}`}
+              key={`${run.runId}-${runCaseDef.id}-${run.difficulty}-${character}`}
               characterId={character}
               caseId={runCaseDef.id}
+              difficulty={run.difficulty}
               solvedChallenges={solvedIds}
               openGates={run.openGates}
             />
@@ -331,7 +353,7 @@ export default function App() {
       )}
 
       {screen === 'debrief' && (
-        <Debrief caseDef={runCaseDef} onMenu={() => setScreen('menu')} onReplay={begin} />
+        <Debrief caseDef={runCaseDef} onMenu={() => setScreen('menu')} onReplay={replay} />
       )}
 
       {overlay && (

@@ -17,6 +17,7 @@
     "check:content": "node scripts/run.mjs scripts/checkContent.ts",
     "test:authoring": "node scripts/run.mjs scripts/testAuthoring.ts && node scripts/run.mjs scripts/testContentPreview.tsx",
     "test:reliability": "node scripts/run.mjs scripts/testGrading.ts && node scripts/run.mjs scripts/testQueryWorker.ts && node scripts/run.mjs scripts/testQueryDrafts.ts",
+    "test:difficulties": "node scripts/run.mjs scripts/testQuestionSets.ts && node scripts/run.mjs scripts/testDifficultyState.ts && node scripts/run.mjs scripts/testDifficultyUi.tsx",
     "fuzz": "node scripts/run.mjs scripts/fuzzKql.ts",
     "server": "node server/index.js"
   },

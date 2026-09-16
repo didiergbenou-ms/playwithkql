@@ -11,6 +11,7 @@ import { KqlEditor } from './KqlEditor';
 import { Collapsible } from './Collapsible';
 import { audio } from '../game/audio';
 import { DEFAULT_CASE_ID, getCase } from '../data/cases';
+import { CaseDifficulty } from './CaseDifficulty';
 
 interface Props {
   caseDef?: CaseDefinition;
@@ -280,6 +281,7 @@ export function TerminalModal({
         </button>
       </header>
 
+      <CaseDifficulty caseDef={caseDef} notice />
       <div className="pane-tabs">
         <button className={pane === 'learn' ? 'on' : ''} onClick={() => setPane('learn')}>
           1 · Learn

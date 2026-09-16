@@ -68,6 +68,34 @@ initializes App, the persisted store or Phaser. It keeps attempts, hints and
 verdict feedback in local React state. Production builds exclude the workbench,
 its catalog and validator; the URL flag alone cannot enable them.
 
+### Case difficulty and question sets
+
+The game still has three case maps. Each case offers Beginner, Intermediate and
+Expert after case selection and before recruit selection: nine question sets,
+five terminal slots per set, 45 slots total. This is content scaffolding, not
+45 newly authored lessons. Until replacement content arrives, every set is
+marked as placeholder and reuses the existing training tasks.
+
+Question-set files live under `src/data/questions/`. Stable
+`getCase(caseId, difficulty)` variants supply the selected lessons while keeping
+the case's map, investigation and root cause. `getCase(caseId)` selects Beginner
+for compatible callers; gameplay must pass the run's difficulty explicitly.
+`CASES` remains the three menu entries; `CASE_VARIANTS` contains all nine.
+
+Run identity includes difficulty; every fresh run resets terminal states, drafts,
+gates and notes. Intermediate and Expert challenge IDs are distinct from
+Beginner. Profile completion and best-score records use case/difficulty keys;
+existing aggregate profile scores and achievements remain game-wide. Old profile
+history cannot identify a case/difficulty, so it is not treated as a tier
+completion. Replay keeps the same case and difficulty.
+
+The authoring workbench has a difficulty selector and accepts links such as
+`?author=1&case=001&difficulty=expert&view=terminal`. Changing the tier resets
+local preview state and chooses its first terminal. `check:content` validates
+all nine playable variants plus authoring drafts. `test:difficulties` covers
+question wiring, independent progression and preview routing; the browser suite
+plays all 45 slots through their matching gates and verdicts.
+
 ---
 
 ## Quick start

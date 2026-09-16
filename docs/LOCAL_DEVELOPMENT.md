@@ -68,7 +68,8 @@ If that port is already in use, Vite selects another one: open the **Local**
 URL printed in the terminal instead.
 
 You should see the **KQL Quest** menu. Click **Open case file** and follow the
-on-screen prompts. Use **A/D** to move, **Space** to jump, and **E** to interact.
+on-screen prompts: choose difficulty, then recruit, then begin the investigation.
+Use **A/D** to move, **Space** to jump, and **E** to interact.
 
 Do not open `index.html` directly from your file manager; use the local URL.
 
@@ -205,6 +206,11 @@ Direct links can omit the terminal ID to select the case's first terminal:
 The controls update the address bar; Back/Forward and reload retain the selected
 case/surface but reset local preview attempts.
 
+For a particular difficulty, use
+`?author=1&case=001&difficulty=expert&view=terminal`. The workbench defaults to
+Beginner; its difficulty selector exposes the registered case's three sets.
+Independent authoring drafts without difficulty variants keep their single set.
+
 The **content workbench** lets you select a case (including the independent
 starter), open a lesson/terminal directly, execute its queries and try its
 verdict. It reuses player-facing components but keeps preview interactions
@@ -219,6 +225,37 @@ this switch and opens the normal game.
 Before handing off, also play the affected case in the game. Direct terminal
 preview cannot prove that a platform is reachable, a gate blocks the intended
 route, or the final verdict is accessible.
+
+### Filling the 45 question slots
+
+Each file exports one `QUESTION_SET` with five numbered `slots`:
+
+| Case | Beginner | Intermediate | Expert |
+|---|---|---|---|
+| 001 | `src/data/questions/case001/beginner.ts` | `src/data/questions/case001/intermediate.ts` | `src/data/questions/case001/expert.ts` |
+| 002 | `src/data/questions/case002/beginner.ts` | `src/data/questions/case002/intermediate.ts` | `src/data/questions/case002/expert.ts` |
+| 003 | `src/data/questions/case003/beginner.ts` | `src/data/questions/case003/intermediate.ts` | `src/data/questions/case003/expert.ts` |
+
+Slot identity is **case:difficulty:terminal**, for example `001:expert:3`.
+For each incoming question, supply its objective, correct KQL answer, supporting
+table/schema, and intended evidence. Replace the slot's `lesson.prompt` and
+`lesson.solution`, then update `starter`, `hints`, `teaches`, `concept` (lesson,
+pattern, worked example), `requiredOperators`, `evidenceTokens`, and its
+`evidence` text as appropriate. The files initially reference independently
+cloned seeds only to keep all slots playable; do not edit the shared seed to
+customize one set.
+
+Keep `slot`, set `id`, `caseId` and `difficulty` stable. Map positions, gate links,
+evidence IDs and points are derived from the base case rather than entered again.
+If new questions need different rows, supply `dataset` with **database factory,
+tableMeta and fixed now together**; keep that case's root cause and map unchanged.
+
+Mark a finished slot `source: 'authored'`. Only after all five slots have their
+final content, set `questionSetStatus: 'ready'` and `questionSetNotice: null`.
+Until then the UI must disclose the reused/pending questions. Run
+`npm run check:content`, `npm run test:difficulties` and the workbench preview for
+that tier. Add independent expected-result assertions for the final questions;
+reference queries comparing against themselves are not proof of content quality.
 
 ### Handoff
 
@@ -242,6 +279,7 @@ npm run check:content
 npm run test:authoring
 npm run test:performance
 npm run test:reliability
+npm run test:difficulties
 npm run fuzz
 npm run build
 ```
@@ -272,6 +310,7 @@ python -m playwright install chromium
 python scripts/testPhaserBrowser.py
 python scripts/testPhaserBrowser.py --canvas
 python scripts/testKqlBrowser.py
+python scripts/testDifficultiesBrowser.py
 ```
 
 The first two commands are one-time browser-test setup, not requirements to play
