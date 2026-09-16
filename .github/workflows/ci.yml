@@ -66,6 +66,24 @@ jobs:
       - name: Build
         run: node node_modules/vite/bin/vite.js build
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Browser test dependencies
+        run: |
+          python -m pip install playwright==1.62.0
+          python -m playwright install --with-deps chromium
+
+      - name: Phaser renderer and gameplay
+        timeout-minutes: 10
+        run: |
+          node scripts/serve.mjs 4173 > "$RUNNER_TEMP/phaser-preview.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          python scripts/testPhaserBrowser.py
+          python scripts/testPhaserBrowser.py --canvas
+
       # Lets a reviewer download and open the actual build for a PR without
       # having to check the branch out and install anything.
       - name: Upload build

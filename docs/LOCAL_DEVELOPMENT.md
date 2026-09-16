@@ -257,6 +257,32 @@ use `npm run dev` for everyday development. Stop either server with **Ctrl+C**.
 Run checks **sequentially**: the TypeScript test scripts share `.tmp/test.mjs`.
 Do not launch multiple suites at the same time.
 
+### Engine and renderer checks
+
+Phaser is pinned to **4.2.1**. Updating the engine needs real browser checks;
+TypeScript/unit tests alone cannot detect missing textures, camera changes or
+sleeping-game teardown failures.
+
+With the production preview running at port 4173, use Python 3.12+ and Playwright:
+
+```sh
+python -m pip install playwright==1.62.0
+python -m playwright install chromium
+python scripts/testPhaserBrowser.py
+python scripts/testPhaserBrowser.py --canvas
+```
+
+The first two commands are one-time browser-test setup, not requirements to play
+or build the game. If Edge is already installed, pass `--channel msedge` to the
+test instead of downloading Chromium. For another preview port, pass
+`--url http://127.0.0.1:4174/`. `--pixels-only` runs just the deterministic
+texture-orientation/rendering fixtures.
+
+These tests use temporary browser profiles, synthetic data and only the local
+preview. They open gates by solving terminal queries; positioning at interactables
+isolates the UI/engine wiring rather than proving the full platform route.
+CI runs both WebGL and Canvas checks against its production build.
+
 ## Common setup problems
 
 | Problem | What to do |
