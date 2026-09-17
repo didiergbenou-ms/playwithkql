@@ -51,6 +51,11 @@ class Fingers:
 
 def tap(page, name):
     button = page.get_by_role("button", name=name, exact=True)
+    if button.count() == 0 and page.locator(".hud-compact").count() and (
+        name in ["Options (O)", "KQL card", "Abandon"] or name.startswith("Notes (")
+    ):
+        page.get_by_role("button", name="Pause (P)", exact=True).tap()
+        expect(page.get_by_role("dialog", name="Game paused", exact=True)).to_be_visible()
     if page.evaluate("navigator.maxTouchPoints > 0"):
         button.tap()
     else:
@@ -107,6 +112,19 @@ def controls_fit(page):
     assert abs(canvas["width"] / canvas["height"] - 16 / 9) < 0.02
     assert page.evaluate("__kql.game.canvas.width===640 && __kql.game.canvas.height===360")
     assert page.evaluate("Math.abs(__kql.game.scene.getScene('Game').cameras.main.zoom-2)<0.001")
+    hud = page.locator(".hud-compact").bounding_box()
+    assert hud and hud["height"] <= 64, f"HUD consumes too much play space: {hud}"
+    expect(page.locator(".hud-compact button")).to_have_count(1)
+    viewport = page.viewport_size
+    if viewport["width"] < viewport["height"]:
+        assert canvas["y"] - (hud["y"] + hud["height"]) <= 14, "Flexible gap above portrait game"
+        controls = page.locator(".touch-controls").bounding_box()
+        assert controls and controls["y"] - (canvas["y"] + canvas["height"]) <= 12, "Gap before controller deck"
+        assert canvas["width"] >= viewport["width"] - 24, "Portrait game no longer fills available width"
+    else:
+        assert hud["height"] <= 52, "Landscape HUD too tall"
+        achievable = min(viewport["height"] - 72, (viewport["width"] - 208) * 9 / 16)
+        assert canvas["height"] >= achievable - 4, f"Landscape game wastes its available area: {canvas}"
 
 
 def position(page):

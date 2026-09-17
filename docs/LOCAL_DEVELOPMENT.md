@@ -73,7 +73,9 @@ Use **A/D** to move, **Space** to jump, and **E** to interact.
 
 On touch devices, use the on-screen direction, Jump and Interact buttons.
 Movement and jumping work together with separate fingers. Both portrait and
-landscape are supported; Pause also contains **Return to checkpoint**.
+landscape are supported. Tap **Menu** to pause and find notes, KQL reference,
+options, **Return to checkpoint** and Abandon. Selection screens keep the main
+choices and Continue action visible; expand details when you want more context.
 
 Do not open `index.html` directly from your file manager; use the local URL.
 
@@ -81,6 +83,8 @@ For mobile emulation, enable touch in the browser's device toolbar before
 loading the game. After building and starting the existing production preview,
 run `python scripts/testMobileBrowser.py` with the same Playwright setup as the
 other browser suites. `npm run test:mobile` runs the deterministic input checks.
+`python scripts/testCompactBrowser.py` checks phone screen density and safe-area
+layouts; add `--screenshots <directory>` to save each menu and gameplay view.
 Emulation covers multi-touch and viewport changes, but a physical handset is
 still needed to assess its native keyboard and browser chrome.
 

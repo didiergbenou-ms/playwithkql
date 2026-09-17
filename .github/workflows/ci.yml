@@ -40,6 +40,7 @@ jobs:
           node scripts/run.mjs scripts/testNotes.tsx
           node scripts/run.mjs scripts/testPauseClock.ts
           node scripts/run.mjs scripts/testTouchInput.ts
+          node scripts/run.mjs scripts/testCompactUi.tsx
 
       - name: Case content and isolation
         run: |
@@ -114,6 +115,7 @@ jobs:
           python scripts/testDifficultiesBrowser.py
           python scripts/testPauseBrowser.py
           python scripts/testMobileBrowser.py
+          python scripts/testCompactBrowser.py
 
       # Lets a reviewer download and open the actual build for a PR without
       # having to check the branch out and install anything.

@@ -26,6 +26,7 @@ const FOCUSABLE = [
   'input:not([disabled])',
   'select:not([disabled])',
   'textarea:not([disabled])',
+  'summary',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
@@ -59,11 +60,6 @@ export function ModalScrim({
       position: 'fixed', top: `${-scrollY}px`, left: `${-scrollX}px`,
       width: '100%', overflow: 'hidden',
     });
-
-    // Prefer the first real control; fall back to the container itself, which
-    // is why it carries tabIndex={-1}.
-    const first = node?.querySelector<HTMLElement>(FOCUSABLE);
-    (first ?? node)?.focus({ preventScroll: true });
 
     const onKeyDown = (e: KeyboardEvent) => {
       // Bubble phase, and skipped when already handled. In capture phase this
@@ -102,6 +98,14 @@ export function ModalScrim({
       window.scrollTo(scrollX, scrollY);
     };
   }, []);
+
+  useEffect(() => {
+    // Switching from the pause menu to notes replaces the controls without
+    // closing the scrim. Give the newly displayed dialog a real focus target.
+    const node = ref.current;
+    const first = node?.querySelector<HTMLElement>(FOCUSABLE);
+    (first ?? node)?.focus({ preventScroll: true });
+  }, [label]);
 
   return (
     <div

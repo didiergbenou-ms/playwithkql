@@ -7,6 +7,7 @@ import './ui/difficulty.css';
 import './ui/curriculum.css';
 import './ui/pauseControls.css';
 import './ui/mobile.css';
+import './ui/compactMenus.css';
 
 let resetRoot = () => window.location.reload();
 const loadRoot = async () => {

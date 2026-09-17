@@ -23,6 +23,7 @@ import { NoteModal, Notebook } from './ui/Notes';
 import { ReferenceCard } from './ui/ReferenceCard';
 import { OptionsModal } from './ui/OptionsModal';
 import { PauseModal } from './ui/PauseModal';
+import { MobilePauseMenu } from './ui/MobilePauseMenu';
 import { VerdictModal } from './ui/VerdictModal';
 import { Debrief } from './ui/Debrief';
 import { DevPanel } from './ui/DevPanel';
@@ -303,6 +304,12 @@ export default function App() {
       ? runCaseDef.challenges.find((challenge) => challenge.id === overlay.challengeId)
       : undefined;
 
+  const quit = () => {
+    setOverlay(null);
+    setCelebration(null);
+    setScreen('menu');
+  };
+
   return (
     <div className={`app${touchEnabled ? ' touch-enabled' : ''}`}>
       {screen === 'menu' && (
@@ -348,11 +355,7 @@ export default function App() {
             onOptions={() => setOverlay({ kind: 'options' })}
             onPause={() => setOverlay({ kind: 'pause' })}
             pauseDisabled={overlay !== null && overlay.kind !== 'pause'}
-            onQuit={() => {
-              setOverlay(null);
-              setCelebration(null);
-              setScreen('menu');
-            }}
+            onQuit={quit}
           />
           <div className="game-viewport">
           <Suspense fallback={
@@ -471,10 +474,20 @@ export default function App() {
           {overlay.kind === 'reference' && <ReferenceCard onClose={() => setOverlay(null)} />}
 
           {overlay.kind === 'options' && <OptionsModal onClose={() => setOverlay(null)} />}
-          {overlay.kind === 'pause' && <PauseModal onResume={() => setOverlay(null)} onRespawn={() => {
-            bus.emit('ui:restartRoom');
-            setOverlay(null);
-          }} />}
+          {overlay.kind === 'pause' && (touchEnabled ? (
+            <MobilePauseMenu
+              caseDef={runCaseDef}
+              onResume={() => setOverlay(null)}
+              onRespawn={() => { bus.emit('ui:restartRoom'); setOverlay(null); }}
+              onNotebook={() => setOverlay({ kind: 'notebook' })}
+              onReference={() => setOverlay({ kind: 'reference' })}
+              onOptions={() => setOverlay({ kind: 'options' })}
+              onQuit={quit}
+            />
+          ) : <PauseModal onResume={() => setOverlay(null)} onRespawn={() => {
+              bus.emit('ui:restartRoom');
+              setOverlay(null);
+            }} />)}
 
           {overlay.kind === 'note' && (
             <NoteModal caseDef={runCaseDef} noteId={overlay.noteId} onClose={() => setOverlay(null)} />

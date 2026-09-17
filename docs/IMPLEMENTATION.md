@@ -145,8 +145,10 @@ npm run server         # optional progress/leaderboard API on :3001
 
 Touch devices also get a directional pair, Jump and Interact. Hold a direction
 and Jump together for running jumps; release Jump early for a shorter jump.
-Pause, notes, reference and options stay in the HUD; Pause also offers a return
-to the checkpoint. Portrait is playable without a rotation lock.
+On phones, a compact HUD shows health, terminal progress and **Menu**. Menu
+pauses the game and contains Resume, checkpoint return, notes, reference,
+options and the red Abandon action. Desktop retains its full HUD.
+Portrait is playable without a rotation lock.
 
 ### Phone layout and input
 
@@ -158,7 +160,10 @@ Overlay transitions, cancellation, focus loss and teardown clear held inputs and
 pending actions. Neither pointer state nor active runs are added to saved profiles.
 
 `mobile.css` adapts the existing retro UI, with separate control space, safe-area
-padding and scrollable terminal content. The canvas remains 640x360 with a 2x
+padding and scrollable terminal content. Phone gameplay chrome has a 44px menu
+target instead of a permanently expanded desktop dashboard. Portrait packs the
+canvas and controller deck together; landscape spends remaining height on the
+playfield. The canvas remains 640x360 with a 2x
 camera. A host `ResizeObserver` refreshes Phaser's display fit without restarting
 the scene, changing game dimensions or waking its paused frame loop. Modal
 sizing follows the visible browser viewport so the editor can remain usable
@@ -170,6 +175,13 @@ cancellation, pause, terminal drafts/results and rotation, plus a physical
 platform route with all four recruits. Its route opens gates to isolate traversal;
 its reduced-viewport keyboard fixture is not a real OS keyboard. Keep actual
 iOS/Android handset checks alongside these browser-emulation regressions.
+
+`testCompactBrowser.py` also measures the UI's space budget: default case,
+difficulty and recruit choices plus their Continue action must fit the first
+screen, a phone HUD must be at most 64px (52px landscape), and no flexible gap
+may separate the portrait game and controls. Long descriptions and records are
+opt-in disclosures rather than default scrolling. Test toolbar-reduced windows,
+including 667x300 landscape, not only full device screen dimensions.
 
 ---
 

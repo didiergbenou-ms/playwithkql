@@ -26,6 +26,29 @@ export function Hud({ caseDef, onNotebook, onReference, onOptions, onPause, paus
   const crystalsLeft = run.crystals - run.crystalsSpent;
   const notesPocketed = caseDef.level.notes.filter((note) => run.notesRead.includes(note.id)).length;
 
+  if (touchEnabled) {
+    return (
+      <div className="hud hud-compact" {...touchActivation}>
+        <div className="compact-identity">
+          <strong>{caseDef.title}</strong>
+          <span>{run.room}</span>
+        </div>
+        <span className="hud-health" aria-label={`Health ${run.health} of ${run.maxHealth}`}>
+          {Array.from({ length: run.maxHealth }, (_, index) => (
+            <i key={index} className={index < run.health ? 'heart on' : 'heart'} />
+          ))}
+        </span>
+        <span className="obj-count" aria-label={`${objective.solved} of ${objective.total} terminals solved`}>
+          {objective.solved}/{objective.total}
+        </span>
+        <button className="ghost compact-menu-button" onClick={onPause}
+          disabled={pauseDisabled} aria-haspopup="dialog" aria-label="Pause (P)">
+          Menu
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="hud" {...touchActivation}>
       <div className="hud-case">

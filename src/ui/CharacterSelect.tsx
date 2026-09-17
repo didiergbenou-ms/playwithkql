@@ -3,6 +3,7 @@ import { CHARACTERS, characterPreviewUrl, type CharacterDef } from '../game/char
 import { useStore } from '../state/store';
 import type { CaseDefinition } from '../data/cases/types';
 import { CaseDifficulty } from './CaseDifficulty';
+import { CompactMenuDetails } from './MainMenu';
 
 /** Animated sprite preview — cycles the idle/run frames as an <img>. */
 function SpritePreview({ def, animate }: { def: CharacterDef; animate: boolean }) {
@@ -48,22 +49,24 @@ export function CharacterSelect({
   const active = CHARACTERS.find((c) => c.id === chosen) ?? CHARACTERS[0];
 
   return (
-    <div className="screen select">
+    <div className="screen select compact-menu">
       <div className="select-head">
         <span className="tag tag-cyan">KINGDOM OF SIGNALS</span>
         <h1>Choose your recruit</h1>
         {caseDef && <CaseDifficulty caseDef={caseDef} />}
-        <p className="muted">
+        <p className="muted compact-menu-desktop">
           Four investigators, four ways to cross {caseTitle}. Within this difficulty, the queries are the same — how you
           survive the trip is not.
         </p>
       </div>
 
-      <div className="roster">
+      <div className="roster" role="group" aria-label="Available recruits">
         {CHARACTERS.map((c) => (
           <button
             key={c.id}
+            type="button"
             className={`recruit ${c.id === chosen ? 'chosen' : ''}`}
+            aria-pressed={c.id === chosen}
             onClick={() => setCharacter(c.id)}
             onMouseEnter={() => setHovered(c.id)}
             onMouseLeave={() => setHovered(null)}
@@ -83,12 +86,22 @@ export function CharacterSelect({
       </div>
 
       <div className="panel recruit-detail">
+        <div className="compact-menu-phone compact-menu-recruit-summary" aria-live="polite">
+          <span>{active.name} · {active.stats.maxHealth} hearts</span>
+          <p>{active.perk}</p>
+        </div>
+        <CompactMenuDetails label="Recruit details">
+        <p className="muted compact-menu-phone">
+          Four investigators, four ways to cross {caseTitle}. Within this difficulty, the queries are the same — how you
+          survive the trip is not.
+        </p>
         <h2>
           {active.name} <span className="muted">— {active.title}</span>
         </h2>
         <p>{active.blurb}</p>
         <p className="perk">{active.perk}</p>
         <p className="homage">“{active.homage}”</p>
+        </CompactMenuDetails>
         <div className="brief-actions">
           <button className="ghost" onClick={onBack}>
             Back
