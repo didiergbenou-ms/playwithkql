@@ -1,26 +1,55 @@
 # KQL Quest: Kingdom of Signals
 
-![KQL Quest prototype showing a pixel-art investigation and player progress](assets/kql-detective-prototype.png)
+[![KQL Quest trailer cover with cinematic artwork, the Kingdom of Signals title and a Play KQL Quest QR code](marketing/digital/hero-1920x1080.png)](marketing/video/kql-quest-main-voiceover.mp4?raw=true)
 
-KQL Quest is a pixel-art platform adventure that helps anyone learn Kusto Query Language (KQL) through exploration, puzzles, and real query-writing challenges.
+KQL Quest is a browser-based pixel-art adventure for learning Kusto Query
+Language. Explore the Kingdom of Signals, collect evidence, and write queries
+at in-world terminals. The results help you test an explanation and decide
+what to investigate next.
 
-Players explore the Kingdom of Signals, collect evidence, and use KQL in terminal-based encounters to defeat anomalies. Instead of memorizing syntax in isolation, learners apply each operator to a practical investigation.
+Queries run against synthetic data in a local KQL interpreter. No Azure account
+or live customer data is needed to play locally. Use a desktop browser and
+keyboard.
+
+[Watch the narrated trailer](marketing/video/kql-quest-main-voiceover.mp4?raw=true)
+| [Browse the marketing kit](marketing/README.md)
+| [Play KQL Quest](https://didiergbenou-ms.github.io/playwithkql/)
+
+The play destination is reserved for the team's launch and is not published
+yet. Its current 404 is expected. The trailer combines labelled cinematic
+adaptation, terminal stills and gameplay captured from an earlier prototype.
+Its narration is synthetic; the current playable scope is listed below.
+
+## Marketing material
+
+The [marketing kit](marketing/README.md) includes two A2 posters, a double-sided
+A5 leaflet, social graphics, editable SVGs, QR codes and seven videos with
+captions. There are 15- and 30-second cuts for LinkedIn, Instagram and Teams,
+plus three full-length narration takes.
+
+Use the [channel copy](marketing/copy/channel-kit.md) for posts and image alt
+text. The artwork displays **Play KQL Quest** instead of the full address.
+Print PDFs and editable SVGs have labelled links; PNGs and videos carry QR
+codes. These files are a team handoff, not a deployment of the game site.
 
 ## Hackathon project
 
-This project was created for the [Microsoft Global Hackathon 2026](https://innovation-studio.microsoft.com/events/hackathon2026/page/about) under the **Build Skills for the Hardest Problems CSS Faces** Executive Challenge.
+Created for the [Microsoft Global Hackathon 2026](https://innovation-studio.microsoft.com/events/hackathon2026/page/about)
+under the **Build Skills for the Hardest Problems CSS Faces** Executive Challenge.
 
-The first mission pack focuses on support and observability scenarios relevant to Customer Service and Support (CSS). The platform itself is designed for anyone who wants to learn KQL.
+The initial mission pack focuses on support and observability scenarios used
+by Customer Service and Support (CSS). The learning format is intended for
+people who want to practise KQL beyond those roles too.
 
 ## The problem
 
-KQL learning is often passive and disconnected from real investigations. Beginners may recognize operators without knowing how to combine them to answer an unfamiliar question.
-
-KQL Quest turns that learning process into an interactive adventure where progress depends on understanding the data.
+Knowing an operator's syntax does not tell you when to use it. KQL Quest puts
+the query inside an investigation: write it, inspect what comes back, and
+decide whether the evidence supports your theory.
 
 ## Learning experience
 
-The playable beginner path introduces:
+The query tools include:
 
 - `take` to inspect a few rows
 - `distinct` to identify machines
@@ -28,19 +57,15 @@ The playable beginner path introduces:
 - `summarize` with `max()` to find last-seen times
 - Applying those operators to a second table to find the cause
 
-Each mission combines:
-
-1. A story-driven investigation
-2. A synthetic dataset
-3. A query objective
-4. Immediate, explainable feedback
-5. Authored progressive hints and worked examples
-6. A result-based query check before progression
+Terminals explain a concept with a worked example before asking you to use it.
+You can inspect the schema, read authored hints and try your own query. Grading
+checks the returned results and any required operators, rather than matching
+your text to one expected spelling.
 
 ## Hackathon roadmap
 
-These are project goals, not a list of shipped features. The current playable
-scope is described under **Project status** below.
+These are project goals. The current playable scope is described under
+**Project status** below.
 
 - Expand to five distinct KQL missions
 - Add a final investigation battle beyond the current verdict console
@@ -51,9 +76,13 @@ scope is described under **Project status** below.
 
 ## Design direction
 
-The experience uses a polished retro fantasy style with pixel art, an emerald CRT interface, terminal glow, bloom, and subtle screen distortion. The visual identity is inspired by classic platform adventures without using third-party characters, names, artwork, or other protected assets.
+The playable game uses pixel art, square terminal frames and a CRT-inspired
+interface. The wider direction is a retro fantasy adventure with original
+characters. Cinematic marketing art is labelled as adaptation, not gameplay.
 
 ## Success measures
+
+The team plans to evaluate:
 
 - Mission completion rate
 - Query accuracy
@@ -63,8 +92,9 @@ The experience uses a polished retro fantasy style with pixel art, an emerald CR
 
 ## Project status
 
-A playable prototype now lives in this repository: a real KQL interpreter,
-four characters, and three selectable case files.
+The current `develop` build has a local KQL interpreter, four characters and
+three selectable case files. This is the implemented portion of a larger
+chapter-based game, not a limit on its final scope.
 
 | Case | Map | Content status |
 |---|---|---|
@@ -77,14 +107,15 @@ different evidence. Each has its own terminal, gate, evidence and note IDs.
 Choose a case, difficulty and recruit; replay and switching start fresh runs.
 Profiles remain shared across cases, and in-progress runs are not saved on reload.
 
-Each case now has **Beginner, Intermediate and Expert** question sets. The flow
-is **case -> difficulty -> recruit -> investigation**. There are **9 sets
-of 5 terminals: 45 executable questions**, without adding maps or changing
-movement. The supplied curriculum's 12 Beginner questions have three additions;
-the higher tiers are adapted to supported local analysis. All adapted content
-remains labelled for editorial review, with sources and license notices.
-Completion and best scores are recorded separately for each case/difficulty.
-Older aggregate profile history is retained but is not assigned to any tier.
+Each case has Beginner, Intermediate and Expert question sets. Choose a case,
+then a difficulty and recruit. Nine sets of five terminals give **45 executable
+questions** on the three maps; difficulty changes the questions, not movement.
+The supplied curriculum's 12 Beginner questions have three additions. Higher
+tiers are adapted to supported local analysis. Adapted content remains labelled
+for editorial review, with sources and license notices.
+
+Completion and best scores are recorded separately for each case and difficulty.
+Older aggregate profile history is retained but is not assigned to a tier.
 
 **New to the project?** Follow the [local development guide](docs/LOCAL_DEVELOPMENT.md)
 for the full steps to install the tools, clone `develop`, and run the game on
@@ -95,8 +126,8 @@ npm install
 npm run dev
 ```
 
-See **[docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)** for how it is built and
-why, and for what is deliberately not built yet.
+See [implementation notes](docs/IMPLEMENTATION.md) for the architecture,
+design decisions and features that are not built yet.
 
 ## Contributing
 
@@ -121,7 +152,10 @@ experience before asking an AI to implement it.
 
 ## Responsible development
 
-The prototype uses synthetic data only. AI-generated guidance should be grounded in the active mission, should not expose solutions immediately, and should clearly distinguish hints from verified query results.
+The prototype uses synthetic data only. Current hints are authored, not
+AI-generated. Any future AI coach should use the active mission's evidence,
+avoid giving away solutions immediately, and distinguish suggestions from
+verified query results.
 
 ## License
 

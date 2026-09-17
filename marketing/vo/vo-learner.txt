@@ -1,0 +1,11 @@
+Start by looking for evidence.
+
+You practise by writing real Kusto queries.
+
+Check the data to test your explanation.
+
+Read a worked example, then try it yourself.
+
+Use the results to choose an explanation.
+
+Keep exploring, and practise what you learn.

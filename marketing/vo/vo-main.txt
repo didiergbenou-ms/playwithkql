@@ -1,0 +1,11 @@
+An answer needs evidence.
+
+You learn by writing real Kusto queries.
+
+Test a theory against the data.
+
+Read an example, then try a query yourself.
+
+Use what you find to decide.
+
+Keep exploring, and test what you learn.

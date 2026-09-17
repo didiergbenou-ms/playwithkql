@@ -1,0 +1,12 @@
+1
+00:00:03,000 --> 00:00:05,812
+You learn by writing real Kusto queries.
+
+2
+00:00:10,000 --> 00:00:12,843
+Read an example, then try a query
+yourself.
+
+3
+00:00:21,500 --> 00:00:23,905
+Keep exploring, and test what you learn.

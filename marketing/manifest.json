@@ -1,0 +1,425 @@
+{
+  "title": "KQL Quest: Kingdom of Signals",
+  "prepared": "2026-09-17",
+  "capture_revision": "d91d0ec9044e8bd02ba1d278cea8751f978c1159",
+  "publication_base": "5dd641cddb7844fe0aeeeb7a6fb5c494f9fd4987",
+  "destination": "https://didiergbenou-ms.github.io/playwithkql/",
+  "destination_status": "Intentionally unpublished. Confirm when the team launches.",
+  "files": [
+    {
+      "path": "assets/cinematic-art-native.png",
+      "bytes": 4905741,
+      "sha256": "1617d481abe812b9aa7cc8e5c0fcc4308b0e212d0358edbda06640b392768531"
+    },
+    {
+      "path": "assets/cinematic-art-print-2x.png",
+      "bytes": 15453648,
+      "sha256": "dfbe030495084f39f09fce56848ec75e4490d6572b54afc81ac2fe795501420b"
+    },
+    {
+      "path": "assets/gameplay-field-native.png",
+      "bytes": 46431,
+      "sha256": "8be42c992cd16c7e81739a85b8f4795621dc5229955ee6771487c4c27022c663"
+    },
+    {
+      "path": "assets/play-kql-quest-qr-1200.png",
+      "bytes": 7957,
+      "sha256": "e1f3f13a407fbaf812351e6928365d652554c14a860f6fb74168f187ed2792c2"
+    },
+    {
+      "path": "assets/play-kql-quest-qr-512.png",
+      "bytes": 2713,
+      "sha256": "238711f26fd64b4ffa69d7e0f638051c917273e59491c379c94c878a50fd8746"
+    },
+    {
+      "path": "assets/play-kql-quest-qr.svg",
+      "bytes": 31242,
+      "sha256": "75d335530038ddc0281062c0bd466d6d945d8845f26fd58be23dbb23b9a919c2"
+    },
+    {
+      "path": "assets/query-editor-native.png",
+      "bytes": 9263,
+      "sha256": "953194d181121d71551169647921a40aef00d866ed01161c4571216f5930c8c7"
+    },
+    {
+      "path": "assets/query-results-native.png",
+      "bytes": 131965,
+      "sha256": "41109d4be086706a95714e796d75fcd49cf7987e1264f816857a85cf2be924d1"
+    },
+    {
+      "path": "digital/carousel-02-query.png",
+      "bytes": 85017,
+      "sha256": "eaa35189bfd8d2dcdf1c48941a5f55d779260ce98df2947d206b619fc67c276f"
+    },
+    {
+      "path": "digital/carousel-03-gameplay.png",
+      "bytes": 68592,
+      "sha256": "a1661243620a2024f12c941cda02e101c6c3cb1067f0bddbf22b6620a16bd42e"
+    },
+    {
+      "path": "digital/feed-1080x1350.png",
+      "bytes": 614976,
+      "sha256": "8a6fb62193cf59e789938d4decd7bd6928debe303e51d205accc81f957b8bb23"
+    },
+    {
+      "path": "digital/hero-1920x1080.png",
+      "bytes": 1561704,
+      "sha256": "6756c5c838b5be665653be7f82f9630f1e1117f82d2a38f3e3ef91e29b30890d"
+    },
+    {
+      "path": "digital/linkedin-carousel.pdf",
+      "bytes": 1346547,
+      "sha256": "a400125831a53ceef8c775bf9ba57f7124c2528f7aaac364b7a936f14b41e14d"
+    },
+    {
+      "path": "digital/square-1080x1080.png",
+      "bytes": 475571,
+      "sha256": "804a73cd98654d38f7b13d882062a73f990599a0512b36bfe9ec20dc15f9cb1e"
+    },
+    {
+      "path": "digital/story-1080x1920.png",
+      "bytes": 749959,
+      "sha256": "b8aae6f97554ce3e6e46359f44dbc3afe896acd59037e84d3a5e0b3e0172ab6d"
+    },
+    {
+      "path": "digital/teams-announcement-1600x400.png",
+      "bytes": 322976,
+      "sha256": "5710452a16330132cb8c850f945957b5c9064126d412ef39b13d5dcae92dc133"
+    },
+    {
+      "path": "digital/thumbnail-1280x720.png",
+      "bytes": 668337,
+      "sha256": "2cc04fd033fc6134083642debe1003a8d4028e0c8e44985c28ae6cc1053ec4bc"
+    },
+    {
+      "path": "digital/video-overlay-1.png",
+      "bytes": 13245,
+      "sha256": "abdb87a6cbde30d4a0845304c342ddb54cdba800eb6208796aead7283ce39cb1"
+    },
+    {
+      "path": "digital/video-overlay-2.png",
+      "bytes": 12399,
+      "sha256": "924c6030e8d8a626828988ba93d4a49c08e37a547067938d08c8a572be0706a1"
+    },
+    {
+      "path": "digital/video-overlay-3.png",
+      "bytes": 13806,
+      "sha256": "1039e7f696d6d1bb4ebf2ea64bfff343050bfe10d7a0c498eaf64036f8d4fbd3"
+    },
+    {
+      "path": "digital/video-overlay-4.png",
+      "bytes": 15534,
+      "sha256": "712d4b9fcdc488f63433fc645f16fa94f23891a87ef431d8bc7c5debf1fa3323"
+    },
+    {
+      "path": "digital/video-overlay-5.png",
+      "bytes": 13606,
+      "sha256": "74765d01990d89f38cf07bca6c9a35fe03fef9da13a4667c2625dabae53f8cac"
+    },
+    {
+      "path": "digital/video-play.png",
+      "bytes": 13004,
+      "sha256": "2a9eabdf8b9e1fb3249a7b0d2a53cc641cf3bc25b400ab0ecbf7d105a34caa84"
+    },
+    {
+      "path": "digital/video-query.png",
+      "bytes": 58182,
+      "sha256": "bbca88f73d7b8cc52c2058d419112fe1629b066c84d556f9be58e638e6158b6e"
+    },
+    {
+      "path": "digital/video-title.png",
+      "bytes": 25493,
+      "sha256": "c0a43ca5791fa14b8d6565a8aaa4bc683eabd99c6c9b3ce5bb47352ce34b1c9b"
+    },
+    {
+      "path": "digital/video-vertical-frame.png",
+      "bytes": 39998,
+      "sha256": "a67e0db858f6249346e4a14f7e5d428becb3d5c3b68290f2ddb910f99ea28764"
+    },
+    {
+      "path": "editable/carousel-02-query.svg",
+      "bytes": 228350,
+      "sha256": "9c1c7c57776d27415a9682c27fcbdc1256528a112f7f6cbb17b25c3fc309e0b4"
+    },
+    {
+      "path": "editable/carousel-03-gameplay.svg",
+      "bytes": 194497,
+      "sha256": "ec180806f2b55a7257bfdecc3027406ff62a1b143afba35466e097d8466a497a"
+    },
+    {
+      "path": "editable/feed-1080x1350.svg",
+      "bytes": 979071,
+      "sha256": "b843e62c2d40ae20cea77016be8bb474bd7692ab139c9c93b88b4b8015dbeea7"
+    },
+    {
+      "path": "editable/hero-1920x1080.svg",
+      "bytes": 2187483,
+      "sha256": "c66aa0cd52f20bc9cab3899d2d71800851b0430cbd059679324479104429e95c"
+    },
+    {
+      "path": "editable/leaflet-a5-back.svg",
+      "bytes": 194166,
+      "sha256": "aea703d119627d68eaedd8fd3ecee1689b212e2aee8a64313a6c6439e574cdaa"
+    },
+    {
+      "path": "editable/leaflet-a5-front.svg",
+      "bytes": 3248312,
+      "sha256": "d245b37ff902140195d5d34d154ffb10a4956f4250b5015d336dcc7855eacf72"
+    },
+    {
+      "path": "editable/poster-a2-character.svg",
+      "bytes": 17890591,
+      "sha256": "d52345d070f8772377c132c39054746391073bf36fd2aba295d6ccdc5ba4d04f"
+    },
+    {
+      "path": "editable/poster-a2-graphic.svg",
+      "bytes": 235221,
+      "sha256": "559de9d2afc819b9482d79f1b247f0de0235f17a602995da2889900450eb0fa1"
+    },
+    {
+      "path": "editable/square-1080x1080.svg",
+      "bytes": 792472,
+      "sha256": "c05e23571620dc1e1532c3343373d5c032b7b6819878b105b2dbf0d515b51ce5"
+    },
+    {
+      "path": "editable/story-1080x1920.svg",
+      "bytes": 1133711,
+      "sha256": "a5f32a70b8fbbf1b8ff87f0744173e33a02b7d52b1cb6e9f3d66d8b4c0585755"
+    },
+    {
+      "path": "editable/teams-announcement-1600x400.svg",
+      "bytes": 582348,
+      "sha256": "3f4734fad37cbdc9b171a6e4ffb60c47d814511d110ab612487ff409f5634da3"
+    },
+    {
+      "path": "editable/thumbnail-1280x720.svg",
+      "bytes": 1016055,
+      "sha256": "f0364b10e7a6bfda7b51e02669a4e49b7e9dfa1c55bc0240a94719ef7d06bc8d"
+    },
+    {
+      "path": "editable/video-overlay-1.svg",
+      "bytes": 154941,
+      "sha256": "bab758eeed9335e03f85fa2f91356754b232d1e9a6cee9ccd3f3f59ebc0acb67"
+    },
+    {
+      "path": "editable/video-overlay-2.svg",
+      "bytes": 154929,
+      "sha256": "6ab25e397b1e5d0963ee3f8bfdaa00161a6055487ec77d75d01761b1b1ffc61f"
+    },
+    {
+      "path": "editable/video-overlay-3.svg",
+      "bytes": 154936,
+      "sha256": "0c1353882d87bfb5e7e89a0e858c1dbb4a8b67b3d31834888724d88299b4b509"
+    },
+    {
+      "path": "editable/video-overlay-4.svg",
+      "bytes": 154945,
+      "sha256": "ab92c560617c8d73cdb55fe5943b237ee28a964cee86af6f8eeda6ef8de97d7e"
+    },
+    {
+      "path": "editable/video-overlay-5.svg",
+      "bytes": 154939,
+      "sha256": "47a86d92d22f084d04d4221f859464c217e35e8fcfd4dc35082cad12417512f8"
+    },
+    {
+      "path": "editable/video-play.svg",
+      "bytes": 154931,
+      "sha256": "2736b1c755a6c403d761408bb5ca5dfa068ff990f3294ba89dfe5acfdb6be108"
+    },
+    {
+      "path": "editable/video-query.svg",
+      "bytes": 215093,
+      "sha256": "5c1a436fa1b00e36ce5f2fd1bd18aab177a78fad76875e00ec91b7041aaa18cf"
+    },
+    {
+      "path": "editable/video-title.svg",
+      "bytes": 156884,
+      "sha256": "8ff0128fcc775a29c6039502f7e5ab2de92797e6a482148d097ee3076384dbc4"
+    },
+    {
+      "path": "editable/video-vertical-frame.svg",
+      "bytes": 157300,
+      "sha256": "226fc339d4fff59c098491bc8409000a842e1c664c3fb5302810e1987458045b"
+    },
+    {
+      "path": "previews/campaign-contact-sheet.png",
+      "bytes": 729335,
+      "sha256": "48367cdb5cac539872ca0dbd6a39f174f804cc5dd33055d1e8317b3b4d988fb1"
+    },
+    {
+      "path": "print/leaflet-a5-back.pdf",
+      "bytes": 324584,
+      "sha256": "5d59bb5092667235f7591ae47114f81deb1652d26fa53378cd8519dac921525a"
+    },
+    {
+      "path": "print/leaflet-a5-back.png",
+      "bytes": 135086,
+      "sha256": "9b175b34e6e2cff811d0185c6ffdee36466e292fa18c033d4457c2ee4d2c5e3d"
+    },
+    {
+      "path": "print/leaflet-a5-back.tif",
+      "bytes": 760727,
+      "sha256": "d17d5bddd18b38a8862fc3237303735ea6a1eceb5dc1d3ab5548fa3cf3403ee6"
+    },
+    {
+      "path": "print/leaflet-a5-duplex.pdf",
+      "bytes": 4958608,
+      "sha256": "308809f76c95ec01de7054d77bdf3acd9108bb6d1123b311a3d9e3853c157496"
+    },
+    {
+      "path": "print/leaflet-a5-front.pdf",
+      "bytes": 4797619,
+      "sha256": "77e2f5afd1d65075a7cad4000241a834f9f6c00b2b88da4d7ca008cdb003032d"
+    },
+    {
+      "path": "print/leaflet-a5-front.png",
+      "bytes": 2203771,
+      "sha256": "88821b9744d2525e0f71524ab5af609b8709bef259aa914cb20cdc56ec0fa687"
+    },
+    {
+      "path": "print/leaflet-a5-front.tif",
+      "bytes": 6134981,
+      "sha256": "8db5f5fe2100f62ccc51626199b3b40eb2b757473444643769c09a138b11fa3e"
+    },
+    {
+      "path": "print/poster-a2-character.pdf",
+      "bytes": 32808696,
+      "sha256": "6d91d70426203b93a216fd48ea2f27de887358a10f3dcbef2087ece288a7149e"
+    },
+    {
+      "path": "print/poster-a2-character.png",
+      "bytes": 13493107,
+      "sha256": "84d9edcff20122428a578959a3e2572f24678260931ef121a86ce96dcd399da4"
+    },
+    {
+      "path": "print/poster-a2-character.tif",
+      "bytes": 41182203,
+      "sha256": "f6b1832f34267e4363b32e74d1bfca9cf1a69b531c517c5028e9e1eecebc9cf2"
+    },
+    {
+      "path": "print/poster-a2-graphic.pdf",
+      "bytes": 708663,
+      "sha256": "ee2ab44d58b9f53dd4ff1f01860c4ed6dc57c863644316936b636032af074cc7"
+    },
+    {
+      "path": "print/poster-a2-graphic.png",
+      "bytes": 253186,
+      "sha256": "e32de9e081ee8bfe98e8adcc7e485a5e9a9ae654d47ac751fc14392ca7b12624"
+    },
+    {
+      "path": "print/poster-a2-graphic.tif",
+      "bytes": 4041455,
+      "sha256": "42eb70efdc8988ebd0fab20a0d25f2a504bba7eba87036679f4d5cc2be951560"
+    },
+    {
+      "path": "video/kql-quest-15s-vertical.mp4",
+      "bytes": 2379968,
+      "sha256": "aac8fffebd02a978bb9b1281ca9a906fdc14ee39dc6fa4247afab7160a613eb4"
+    },
+    {
+      "path": "video/kql-quest-15s-vertical.srt",
+      "bytes": 154,
+      "sha256": "d80c75dd71eb0ddf7b99dc66a3bef24006f034340bebb87cd693d586e6d7d329"
+    },
+    {
+      "path": "video/kql-quest-15s.mp4",
+      "bytes": 2461889,
+      "sha256": "c40591ed944e4311ab5099304706ad4ed99e18fda0422df277581d4a4713a115"
+    },
+    {
+      "path": "video/kql-quest-15s.srt",
+      "bytes": 154,
+      "sha256": "d80c75dd71eb0ddf7b99dc66a3bef24006f034340bebb87cd693d586e6d7d329"
+    },
+    {
+      "path": "video/kql-quest-30s-vertical.mp4",
+      "bytes": 5379412,
+      "sha256": "985c784e04bc6cb66f75a6b2b333e5c68abd491fd8462524933a6391a225d905"
+    },
+    {
+      "path": "video/kql-quest-30s-vertical.srt",
+      "bytes": 236,
+      "sha256": "abbc43470f27e77fb39557d7fe09a340ee3b68899ac3463d5c419158c9125913"
+    },
+    {
+      "path": "video/kql-quest-30s.mp4",
+      "bytes": 5766070,
+      "sha256": "6b846dc5412e9151ec51931b06cb8f56ef635eeb0a0ac1b986b7e1e66083b5c1"
+    },
+    {
+      "path": "video/kql-quest-30s.srt",
+      "bytes": 236,
+      "sha256": "abbc43470f27e77fb39557d7fe09a340ee3b68899ac3463d5c419158c9125913"
+    },
+    {
+      "path": "video/kql-quest-deadpan-voiceover.mp4",
+      "bytes": 13472647,
+      "sha256": "5a9a6281bfbed453639d98da3cb79d8e0790bcc60b941f2f74d5ebeb65d00049"
+    },
+    {
+      "path": "video/kql-quest-deadpan-voiceover.srt",
+      "bytes": 440,
+      "sha256": "861a3a83231d8be977ac27c3e2cdb9c33a364160e806dbb38a2d5984c970478b"
+    },
+    {
+      "path": "video/kql-quest-learner-voiceover.mp4",
+      "bytes": 13503686,
+      "sha256": "13341d212bbfc4a3606a2e1f8c0c615cb192b4eb4ba68ed13f14c673e12c7975"
+    },
+    {
+      "path": "video/kql-quest-learner-voiceover.srt",
+      "bytes": 471,
+      "sha256": "6a9874824e9d6a22f66ee4f80c70cafbfd3394c08eb57e2cc01f02a36ac61ee8"
+    },
+    {
+      "path": "video/kql-quest-main-voiceover.mp4",
+      "bytes": 13466232,
+      "sha256": "fb734990a175a633fb421ad52819c93d28fc07baa083b28c80351fae9600d283"
+    },
+    {
+      "path": "video/kql-quest-main-voiceover.srt",
+      "bytes": 434,
+      "sha256": "2bbd4c7d884357e94df80bb554a855e9b3977289c935d1c49a108f3189840854"
+    },
+    {
+      "path": "vo/cutdown-15s.srt",
+      "bytes": 154,
+      "sha256": "d80c75dd71eb0ddf7b99dc66a3bef24006f034340bebb87cd693d586e6d7d329"
+    },
+    {
+      "path": "vo/cutdown-30s.srt",
+      "bytes": 236,
+      "sha256": "abbc43470f27e77fb39557d7fe09a340ee3b68899ac3463d5c419158c9125913"
+    },
+    {
+      "path": "vo/vo-deadpan.srt",
+      "bytes": 440,
+      "sha256": "861a3a83231d8be977ac27c3e2cdb9c33a364160e806dbb38a2d5984c970478b"
+    },
+    {
+      "path": "vo/vo-deadpan.txt",
+      "bytes": 235,
+      "sha256": "d6f280ed96d6992aa706b067d72dd926d50346280c84ff4efe4cad6c0f248a8b"
+    },
+    {
+      "path": "vo/vo-learner.srt",
+      "bytes": 471,
+      "sha256": "6a9874824e9d6a22f66ee4f80c70cafbfd3394c08eb57e2cc01f02a36ac61ee8"
+    },
+    {
+      "path": "vo/vo-learner.txt",
+      "bytes": 264,
+      "sha256": "94e2c4f40d9189e6a508f91481caaa34160cee7aa16ef7ac82365391eaf91c26"
+    },
+    {
+      "path": "vo/vo-main.srt",
+      "bytes": 434,
+      "sha256": "2bbd4c7d884357e94df80bb554a855e9b3977289c935d1c49a108f3189840854"
+    },
+    {
+      "path": "vo/vo-main.txt",
+      "bytes": 229,
+      "sha256": "98c35dafad44b888ab0ca66a0a4235d7db9c47eaf4c08064a64bfdbc76cefa61"
+    }
+  ]
+}

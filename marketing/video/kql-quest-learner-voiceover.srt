@@ -1,0 +1,26 @@
+1
+00:00:00,500 --> 00:00:02,190
+Start by looking for evidence.
+
+2
+00:00:07,000 --> 00:00:10,026
+You practise by writing real Kusto
+queries.
+
+3
+00:00:19,000 --> 00:00:21,404
+Check the data to test your explanation.
+
+4
+00:00:28,000 --> 00:00:30,673
+Read a worked example, then try it
+yourself.
+
+5
+00:00:39,000 --> 00:00:41,679
+Use the results to choose an explanation.
+
+6
+00:00:49,500 --> 00:00:52,194
+Keep exploring, and practise what you
+learn.

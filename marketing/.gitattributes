@@ -1,0 +1,7 @@
+*.pdf binary
+*.png binary
+*.tif binary
+*.mp4 binary
+*.svg -text -diff
+*.srt -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+*.txt -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

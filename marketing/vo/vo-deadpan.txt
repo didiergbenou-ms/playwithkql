@@ -1,0 +1,11 @@
+A hunch needs checking.
+
+You write real Kusto queries. They run.
+
+The data might disagree with your theory.
+
+Read the example. Then do the querying.
+
+Let the evidence settle it.
+
+Keep exploring. There is more to understand.

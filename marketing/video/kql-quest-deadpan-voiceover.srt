@@ -1,0 +1,24 @@
+1
+00:00:00,500 --> 00:00:02,192
+A hunch needs checking.
+
+2
+00:00:07,000 --> 00:00:10,703
+You write real Kusto queries. They run.
+
+3
+00:00:19,000 --> 00:00:21,503
+The data might disagree with your theory.
+
+4
+00:00:28,000 --> 00:00:31,763
+Read the example. Then do the querying.
+
+5
+00:00:39,000 --> 00:00:40,661
+Let the evidence settle it.
+
+6
+00:00:49,500 --> 00:00:53,205
+Keep exploring. There is more to
+understand.
