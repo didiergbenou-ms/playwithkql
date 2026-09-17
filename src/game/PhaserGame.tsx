@@ -55,7 +55,24 @@ export function PhaserGame({
       scene: [],
     });
 
-    const startScene = () => game.scene.add('Game', GameScene, true, seed.current);
+    let fitFrame: number | undefined;
+    const fitParent = () => {
+      if (fitFrame !== undefined) return;
+      fitFrame = requestAnimationFrame(() => {
+        fitFrame = undefined;
+        if (gameRef.current !== game || !game.isRunning || !hostRef.current?.isConnected) return;
+        game.scale.getParentBounds();
+        game.scale.refresh();
+      });
+    };
+    // React layout and phone browser chrome can resize the host without a
+    // window resize, including while Phaser's frame loop is sleeping.
+    const resizeObserver = new ResizeObserver(fitParent);
+    resizeObserver.observe(hostRef.current);
+    const startScene = () => {
+      game.scene.add('Game', GameScene, true, seed.current);
+      fitParent();
+    };
     if (game.isRunning) startScene();
     else game.events.once(Phaser.Core.Events.READY, startScene);
     gameRef.current = game;
@@ -64,6 +81,8 @@ export function PhaserGame({
     window.__kql = { game, bus };
 
     return () => {
+      resizeObserver.disconnect();
+      if (fitFrame !== undefined) cancelAnimationFrame(fitFrame);
       const g = gameRef.current;
       gameRef.current = null;
       if (window.__kql?.game === g) delete window.__kql;

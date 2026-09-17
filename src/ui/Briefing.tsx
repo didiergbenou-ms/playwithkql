@@ -5,10 +5,12 @@ export function Briefing({
   caseDef,
   onBegin,
   onBack,
+  touchEnabled = false,
 }: {
   caseDef: CaseDefinition;
   onBegin: () => void;
   onBack: () => void;
+  touchEnabled?: boolean;
 }) {
   const finalRoom = caseDef.level.rooms[caseDef.level.rooms.length - 1]?.name ?? 'the final room';
 
@@ -64,6 +66,7 @@ export function Briefing({
           </p>
         </section>
 
+        {touchEnabled && <p className="muted">Use the arrow buttons to move and Jump to cross gaps. Tap Interact beside a terminal or field note. Open Pause to take a break or return to your checkpoint.</p>}
         <footer className="brief-actions">
           <button className="ghost" onClick={onBack}>
             Back

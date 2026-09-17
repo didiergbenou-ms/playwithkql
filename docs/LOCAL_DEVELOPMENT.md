@@ -71,7 +71,18 @@ You should see the **KQL Quest** menu. Click **Open case file** and follow the
 on-screen prompts: choose difficulty, then recruit, then begin the investigation.
 Use **A/D** to move, **Space** to jump, and **E** to interact.
 
+On touch devices, use the on-screen direction, Jump and Interact buttons.
+Movement and jumping work together with separate fingers. Both portrait and
+landscape are supported; Pause also contains **Return to checkpoint**.
+
 Do not open `index.html` directly from your file manager; use the local URL.
+
+For mobile emulation, enable touch in the browser's device toolbar before
+loading the game. After building and starting the existing production preview,
+run `python scripts/testMobileBrowser.py` with the same Playwright setup as the
+other browser suites. `npm run test:mobile` runs the deterministic input checks.
+Emulation covers multi-touch and viewport changes, but a physical handset is
+still needed to assess its native keyboard and browser chrome.
 
 ## 5. Make changes and restart when needed
 

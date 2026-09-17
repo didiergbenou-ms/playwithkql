@@ -1,4 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { useModalViewport } from './useModalViewport';
+import { useSecondaryTouchActivation } from './useSecondaryTouchActivation';
 
 /**
  * Modal scrim with real dialog semantics.
@@ -38,15 +40,30 @@ export function ModalScrim({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const viewportRef = useModalViewport();
+  const touchActivation = useSecondaryTouchActivation();
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const node = ref.current;
+    const { scrollX, scrollY } = window;
+    const body = document.body;
+    const saved = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    Object.assign(body.style, {
+      position: 'fixed', top: `${-scrollY}px`, left: `${-scrollX}px`,
+      width: '100%', overflow: 'hidden',
+    });
 
     // Prefer the first real control; fall back to the container itself, which
     // is why it carries tabIndex={-1}.
     const first = node?.querySelector<HTMLElement>(FOCUSABLE);
-    (first ?? node)?.focus();
+    (first ?? node)?.focus({ preventScroll: true });
 
     const onKeyDown = (e: KeyboardEvent) => {
       // Bubble phase, and skipped when already handled. In capture phase this
@@ -80,13 +97,16 @@ export function ModalScrim({
       document.removeEventListener('keydown', onKeyDown);
       // Returning focus matters as much as taking it: without this the caret
       // lands back at the top of the document on every close.
-      previouslyFocused?.focus?.();
+      Object.assign(body.style, saved);
+      previouslyFocused?.focus?.({ preventScroll: true });
+      window.scrollTo(scrollX, scrollY);
     };
   }, []);
 
   return (
     <div
       className="scrim"
+      ref={viewportRef}
       onClick={(e) => {
         if (e.target === e.currentTarget) onDismiss?.();
       }}
@@ -98,6 +118,7 @@ export function ModalScrim({
         aria-label={label}
         tabIndex={-1}
         className="scrim-dialog"
+        {...touchActivation}
       >
         {children}
       </div>

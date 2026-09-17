@@ -1,0 +1,852 @@
+/* Imported last. The new wrapper must not change the desktop flex layout. */
+.game-viewport {
+  display: contents;
+}
+
+/* Only overlays consume visualViewport measurements; never the game world. */
+.scrim,
+.celebrate {
+  --overlay-height: 100vh;
+  top: var(--modal-viewport-top, 0px);
+  bottom: auto;
+  height: var(--modal-viewport-height, var(--overlay-height));
+}
+
+@supports (height: 100dvh) {
+  .scrim,
+  .celebrate {
+    --overlay-height: 100dvh;
+  }
+}
+
+.scrim {
+  --overlay-pad-top: max(20px, env(safe-area-inset-top, 0px));
+  --overlay-pad-bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  --modal-available-height: calc(
+    var(--modal-viewport-height, var(--overlay-height)) -
+    var(--overlay-pad-top) - var(--overlay-pad-bottom)
+  );
+  padding: var(--overlay-pad-top) max(20px, env(safe-area-inset-right, 0px))
+    var(--overlay-pad-bottom) max(20px, env(safe-area-inset-left, 0px));
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.scrim-dialog {
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.scrim .modal {
+  min-width: 0;
+  min-height: 0;
+  max-height: min(92vh, var(--modal-available-height));
+  overscroll-behavior: contain;
+}
+
+.terminal-scroll {
+  display: contents;
+}
+
+.scrim .terminal-touch {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.terminal-touch .terminal-scroll {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+}
+
+.terminal-touch-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  padding-top: 12px;
+  background: var(--dark);
+}
+
+.terminal-touch-actions button {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px;
+  font-size: 9px;
+}
+
+.touch-enabled :is(button, input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.touch-enabled button {
+  min-width: 44px;
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.touch-enabled:has(.stage) {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+}
+
+.touch-enabled .stage {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: max(12px, env(safe-area-inset-top, 0px))
+    max(12px, env(safe-area-inset-right, 0px))
+    max(12px, env(safe-area-inset-bottom, 0px))
+    max(12px, env(safe-area-inset-left, 0px));
+  /* Very short windows / enlarged text may scroll, rather than clip controls. */
+  overflow-y: auto;
+}
+
+.touch-enabled .stage-hint {
+  display: none;
+}
+
+.touch-enabled .game-viewport {
+  --touch-size: clamp(56px, 8vw, 64px);
+  --touch-deck: 88px;
+  --touch-gutter: 0px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--touch-deck);
+  width: min(100%, 1600px);
+  min-width: 0;
+  min-height: 184px;
+  flex: 1 0 184px;
+  container-type: size;
+}
+
+.touch-enabled .game-viewport > .phaser-host {
+  grid-area: 1 / 1;
+  place-self: center;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  box-shadow: 0 0 0 4px var(--white), 0 0 0 8px var(--black);
+}
+
+/* Definite, canvas-independent host dimensions, fitted inside the remaining
+   flex space. Phaser FIT observes this box; backing size stays 640 x 360.
+   Both lengths have the same 16:9 ratio, avoiding the legacy canvas 100% rules
+   stretching the world. No orientation or visualViewport state is involved. */
+@supports (width: 1cqw) {
+  .touch-enabled .game-viewport > .phaser-host {
+    --world-width: calc(100cqw - 2 * var(--touch-gutter));
+    --world-height: calc(100cqh - var(--touch-deck));
+    width: min(var(--world-width), calc(var(--world-height) * 16 / 9));
+    height: min(var(--world-height), calc(var(--world-width) * 9 / 16));
+  }
+}
+
+.touch-enabled .phaser-host canvas {
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0 !important;
+  object-fit: contain;
+}
+
+.touch-controls {
+  grid-area: 2 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding: 8px;
+  pointer-events: none;
+}
+
+.touch-move,
+.touch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.touch-controls .touch-button {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  flex: 0 0 var(--touch-size, 56px);
+  width: var(--touch-size, 56px);
+  height: var(--touch-size, 56px);
+  min-width: 56px;
+  min-height: 56px;
+  padding: 4px;
+  font-family: var(--pixel);
+  font-size: 9px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--white);
+  background: var(--slate);
+  box-shadow: inset -4px -4px 0 var(--navy),
+    inset 4px 4px 0 var(--peri), 0 0 0 3px var(--black);
+  pointer-events: auto;
+  /* Held movement is a gesture surface, not a page-wide zoom restriction. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.touch-controls .touch-button > span:first-child {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.touch-controls .touch-button > span:last-child {
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.touch-controls .touch-jump {
+  background: var(--teal);
+  box-shadow: inset -4px -4px 0 var(--navy),
+    inset 4px 4px 0 var(--cyan), 0 0 0 3px var(--black);
+}
+
+.touch-controls .touch-interact {
+  color: var(--black);
+  background: var(--amber);
+  box-shadow: inset -4px -4px 0 var(--orange),
+    inset 4px 4px 0 var(--white), 0 0 0 3px var(--black);
+}
+
+.touch-controls .touch-button:hover:not(:disabled) {
+  color: var(--white);
+  background: var(--slate);
+}
+
+.touch-controls .touch-jump:hover:not(:disabled) {
+  background: var(--teal);
+}
+
+.touch-controls .touch-interact:hover:not(:disabled) {
+  color: var(--black);
+  background: var(--amber);
+}
+
+.touch-controls .touch-button:is(.is-held, :active):not(:disabled) {
+  color: var(--black);
+  background: var(--cyan);
+  box-shadow: inset 4px 4px 0 var(--teal),
+    inset -4px -4px 0 var(--white), 0 0 0 3px var(--black);
+  transform: none;
+}
+
+.touch-controls .touch-button:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 4px;
+}
+
+.touch-controls .touch-button:disabled {
+  color: var(--grey);
+  background: var(--navy);
+  box-shadow: inset -4px -4px 0 var(--black),
+    inset 4px 4px 0 var(--slate), 0 0 0 3px var(--black);
+  cursor: not-allowed;
+}
+
+.touch-enabled .hud {
+  flex: 0 0 auto;
+  width: min(100%, 1600px);
+  min-width: 0;
+  padding: 8px;
+  gap: 8px;
+}
+
+.touch-enabled .hud :is(.hud-bottom, .hud-right, .hud-status, .room-chip) {
+  min-width: 0;
+}
+
+.touch-enabled .hud-case {
+  gap: 4px 8px;
+  font-size: 7px;
+  overflow-wrap: anywhere;
+}
+
+.touch-enabled .hud-case .case-difficulty {
+  margin: 0;
+}
+
+.touch-enabled .hud-case .tag {
+  margin: 0;
+  padding: 2px 4px;
+  font-size: 7px;
+}
+
+.touch-enabled .room-chip {
+  padding: 4px;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
+.touch-enabled .room-you {
+  position: static;
+  padding: 0 4px;
+}
+
+.touch-enabled .hud-bottom {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.touch-enabled .hud-objective {
+  padding: 6px 8px;
+  gap: 6px;
+}
+
+.touch-enabled .obj-text {
+  font-size: 8px;
+  overflow-wrap: anywhere;
+}
+
+.touch-enabled .obj-label {
+  font-size: 6px;
+  padding: 3px;
+}
+
+.touch-enabled .hud-status {
+  justify-content: flex-start;
+  gap: 8px 12px;
+}
+
+.touch-enabled .hud-stat {
+  font-size: 8px;
+}
+
+.touch-enabled .hud-right {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.touch-enabled .hud-right button {
+  min-height: 44px;
+  padding: 6px 4px;
+  font-size: 8px;
+}
+
+.touch-enabled .hud-right .abandon-button {
+  grid-column: 3 / -1;
+  justify-self: end;
+  margin-top: 4px;
+  padding-inline: 12px;
+}
+
+.touch-enabled .dev-chip {
+  position: static;
+  align-self: flex-end;
+  flex: 0 0 auto;
+  margin: 8px max(12px, env(safe-area-inset-right, 0px));
+}
+
+/* A stacked pair in each 80px gutter leaves the entire world unobstructed.
+   At 667 x 375 the compact HUD leaves about 220px for the fitted canvas. */
+@media (orientation: landscape) and (min-width: 560px) {
+  .touch-enabled .game-viewport {
+    --touch-deck: 0px;
+    --touch-gutter: 80px;
+    grid-template-columns: 80px minmax(0, 1fr) 80px;
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 160px;
+    flex-basis: 160px;
+  }
+
+  .touch-enabled .game-viewport > .phaser-host {
+    grid-area: 1 / 2;
+  }
+
+  .touch-enabled .touch-controls {
+    position: absolute;
+    inset: 0;
+    grid-area: 1 / 1 / -1 / -1;
+    display: grid;
+    grid-template-columns: 80px minmax(0, 1fr) 80px;
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
+    padding: 0;
+  }
+
+  .touch-enabled .touch-move,
+  .touch-enabled .touch-actions {
+    flex-direction: column;
+    justify-self: center;
+    align-self: center;
+    gap: 12px;
+  }
+
+  .touch-enabled .touch-move {
+    grid-column: 1;
+  }
+
+  .touch-enabled .touch-actions {
+    grid-column: 3;
+  }
+
+  .touch-enabled .hud-case,
+  .touch-enabled .hud-rooms {
+    display: none;
+  }
+
+  .touch-enabled .hud-bottom {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .touch-enabled .hud-status {
+    max-width: 200px;
+  }
+
+  .touch-enabled .hud-right {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .touch-enabled .hud-right button {
+    padding-inline: 8px;
+  }
+
+  .touch-enabled .hud-right .abandon-button {
+    margin-top: 0;
+    margin-inline-start: auto;
+  }
+}
+
+/* Reading screens are allowed to grow vertically; no global overflow hiding. */
+@media (max-width: 1100px) {
+  .screen,
+  .modal,
+  .celebrate-card {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  :is(.screen, .modal) :is(
+    section, aside, header, footer, button, p, pre, ul, ol, li,
+    .panel, .menu-hero, .menu-side, .case-file, .select-head,
+    .case-dossier, .difficulty-card, .recruit-detail, .debrief-side,
+    .terminal-body, .brief-col, .editor-col, .learn-pane, .ref-group,
+    .verdict-body, .options, .collapsible, .collapsible-body,
+    .step-block, .schema-table, .kql-editor, .kql-surface
+  ) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .screen {
+    padding: max(20px, env(safe-area-inset-top, 0px))
+      max(16px, env(safe-area-inset-right, 0px))
+      max(24px, env(safe-area-inset-bottom, 0px))
+      max(16px, env(safe-area-inset-left, 0px));
+    gap: 20px;
+    align-content: start;
+  }
+
+  :is(.screen, .modal) button {
+    min-height: 44px;
+    min-width: 44px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .menu,
+  .debrief,
+  .terminal-body,
+  .verdict-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ref-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  }
+
+  .case-dossiers {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  }
+
+  .roster {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  }
+
+  .result-wrap,
+  .query-chart,
+  .caret {
+    min-width: 0;
+    max-width: 100%;
+    overflow: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .result-wrap {
+    max-height: 300px;
+    max-height: min(300px, 55dvh);
+  }
+
+  .query-chart svg {
+    min-width: 520px;
+  }
+
+  .query-chart figcaption {
+    overflow-wrap: anywhere;
+  }
+
+  .schema-head,
+  .schema-cols,
+  .case-dossier-head,
+  .rank-row,
+  .oq-head,
+  .opt-tracks li,
+  .evidence-head,
+  .score-total,
+  .pane-tabs {
+    flex-wrap: wrap;
+  }
+
+  .col-chip {
+    max-width: 100%;
+    flex-wrap: wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .note-body,
+  .email pre,
+  .learn-pattern,
+  .learn-example,
+  .ref-syntax,
+  .ref-example {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .email-head span {
+    flex: 0 0 52px;
+  }
+
+  .email-head strong {
+    min-width: 0;
+  }
+
+  .collapsible-head {
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .collapsible-badge {
+    grid-column: 2;
+    grid-row: 2;
+    text-transform: none;
+  }
+
+  .collapsible-toggle {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .modal-head > div {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .modal-head > button {
+    flex: 0 0 auto;
+    max-width: 100px;
+  }
+
+  .kql-editor {
+    --code-font: 16px/1.5 var(--mono);
+    grid-template-columns: 40px minmax(0, 1fr);
+    /* The gutter must scroll instead of growing with the number of lines. */
+    grid-template-rows: minmax(0, 1fr);
+    height: auto;
+  }
+
+  .kql-gutter {
+    min-height: 0;
+    padding-block: 12px;
+    height: 192px;
+  }
+
+  .kql-surface,
+  .kql-highlight,
+  .kql-input {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .kql-surface {
+    height: auto;
+  }
+
+  .kql-highlight,
+  .kql-input {
+    padding: 12px;
+    font: var(--code-font);
+    white-space: pre;
+    overflow-wrap: normal;
+    word-break: normal;
+    letter-spacing: 0;
+    tab-size: 2;
+  }
+
+  .kql-input {
+    resize: none;
+  }
+
+  .kql-highlight,
+  .kql-input {
+    height: 192px;
+  }
+
+  .kql-highlight code {
+    font: inherit;
+    white-space: inherit;
+    overflow-wrap: normal;
+  }
+
+  .kql-suggest {
+    /* Suggestions take their own space, never covering Run or the caret. */
+    position: relative;
+    left: auto !important;
+    right: auto;
+    top: auto !important;
+    margin: 8px 4px;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .kql-suggest ul {
+    max-height: 144px;
+  }
+
+  .kql-suggest li {
+    min-height: 44px;
+    grid-template-columns: 16px minmax(0, 1fr);
+    align-items: center;
+    gap: 4px;
+  }
+
+  .kql-suggest .det {
+    grid-column: 2;
+  }
+
+  .kql-suggest-doc {
+    max-height: 72px;
+    overflow-y: auto;
+  }
+
+  .editor-actions {
+    gap: 8px;
+    scroll-margin-block: 12px;
+  }
+
+  .editor-actions .big {
+    padding: 10px 12px;
+    font-size: 10px;
+  }
+
+  .opt-row input[type='range'] {
+    min-width: 0;
+    min-height: 44px;
+    width: 100%;
+    flex: 1 1 80px;
+  }
+
+  .opt-row input[type='range']::-webkit-slider-thumb {
+    width: 24px;
+    height: 32px;
+  }
+
+  .opt-row input[type='range']::-moz-range-thumb {
+    width: 24px;
+    height: 32px;
+  }
+
+  .toasts {
+    left: max(16px, env(safe-area-inset-left, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    justify-items: end;
+  }
+
+  .toast {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    animation: none;
+  }
+
+  .celebrate {
+    padding: max(12px, env(safe-area-inset-top, 0px))
+      max(16px, env(safe-area-inset-right, 0px))
+      max(12px, env(safe-area-inset-bottom, 0px))
+      max(16px, env(safe-area-inset-left, 0px));
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .celebrate-card {
+    max-width: min(100%, 560px);
+    max-height: 100%;
+    min-height: 0;
+    padding: 16px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    pointer-events: auto;
+  }
+
+  .celebrate .stamp {
+    font-size: clamp(16px, 4vw, 26px);
+    animation: none;
+  }
+}
+
+@media (max-width: 760px), (max-height: 500px) {
+  .scrim {
+    --overlay-pad-top: max(12px, env(safe-area-inset-top, 0px));
+    --overlay-pad-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    padding-inline: max(12px, env(safe-area-inset-left, 0px))
+      max(12px, env(safe-area-inset-right, 0px));
+  }
+
+  .scrim .modal {
+    padding: 12px;
+    max-height: var(--modal-available-height);
+    scroll-padding-block: 12px;
+    box-shadow: 0 0 0 4px var(--white), 0 0 0 8px var(--black);
+  }
+
+  .modal-head {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .modal-head h2 {
+    font-size: 12px;
+  }
+
+  /* Keep all content and Run / Cancel reachable even with a tiny keyboard
+     viewport. Two sticky bars can otherwise consume the entire scrollport. */
+  .modal-head,
+  .editor-actions,
+  .verdict-foot {
+    position: static;
+  }
+
+  .verdict-foot {
+    margin-inline: 0;
+    margin-bottom: 0;
+    padding: 12px 0 0;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .panel,
+  .menu-case {
+    padding: 12px;
+  }
+
+  .screen h1,
+  .case-file h1,
+  .debrief h1 {
+    font-size: 18px;
+  }
+
+  .menu-hero h1 {
+    font-size: 28px;
+  }
+
+  .screen h2 {
+    font-size: 14px;
+  }
+
+  .brief-actions,
+  .learn-actions {
+    align-items: stretch;
+  }
+
+  .brief-actions button,
+  .learn-actions button,
+  .menu-case > button,
+  .pause-modal .modal-foot button,
+  .verdict-foot button {
+    width: 100%;
+  }
+
+  .screen button.big,
+  .modal button.big {
+    font-size: 11px;
+    padding: 12px;
+  }
+
+  .score-line {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 8px;
+  }
+
+  .score-line .score-bar {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .score-total {
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .stats dt {
+    font-size: 8px;
+  }
+
+  .stats dd {
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+
+  .tag {
+    max-width: 100%;
+    font-size: 8px;
+  }
+
+  .note-body,
+  .email,
+  .collapsible-body {
+    padding: 10px;
+  }
+
+  .editor-actions > .primary {
+    flex: 1 0 100%;
+  }
+
+  .editor-actions .small {
+    flex: 1 1 auto;
+    padding: 8px;
+    font-size: 8px;
+  }
+}

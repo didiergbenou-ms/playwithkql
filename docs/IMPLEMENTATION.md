@@ -143,6 +143,34 @@ npm run server         # optional progress/leaderboard API on :3001
 | `P` | Pause / resume the game and case timer |
 | `R` | Respawn |
 
+Touch devices also get a directional pair, Jump and Interact. Hold a direction
+and Jump together for running jumps; release Jump early for a shorter jump.
+Pause, notes, reference and options stay in the HUD; Pause also offers a return
+to the checkpoint. Portrait is playable without a rotation lock.
+
+### Phone layout and input
+
+`TouchControls.tsx` owns pointer capture and button feedback; the volatile
+`inputBridge.ts` tracks each pointer independently. `GameScene` merges touch
+with keyboard input in the existing character physics path. Movement and jump
+are held actions; interaction is a press, not a timeout-generated key event.
+Overlay transitions, cancellation, focus loss and teardown clear held inputs and
+pending actions. Neither pointer state nor active runs are added to saved profiles.
+
+`mobile.css` adapts the existing retro UI, with separate control space, safe-area
+padding and scrollable terminal content. The canvas remains 640x360 with a 2x
+camera. A host `ResizeObserver` refreshes Phaser's display fit without restarting
+the scene, changing game dimensions or waking its paused frame loop. Modal
+sizing follows the visible browser viewport so the editor can remain usable
+above a software keyboard; zoom remains enabled.
+
+`test:mobile` covers the input bridge. `scripts/testMobileBrowser.py` covers
+phone-sized layouts, trusted Chromium multi-touch, held movement/jump, capture,
+cancellation, pause, terminal drafts/results and rotation, plus a physical
+platform route with all four recruits. Its route opens gates to isolate traversal;
+its reduced-viewport keyboard fixture is not a real OS keyboard. Keep actual
+iOS/Android handset checks alongside these browser-emulation regressions.
+
 ---
 
 ## The roster
@@ -832,5 +860,5 @@ called for a fun prototype, and every hour went into the game loop instead.
 
 1. Cases 002–005 — the case format is data, so a new case is a new file plus a new ASCII level.
 2. Wire the React client to `server/` for shared leaderboards.
-3. Mobile touch controls.
+3. Extend mobile browser coverage on physical handsets.
 4. Code-split Phaser (1.2 MB / 319 kB gzipped) — fine for a prototype, worth doing before this is used in anger.

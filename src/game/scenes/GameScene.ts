@@ -8,6 +8,7 @@ import { characterById, textureKey, type CharacterDef } from '../characters';
 import { TILE, parseLevel, type ParsedLevel } from '../levels/heartbeatHills';
 import { CAMERA_ZOOM, VIEW_WIDTH } from '../config';
 import { audio } from '../audio';
+import { touchInput, type TouchPress } from '../inputBridge';
 import {
   GRAVITY, RUN_SPEED, AIR_ACCEL, GROUND_ACCEL, JUMP_VELOCITY,
   COYOTE_MS, BUFFER_MS, ENEMY_SPEED, MAX_FALL_SPEED,
@@ -82,6 +83,8 @@ export class GameScene extends Phaser.Scene {
 
   private lastGroundedAt = -9999;
   private jumpQueuedAt = -9999;
+  private touchJumpQueuedAt = -9999;
+  private touchJumpPress: TouchPress | null = null;
   private invulnerableUntil = 0;
   private facing = 1;
 
@@ -132,9 +135,12 @@ export class GameScene extends Phaser.Scene {
     this.frozen = false;
     this.lastGroundedAt = -9999;
     this.jumpQueuedAt = -9999;
+    this.touchJumpQueuedAt = -9999;
     this.invulnerableUntil = 0;
     this.interactLockUntil = 0;
     this.jumpHeld = false;
+    this.touchJumpPress = null;
+    touchInput.setBlocked(false);
     this.solidLookup.clear();
 
     this.buildBackground();
@@ -401,6 +407,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private wireInput() {
+    this.busOff.push(touchInput.subscribeReset(() => {
+      this.jumpQueuedAt = -9999;
+      this.touchJumpQueuedAt = -9999;
+      this.touchJumpPress = null;
+    }));
     const kb = this.input.keyboard!;
     this.cursors = kb.createCursorKeys();
     this.keys = kb.addKeys('W,A,S,D,E,R,SPACE') as Record<string, Phaser.Input.Keyboard.Key>;
@@ -432,13 +443,17 @@ export class GameScene extends Phaser.Scene {
     this.busOff.push(
       bus.on('ui:setPaused', ({ paused }) => {
         this.frozen = paused;
+        touchInput.setBlocked(paused);
+        this.jumpQueuedAt = -9999;
+        this.touchJumpQueuedAt = -9999;
+        this.touchJumpPress = null;
+        this.jumpHeld = false;
         this.setKeyboardCapture(!paused);
         if (paused) {
           this.physics.pause();
           this.player.anims.pause();
           // drop held keys so movement does not resume on close
           this.input.keyboard?.resetKeys();
-          this.jumpHeld = false;
           // Finish one render for a stable backdrop, then stop the Phaser
           // frame loop. React overlays and their animations remain independent.
           this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
@@ -469,6 +484,9 @@ export class GameScene extends Phaser.Scene {
     // SHUTDOWN leaked these bus handlers; on re-entry the stale handler ran
     // against a destroyed scene, threw, and left the player on a black screen.
     const cleanup = () => {
+      this.events.off(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+      this.events.off(Phaser.Scenes.Events.DESTROY, cleanup);
+      touchInput.setBlocked(true);
       this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
       this.busOff.forEach((off) => off());
       this.busOff = [];
@@ -484,19 +502,35 @@ export class GameScene extends Phaser.Scene {
   // ---- gameplay ------------------------------------------------------------
 
   update(_time: number, delta: number) {
-    if (this.frozen) return;
+    if (this.frozen) {
+      this.jumpQueuedAt = -9999;
+      this.touchJumpQueuedAt = -9999;
+      this.touchJumpPress = null;
+      return;
+    }
     const now = this.time.now;
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     const dt = delta / 1000;
 
-    const left = this.cursors.left.isDown || this.keys.A.isDown;
-    const right = this.cursors.right.isDown || this.keys.D.isDown;
-    const jumpDown = this.cursors.up.isDown || this.keys.W.isDown || this.keys.SPACE.isDown;
+    const touch = touchInput.getSnapshot();
+    const left = this.cursors.left.isDown || this.keys.A.isDown || touch.left;
+    const right = this.cursors.right.isDown || this.keys.D.isDown || touch.right;
+    const keyboardJump = this.cursors.up.isDown || this.keys.W.isDown || this.keys.SPACE.isDown;
+    const jumpDown = keyboardJump || touch.jump;
+    const touchJump = touchInput.consumePress('jump');
 
     const grounded = body.blocked.down || body.touching.down;
     if (grounded) this.lastGroundedAt = now;
-    if (jumpDown && !this.jumpHeld) this.jumpQueuedAt = now;
-    this.jumpHeld = jumpDown;
+    if (this.touchJumpPress && !touchInput.isValidPress(this.touchJumpPress)) {
+      this.touchJumpQueuedAt = -9999;
+      this.touchJumpPress = null;
+    }
+    if (touchJump) {
+      this.touchJumpQueuedAt = now;
+      this.touchJumpPress = touchJump;
+    }
+    if (keyboardJump && !this.jumpHeld) this.jumpQueuedAt = now;
+    this.jumpHeld = keyboardJump;
 
     // horizontal movement with separate ground/air acceleration
     const stats = this.character.stats;
@@ -516,10 +550,12 @@ export class GameScene extends Phaser.Scene {
 
     // coyote time + input buffering
     const canCoyote = now - this.lastGroundedAt <= COYOTE_MS;
-    const buffered = now - this.jumpQueuedAt <= BUFFER_MS;
+    const buffered = now - this.jumpQueuedAt <= BUFFER_MS || now - this.touchJumpQueuedAt <= BUFFER_MS;
     if (buffered && canCoyote) {
       body.velocity.y = JUMP_VELOCITY * stats.jump;
       this.jumpQueuedAt = -9999;
+      this.touchJumpQueuedAt = -9999;
+      this.touchJumpPress = null;
       this.lastGroundedAt = -9999;
       this.puff(this.player.x, this.player.y + PLAYER_H / 2, 'spark_cyan', 5);
       audio.play('jump');
@@ -531,6 +567,7 @@ export class GameScene extends Phaser.Scene {
     this.updateAnimation(grounded, body.velocity);
     this.updateEnemies();
     this.updateProximity();
+    if (touchInput.consumePress('interact')) this.interact();
     this.updateCheckpoints();
     this.updateRoom();
 
@@ -625,7 +662,7 @@ export class GameScene extends Phaser.Scene {
         : best.kind === 'note'
           ? '[E] read'
           : '[E] submit verdict';
-    this.promptText.setText(label);
+    this.promptText.setText(touchInput.isEnabled() ? label.replace('[E]', '[USE]') : label);
     // clear of both the prop and the (taller) player sprite
     this.prompt.setPosition(bx, Math.min(by, this.player.y - PLAYER_H / 2) - 6).setVisible(true);
   }
@@ -794,7 +831,13 @@ export class GameScene extends Phaser.Scene {
     this.player.setVelocity(130 * dir, -150);
   }
 
-  private respawn() {    this.health = this.maxHealth;
+  private respawn() {
+    touchInput.reset();
+    this.jumpQueuedAt = -9999;
+    this.touchJumpQueuedAt = -9999;
+    this.touchJumpPress = null;
+    this.lastGroundedAt = -9999;
+    this.health = this.maxHealth;
     this.invulnerableUntil = this.time.now + 900;
     this.player.setVelocity(0, 0);
     this.player.setPosition(this.checkpoint.x, this.checkpoint.y - 4);

@@ -27,6 +27,7 @@ import { VerdictModal } from './ui/VerdictModal';
 import { Debrief } from './ui/Debrief';
 import { DevPanel } from './ui/DevPanel';
 import { ModalScrim } from './ui/ModalScrim';
+import { TouchControls, useTouchControlsEnabled } from './ui/TouchControls';
 import { CASES, getCase } from './data/cases';
 import { devActive, initDevMode, onDevChange } from './dev/secret';
 
@@ -62,6 +63,7 @@ const OVERLAY_LABELS: Record<NonNullable<Overlay>['kind'], string> = {
 };
 
 export default function App() {
+  const touchEnabled = useTouchControlsEnabled();
   const screen = useStore((s) => s.screen);
   const setScreen = useStore((s) => s.setScreen);
   const run = useStore((s) => s.run);
@@ -302,7 +304,7 @@ export default function App() {
       : undefined;
 
   return (
-    <div className="app">
+    <div className={`app${touchEnabled ? ' touch-enabled' : ''}`}>
       {screen === 'menu' && (
         <MainMenu
           cases={CASES}
@@ -333,12 +335,13 @@ export default function App() {
       )}
 
       {screen === 'briefing' && (
-        <Briefing caseDef={selectedCaseDef} onBegin={begin} onBack={() => setScreen('select')} />
+        <Briefing caseDef={selectedCaseDef} touchEnabled={touchEnabled} onBegin={begin} onBack={() => setScreen('select')} />
       )}
 
       {screen === 'playing' && (
         <div className="stage">
           <Hud
+            touchEnabled={touchEnabled}
             caseDef={runCaseDef}
             onNotebook={() => setOverlay({ kind: 'notebook' })}
             onReference={() => setOverlay({ kind: 'reference' })}
@@ -351,6 +354,7 @@ export default function App() {
               setScreen('menu');
             }}
           />
+          <div className="game-viewport">
           <Suspense fallback={
             <div className="phaser-host game-loading" role="status">
               Loading map...
@@ -365,9 +369,13 @@ export default function App() {
               openGates={run.openGates}
             />
           </Suspense>
+          {touchEnabled && <TouchControls key={run.runId} runId={run.runId} disabled={overlay !== null} />}
+          </div>
           <p className="stage-hint">
+            {touchEnabled ? 'Move and jump with the controls. Tap Interact near a terminal or note. Pause to return to your checkpoint.' : <>
             <kbd>A</kbd>/<kbd>D</kbd> move · <kbd>Space</kbd> jump · <kbd>E</kbd> interact ·{' '}
             <kbd>Tab</kbd> notes · <kbd>K</kbd> KQL card · <kbd>P</kbd> pause · <kbd>R</kbd> respawn
+            </>}
           </p>
         </div>
       )}
@@ -463,7 +471,10 @@ export default function App() {
           {overlay.kind === 'reference' && <ReferenceCard onClose={() => setOverlay(null)} />}
 
           {overlay.kind === 'options' && <OptionsModal onClose={() => setOverlay(null)} />}
-          {overlay.kind === 'pause' && <PauseModal onResume={() => setOverlay(null)} />}
+          {overlay.kind === 'pause' && <PauseModal onResume={() => setOverlay(null)} onRespawn={() => {
+            bus.emit('ui:restartRoom');
+            setOverlay(null);
+          }} />}
 
           {overlay.kind === 'note' && (
             <NoteModal caseDef={runCaseDef} noteId={overlay.noteId} onClose={() => setOverlay(null)} />

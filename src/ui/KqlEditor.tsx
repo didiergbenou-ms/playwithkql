@@ -48,6 +48,7 @@ export function KqlEditor({ value, onChange, onRun, meta, autoFocus }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
+  const suggestionGesture = useRef<{ x: number; y: number; moved: boolean } | null>(null);
 
   const [caret, setCaret] = useState(0);
   const [open, setOpen] = useState(false);
@@ -91,7 +92,7 @@ export function KqlEditor({ value, onChange, onRun, meta, autoFocus }: Props) {
     const lineHeight = parseFloat(style.lineHeight) || 20;
     const charWidth = measureChar(style.font);
     setPopupPos({
-      left: Math.min(col * charWidth, ta.clientWidth - 220),
+      left: Math.max(0, Math.min(col * charWidth, ta.clientWidth - 220)),
       top: (row + 1) * lineHeight + 6 - ta.scrollTop,
     });
   }, [open, caret, value]);
@@ -127,6 +128,7 @@ export function KqlEditor({ value, onChange, onRun, meta, autoFocus }: Props) {
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) return;
     if (open && items.length) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -242,6 +244,7 @@ export function KqlEditor({ value, onChange, onRun, meta, autoFocus }: Props) {
           onKeyDown={onKeyDown}
           onKeyUp={syncCaret}
           onClick={syncCaret}
+          onSelect={syncCaret}
           onScroll={syncScroll}
           onBlur={() => setTimeout(() => setOpen(false), 120)}
           // ARIA combobox pattern. Without these the popup is visual only:
@@ -258,7 +261,21 @@ export function KqlEditor({ value, onChange, onRun, meta, autoFocus }: Props) {
 
         {open && items.length > 0 && (
           <div className="kql-suggest" style={{ left: popupPos.left, top: popupPos.top }}>
-            <ul id={LISTBOX_ID} role="listbox" aria-label="Query suggestions">
+            <ul id={LISTBOX_ID} role="listbox" aria-label="Query suggestions"
+              onPointerDown={(e) => {
+                suggestionGesture.current = { x: e.clientX, y: e.clientY, moved: false };
+              }}
+              onPointerMove={(e) => {
+                const gesture = suggestionGesture.current;
+                if (gesture && Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) > 10) gesture.moved = true;
+              }}
+              onPointerCancel={() => {
+                if (suggestionGesture.current) suggestionGesture.current.moved = true;
+              }}
+              onScroll={() => {
+                if (suggestionGesture.current) suggestionGesture.current.moved = true;
+              }}
+            >
               {items.map((it, i) => (
                 <li
                   id={`${LISTBOX_ID}-opt-${i}`}
@@ -268,6 +285,12 @@ export function KqlEditor({ value, onChange, onRun, meta, autoFocus }: Props) {
                   className={i === active ? 'on' : ''}
                   onMouseDown={(e) => {
                     e.preventDefault();
+                  }}
+                  onClick={() => {
+                    const moved = suggestionGesture.current?.moved;
+                    suggestionGesture.current = null;
+                    if (moved) return;
+                    taRef.current?.focus({ preventScroll: true });
                     accept(it);
                   }}
                   onMouseEnter={() => setActive(i)}

@@ -1,6 +1,7 @@
 import type { CaseDefinition } from '../data/cases/types';
 import { currentObjective, roomProgress, useStore } from '../state/store';
 import { CaseDifficulty } from './CaseDifficulty';
+import { useSecondaryTouchActivation } from './useSecondaryTouchActivation';
 
 interface Props {
   caseDef: CaseDefinition;
@@ -9,10 +10,12 @@ interface Props {
   onOptions: () => void;
   onPause: () => void;
   pauseDisabled?: boolean;
+  touchEnabled?: boolean;
   onQuit: () => void;
 }
 
-export function Hud({ caseDef, onNotebook, onReference, onOptions, onPause, pauseDisabled = false, onQuit }: Props) {
+export function Hud({ caseDef, onNotebook, onReference, onOptions, onPause, pauseDisabled = false, touchEnabled = false, onQuit }: Props) {
+  const touchActivation = useSecondaryTouchActivation();
   const run = useStore((s) => s.run);
   const solvedIds = caseDef.challenges
     .filter((challenge) => run.challenges[challenge.id]?.solved)
@@ -24,7 +27,7 @@ export function Hud({ caseDef, onNotebook, onReference, onOptions, onPause, paus
   const notesPocketed = caseDef.level.notes.filter((note) => run.notesRead.includes(note.id)).length;
 
   return (
-    <div className="hud">
+    <div className="hud" {...touchActivation}>
       <div className="hud-case">
         <span className="hud-case-no">CASE {caseDef.id}</span>
         <strong>{caseDef.title}</strong>
@@ -84,21 +87,21 @@ export function Hud({ caseDef, onNotebook, onReference, onOptions, onPause, paus
         </div>
 
         <div className="hud-right">
-          <button className="ghost small" onClick={onPause} disabled={pauseDisabled} aria-haspopup="dialog">
-            Pause (P)
+          <button className="ghost small" onClick={onPause} disabled={pauseDisabled} aria-haspopup="dialog" aria-label="Pause (P)">
+            {touchEnabled ? 'Pause' : 'Pause (P)'}
           </button>
-          <button className="ghost small" onClick={onOptions}>
-            Options (O)
+          <button className="ghost small" onClick={onOptions} aria-label="Options (O)">
+            {touchEnabled ? 'Options' : 'Options (O)'}
           </button>
           <button className="ghost small" onClick={onReference}>
-            KQL card (K)
+            {touchEnabled ? 'KQL card' : 'KQL card (K)'}
           </button>
           <button
             className="ghost small"
             onClick={onNotebook}
             title={`${notesPocketed} field notes pocketed; ${run.evidence.length} pieces of query evidence filed`}
           >
-            Notes ({notesPocketed}) (Tab)
+            Notes ({notesPocketed}){!touchEnabled && ' (Tab)'}
           </button>
           <button className="abandon-button small" onClick={onQuit}>
             Abandon

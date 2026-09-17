@@ -39,6 +39,7 @@ jobs:
           node scripts/run.mjs scripts/testUi.tsx
           node scripts/run.mjs scripts/testNotes.tsx
           node scripts/run.mjs scripts/testPauseClock.ts
+          node scripts/run.mjs scripts/testTouchInput.ts
 
       - name: Case content and isolation
         run: |
@@ -102,7 +103,7 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Phaser renderer and gameplay
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           node scripts/serve.mjs 4173 > "$RUNNER_TEMP/phaser-preview.log" 2>&1 &
           SERVER_PID=$!
@@ -112,6 +113,7 @@ jobs:
           python scripts/testKqlBrowser.py
           python scripts/testDifficultiesBrowser.py
           python scripts/testPauseBrowser.py
+          python scripts/testMobileBrowser.py
 
       # Lets a reviewer download and open the actual build for a PR without
       # having to check the branch out and install anything.
