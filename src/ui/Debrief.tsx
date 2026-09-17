@@ -1,6 +1,6 @@
 import type { CaseDefinition } from '../data/cases/types';
 import { formatKql } from '../kql/format';
-import { ACHIEVEMENTS, rankFor, scoreRun, useStore } from '../state/store';
+import { ACHIEVEMENTS, elapsedRunMs, rankFor, scoreRun, useStore } from '../state/store';
 import { CaseDifficulty } from './CaseDifficulty';
 
 export function Debrief({
@@ -16,7 +16,7 @@ export function Debrief({
   const profile = useStore((s) => s.profile);
   const score = scoreRun(run);
   const rank = rankFor(profile.lifetimeScore);
-  const minutes = Math.max(0, ((run.finishedAt ?? Date.now()) - run.startedAt) / 60_000);
+  const minutes = elapsedRunMs(run) / 60_000;
 
   const lines: { label: string; value: number; max: number }[] = [
     { label: 'Case completion', value: score.completion, max: 500 },

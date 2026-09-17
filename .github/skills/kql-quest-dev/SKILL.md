@@ -221,6 +221,7 @@ Preserve history and aggregate profile values when changing curriculum revisions
 - Verify scene/bus cleanup for both shutdown and whole-game destruction. Abandon, re-enter and replay must not leave duplicate listeners or a black screen.
 - `App` lazy-loads gameplay, preloading at recruit selection rather than the initial menu. Preserve the sized Suspense fallback and re-send overlay state on `game:ready`. A `GameplayLoadError` requires Reload; resetting the boundary alone cannot clear React's cached rejected import.
 - Overlays sleep the Phaser loop after `POST_RENDER`, keeping bus handlers live. Resume removes pending sleep, resets delta, then wakes. `destroy(true)` is deferred until a frame: wake an already-running sleeping game during cleanup, and remove the pending READY scene-start callback when abandoning before boot. Test both paths.
+- Manual Pause (`Pause (P)` in the HUD) is distinct from reading a terminal: its duration is excluded from the case timer, time bonus and Quickdraw through the store's elapsed-time helper. Preserve keyboard/focus guards and the existing world-sleep path. Keep Abandon visibly destructive/red; pause must resume without resetting progress or drafts.
 - Menu thumbnails cache merged geometry by level object identity. Treat case/map definitions as immutable; preserve every colored cell when changing the compaction.
 - With camera zoom, parallax uses `camera.worldView.x`, not an assumption that `scrollX` is the visible left edge.
 - Pixel sprites have fixed dimensions and collision offsets. Ragged sprite rows or trailing transparent rows under bottom-origin props can cause broken rendering or floating terminals.
@@ -255,6 +256,7 @@ node node_modules\typescript\bin\tsc --noEmit
 node scripts\run.mjs scripts\testKql.ts
 node scripts\run.mjs scripts\testUi.tsx
 node scripts\run.mjs scripts\testNotes.tsx
+node scripts\run.mjs scripts\testPauseClock.ts
 node scripts\run.mjs scripts\testCaseContent.ts
 node scripts\run.mjs scripts\testCases.ts
 node scripts\run.mjs scripts\checkContent.ts
@@ -285,6 +287,7 @@ The test commands share `.tmp/test.mjs` and delete `.tmp`; running them concurre
 - `testPhaserBrowser.py` uses Playwright against a running production preview and runs in CI for both WebGL and `--canvas` fallback. It checks real queries/gates/notes, effects, pause/teardown/replay, all recruits and source-pixel orientation at 1x/2x; see the local guide for Python/browser setup. It positions players at interactables, so still traverse affected routes manually for physics or map changes.
 - `test:reliability` covers grading, worker transport and drafts. `testKqlBrowser.py` exercises real editor drafts, empty drafts, stale results and cancellation/failure recovery. Use isolated worker fixtures to test a blocked task, never remove regex guards or run a known pathological expression on the main thread.
 - `test:difficulties` covers all nine sets, scoped state/profile behavior and authoring deep links. `testDifficultiesBrowser.py` plays the 45 slots and checks fresh replay, tier isolation and legacy profile preservation. Existing browser flows must now choose difficulty before a recruit.
+- `testPauseClock.ts` covers explicit-pause timing and replay isolation; `testPauseBrowser.py` covers Pause/Resume controls, focus, suspended world rendering, delayed loading, terminal typing and the red Abandon button.
 - `seed:curriculum` regenerates original and supplemental synthetic JSON and verifies the original 23 planted facts. `test:curriculum` checks the language extensions, grading modes, all 45 independent expected outputs, fixed clocks, typed snapshots, charts and notices. CI also rejects generated dataset drift.
 - Do not run known catastrophic regex or deliberately remove safety guards in the main process or working tree. Prefer isolated fixtures or child processes with enforced deadlines and reliable cleanup. A timing assertion after a blocking call cannot interrupt it.
 - For gameplay changes, test the real route and interaction, not only store mutations or presence of strings in a bundle. State explicitly when browser testing is unavailable.

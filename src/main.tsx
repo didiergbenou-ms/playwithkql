@@ -5,6 +5,7 @@ import { GameplayLoadError } from './game/GameplayLoadError';
 import './styles.css';
 import './ui/difficulty.css';
 import './ui/curriculum.css';
+import './ui/pauseControls.css';
 
 let resetRoot = () => window.location.reload();
 const loadRoot = async () => {

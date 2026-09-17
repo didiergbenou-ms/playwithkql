@@ -1,0 +1,39 @@
+button.abandon-button {
+  background: var(--red);
+  color: var(--black);
+  box-shadow:
+    inset -3px -3px 0 0 #922432,
+    inset 3px 3px 0 0 #ff8993,
+    0 0 0 3px var(--black);
+}
+
+button.abandon-button:hover:not(:disabled) {
+  background: #ff8993;
+  color: var(--black);
+}
+
+button.abandon-button:active:not(:disabled) {
+  box-shadow:
+    inset 3px 3px 0 0 #922432,
+    inset -3px -3px 0 0 #ff8993,
+    0 0 0 3px var(--black);
+}
+
+.pause-modal {
+  width: min(100%, 520px);
+}
+
+.pause-modal .modal-foot {
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 1101px) and (max-width: 1350px) {
+  .hud-bottom {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .hud-right {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}

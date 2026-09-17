@@ -140,6 +140,7 @@ npm run server         # optional progress/leaderboard API on :3001
 | `Tab` | Notebook |
 | `K` | KQL reference card |
 | `O` | Options (music and SFX volume) |
+| `P` | Pause / resume the game and case timer |
 | `R` | Respawn |
 
 ---
@@ -277,6 +278,10 @@ Options screen; `SOURCES.md` preserves the supplied ledger.
   render. Bus handlers still apply solved-terminal and gate changes while asleep.
   Resume resets the frame delta before waking. Cleanup must wake a sleeping
   game so Phaser can process its deferred destruction.
+- The HUD Pause button (or `P`) opens an explicit pause dialog. Resume, `P`,
+  Escape or dismissing that dialog resumes the same run. Manual pause time is
+  excluded from the time bonus, Quickdraw and debrief duration; normal terminal
+  reading/query time still counts. Abandon is styled red and still exits the run.
 - Terminal operator ticks use `parse` and `collectFeatures`, not query execution.
   They indicate syntax present, not a correct answer. Run still executes and
   grades the real result table; lesson examples and previews are unchanged.

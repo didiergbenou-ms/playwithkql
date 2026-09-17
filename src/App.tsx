@@ -22,6 +22,7 @@ import { TerminalModal } from './ui/TerminalModal';
 import { NoteModal, Notebook } from './ui/Notes';
 import { ReferenceCard } from './ui/ReferenceCard';
 import { OptionsModal } from './ui/OptionsModal';
+import { PauseModal } from './ui/PauseModal';
 import { VerdictModal } from './ui/VerdictModal';
 import { Debrief } from './ui/Debrief';
 import { DevPanel } from './ui/DevPanel';
@@ -44,6 +45,7 @@ type Overlay =
   | { kind: 'notebook' }
   | { kind: 'reference' }
   | { kind: 'options' }
+  | { kind: 'pause' }
   | { kind: 'dev' }
   | null;
 
@@ -55,6 +57,7 @@ const OVERLAY_LABELS: Record<NonNullable<Overlay>['kind'], string> = {
   notebook: 'Notebook',
   reference: 'KQL reference card',
   options: 'Options',
+  pause: 'Game paused',
   dev: 'Developer shortcuts',
 };
 
@@ -64,6 +67,7 @@ export default function App() {
   const run = useStore((s) => s.run);
   const startRun = useStore((s) => s.startRun);
   const setHud = useStore((s) => s.setHud);
+  const setRunPaused = useStore((s) => s.setRunPaused);
   const readNote = useStore((s) => s.readNote);
   const registerAttempt = useStore((s) => s.registerAttempt);
   const useHint = useStore((s) => s.useHint);
@@ -153,6 +157,12 @@ export default function App() {
     bus.emit('ui:setPaused', { paused: overlay !== null });
   }, [overlay, screen]);
 
+  useEffect(() => {
+    if (screen !== 'playing' || overlay?.kind !== 'pause') return;
+    setRunPaused(true, run.runId);
+    return () => setRunPaused(false, run.runId);
+  }, [overlay?.kind, screen, run.runId, setRunPaused]);
+
   // Duck the music while a modal has the player's attention, then fade it out
   // entirely if they are still there. Reading and typing for minutes is exactly
   // when a looping background track starts to grate.
@@ -161,6 +171,10 @@ export default function App() {
     if (!overlay) {
       audio.setFocusMode(false);
       return;
+    }
+    if (overlay.kind === 'pause') {
+      audio.setFocusMode(true);
+      return () => audio.setFocusMode(false);
     }
     const t = setTimeout(() => audio.setFocusMode(true), 25_000);
     return () => clearTimeout(t);
@@ -181,6 +195,16 @@ export default function App() {
       // that same Escape also tore down the whole terminal, so dismissing the
       // suggestions threw away the query with them.
       if (e.defaultPrevented) return;
+
+      const target = e.target;
+      const editing = target instanceof HTMLElement &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+      if (screen === 'playing' && !editing && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey &&
+        e.key.toLowerCase() === 'p' && (!overlay || overlay.kind === 'pause')) {
+        e.preventDefault();
+        setOverlay(overlay ? null : { kind: 'pause' });
+        return;
+      }
 
       // While a celebration is on screen, Escape only dismisses that — closing
       // the terminal too would whip the result away before it can be read.
@@ -319,6 +343,8 @@ export default function App() {
             onNotebook={() => setOverlay({ kind: 'notebook' })}
             onReference={() => setOverlay({ kind: 'reference' })}
             onOptions={() => setOverlay({ kind: 'options' })}
+            onPause={() => setOverlay({ kind: 'pause' })}
+            pauseDisabled={overlay !== null && overlay.kind !== 'pause'}
             onQuit={() => {
               setOverlay(null);
               setCelebration(null);
@@ -341,7 +367,7 @@ export default function App() {
           </Suspense>
           <p className="stage-hint">
             <kbd>A</kbd>/<kbd>D</kbd> move · <kbd>Space</kbd> jump · <kbd>E</kbd> interact ·{' '}
-            <kbd>Tab</kbd> notes · <kbd>K</kbd> KQL card · <kbd>R</kbd> respawn
+            <kbd>Tab</kbd> notes · <kbd>K</kbd> KQL card · <kbd>P</kbd> pause · <kbd>R</kbd> respawn
           </p>
         </div>
       )}
@@ -437,6 +463,7 @@ export default function App() {
           {overlay.kind === 'reference' && <ReferenceCard onClose={() => setOverlay(null)} />}
 
           {overlay.kind === 'options' && <OptionsModal onClose={() => setOverlay(null)} />}
+          {overlay.kind === 'pause' && <PauseModal onResume={() => setOverlay(null)} />}
 
           {overlay.kind === 'note' && (
             <NoteModal caseDef={runCaseDef} noteId={overlay.noteId} onClose={() => setOverlay(null)} />

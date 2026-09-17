@@ -7,10 +7,12 @@ interface Props {
   onNotebook: () => void;
   onReference: () => void;
   onOptions: () => void;
+  onPause: () => void;
+  pauseDisabled?: boolean;
   onQuit: () => void;
 }
 
-export function Hud({ caseDef, onNotebook, onReference, onOptions, onQuit }: Props) {
+export function Hud({ caseDef, onNotebook, onReference, onOptions, onPause, pauseDisabled = false, onQuit }: Props) {
   const run = useStore((s) => s.run);
   const solvedIds = caseDef.challenges
     .filter((challenge) => run.challenges[challenge.id]?.solved)
@@ -82,6 +84,9 @@ export function Hud({ caseDef, onNotebook, onReference, onOptions, onQuit }: Pro
         </div>
 
         <div className="hud-right">
+          <button className="ghost small" onClick={onPause} disabled={pauseDisabled} aria-haspopup="dialog">
+            Pause (P)
+          </button>
           <button className="ghost small" onClick={onOptions}>
             Options (O)
           </button>
@@ -95,7 +100,7 @@ export function Hud({ caseDef, onNotebook, onReference, onOptions, onQuit }: Pro
           >
             Notes ({notesPocketed}) (Tab)
           </button>
-          <button className="ghost small" onClick={onQuit}>
+          <button className="abandon-button small" onClick={onQuit}>
             Abandon
           </button>
         </div>
