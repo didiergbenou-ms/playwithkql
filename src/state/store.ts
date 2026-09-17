@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { DEFAULT_CASE_ID, getCase } from '../data/cases';
+import { caseDifficultyKey, DEFAULT_DIFFICULTY, requireDifficulty, type Difficulty } from '../data/difficulties';
 import { parseLevel } from '../game/levels/heartbeatHills';
 import { beginDraftRun } from './queryDrafts';
 
-export type Screen = 'menu' | 'select' | 'briefing' | 'playing' | 'debrief';
+export type Screen = 'menu' | 'difficulty' | 'select' | 'briefing' | 'playing' | 'debrief';
 
 export interface ChallengeProgress {
   attempts: number;
@@ -33,6 +34,7 @@ export interface ChallengeProgress {
 
 export interface RunState {
   caseId: string;
+  difficulty: Difficulty;
   runId: number;
   startedAt: number;
   finishedAt: number | null;
@@ -59,6 +61,11 @@ export interface RunState {
   devUsed: boolean;
 }
 
+export interface CaseResult {
+  completions: number;
+  bestScore: number;
+}
+
 export interface Profile {
   lifetimeScore: number;
   bestScore: number;
@@ -67,6 +74,22 @@ export interface Profile {
   totalQueries: number;
   /** Last chosen recruit, remembered between sessions. */
   character: string;
+  /** Legacy aggregate completions cannot identify a case or difficulty. */
+  caseResults?: Record<string, CaseResult>;
+}
+
+export function caseCompletionKey(caseId: string, difficulty: Difficulty): string {
+  const key = caseDifficultyKey(caseId, difficulty);
+  const revision = getCase(caseId, difficulty).questionSetRevision;
+  return revision ? `${key}@${revision}` : key;
+}
+
+export function getCaseResult(
+  profile: Profile,
+  caseId: string,
+  difficulty: Difficulty,
+): CaseResult | undefined {
+  return profile.caseResults?.[caseCompletionKey(caseId, difficulty)];
 }
 
 export interface Rank {
@@ -115,12 +138,15 @@ function emptyRun(
   totalFragments: number,
   totalCrystals: number,
   caseId = DEFAULT_CASE_ID,
+  difficulty: Difficulty = DEFAULT_DIFFICULTY,
 ): RunState {
-  const caseDef = getCase(caseId);
+  requireDifficulty(difficulty);
+  const caseDef = getCase(caseId, difficulty);
   const runId = ++nextRunId;
   beginDraftRun(runId, caseId);
   return {
     caseId,
+    difficulty,
     runId,
     startedAt: Date.now(),
     finishedAt: null,
@@ -211,7 +237,7 @@ export function challengeXp(points: number, p: ChallengeProgress | undefined): n
 
 export function scoreRun(run: RunState): ScoreBreakdown {
   const completion = run.verdictCorrect ? 500 : 0;
-  const challenges = getCase(run.caseId).challenges;
+  const challenges = getCase(run.caseId, run.difficulty).challenges;
 
   const totalWeight = challenges.reduce((t, c) => t + c.points, 0);
   const earned = challenges.reduce((t, c) => {
@@ -241,6 +267,7 @@ export function rankFor(score: number): { name: string; next?: Rank } {
 interface Store {
   screen: Screen;
   selectedCaseId: string;
+  selectedDifficulty: Difficulty;
   run: RunState;
   profile: Profile;
   /** Newly earned achievements queued for the toast strip. */
@@ -248,7 +275,8 @@ interface Store {
 
   setScreen: (s: Screen) => void;
   selectCase: (caseId: string) => void;
-  startRun: (totalFragments: number, totalCrystals: number, caseId?: string) => void;
+  selectDifficulty: (difficulty: Difficulty) => void;
+  startRun: (totalFragments: number, totalCrystals: number, caseId?: string, difficulty?: Difficulty) => void;
   setHud: (p: Partial<RunState>) => void;
   readNote: (id: string) => void;
   registerAttempt: (challengeId: string) => void;
@@ -269,21 +297,64 @@ interface Store {
   devGrant: (patch: Partial<RunState>) => void;
 }
 
-const initialProfile: Profile = {
+const initialProfile = (): Profile => ({
   lifetimeScore: 0,
   bestScore: 0,
   casesClosed: 0,
   achievements: [],
   totalQueries: 0,
   character: 'quill',
-};
+  caseResults: {},
+});
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeCaseResults(value: unknown): Record<string, CaseResult> {
+  if (value === undefined) return {};
+  if (!isRecord(value)) {
+    console.warn('[profile] Ignoring malformed difficulty results; aggregate progress is preserved.');
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, result]) => {
+      if (
+        !isRecord(result) ||
+        typeof result.completions !== 'number' ||
+        !Number.isSafeInteger(result.completions) ||
+        result.completions < 0 ||
+        typeof result.bestScore !== 'number' ||
+        !Number.isFinite(result.bestScore) ||
+        result.bestScore < 0
+      ) {
+        console.warn('[profile] Ignoring a malformed difficulty result; other progress is preserved.');
+        return [];
+      }
+      return [[key, { completions: result.completions, bestScore: result.bestScore }]];
+    }),
+  );
+}
 
 function requireChallenge(run: RunState, challengeId: string) {
-  const spec = getCase(run.caseId).challenges.find((c) => c.id === challengeId);
+  const spec = getCase(run.caseId, run.difficulty).challenges.find((c) => c.id === challengeId);
   if (!spec || !run.challenges[challengeId]) {
     throw new Error(`Challenge "${challengeId}" does not belong to active case "${run.caseId}".`);
   }
   return spec;
+}
+
+export function mergePersistedState(persisted: unknown, current: Store): Store {
+  if (!isRecord(persisted) || !isRecord(persisted.profile)) return current;
+  const profile = persisted.profile;
+  return {
+    ...current,
+    profile: {
+      ...initialProfile(),
+      ...profile,
+      caseResults: normalizeCaseResults(profile.caseResults),
+    },
+  };
 }
 
 export const useStore = create<Store>()(
@@ -291,8 +362,9 @@ export const useStore = create<Store>()(
     (set, get) => ({
       screen: 'menu',
       selectedCaseId: DEFAULT_CASE_ID,
+      selectedDifficulty: DEFAULT_DIFFICULTY,
       run: emptyRun(0, 0),
-      profile: initialProfile,
+      profile: initialProfile(),
       toasts: [],
 
       setScreen: (screen) => set({ screen }),
@@ -305,15 +377,36 @@ export const useStore = create<Store>()(
         const level = parseLevel(caseDef.level);
         set({
           selectedCaseId: caseId,
+          selectedDifficulty: DEFAULT_DIFFICULTY,
           run: emptyRun(level.totalFragments, level.totalCrystals, caseId),
           toasts: [],
         });
       },
 
-      startRun: (totalFragments, totalCrystals, caseId = get().selectedCaseId) =>
+      selectDifficulty: (difficulty) => {
+        requireDifficulty(difficulty);
+        if (get().screen === 'playing') {
+          throw new Error('Return to the case menu before changing difficulty.');
+        }
+        const caseId = get().selectedCaseId;
+        const level = parseLevel(getCase(caseId, difficulty).level);
+        set({
+          selectedDifficulty: difficulty,
+          run: emptyRun(level.totalFragments, level.totalCrystals, caseId, difficulty),
+          toasts: [],
+        });
+      },
+
+      startRun: (
+        totalFragments,
+        totalCrystals,
+        caseId = get().selectedCaseId,
+        difficulty = caseId === get().selectedCaseId ? get().selectedDifficulty : DEFAULT_DIFFICULTY,
+      ) =>
         set({
           selectedCaseId: caseId,
-          run: emptyRun(totalFragments, totalCrystals, caseId),
+          selectedDifficulty: difficulty,
+          run: emptyRun(totalFragments, totalCrystals, caseId, difficulty),
           screen: 'playing',
           toasts: [],
         }),
@@ -416,14 +509,14 @@ export const useStore = create<Store>()(
         const { run, award } = get();
         const progress = run.challenges[challengeId];
         if (progress.attempts <= 1 && hintsSeen(progress) === 0) award('first-try');
-        if (getCase(run.caseId).challenges.every((c) => run.challenges[c.id].solved)) {
+        if (getCase(run.caseId, run.difficulty).challenges.every((c) => run.challenges[c.id].solved)) {
           award('kusto-master');
         }
       },
 
       submitVerdict: (optionId, correct) => {
         const activeRun = get().run;
-        const caseDef = getCase(activeRun.caseId);
+        const caseDef = getCase(activeRun.caseId, activeRun.difficulty);
         const option = caseDef.rootCauses.find((candidate) => candidate.id === optionId);
         if (!option || Boolean(option.correct) !== correct) {
           throw new Error(`Invalid verdict for active case "${activeRun.caseId}".`);
@@ -459,6 +552,16 @@ export const useStore = create<Store>()(
             lifetimeScore: s.profile.lifetimeScore + score.total,
             bestScore: Math.max(s.profile.bestScore, score.total),
             casesClosed: s.profile.casesClosed + 1,
+            caseResults: {
+              ...s.profile.caseResults,
+              [caseCompletionKey(run.caseId, run.difficulty)]: {
+                completions: (getCaseResult(s.profile, run.caseId, run.difficulty)?.completions ?? 0) + 1,
+                bestScore: Math.max(
+                  getCaseResult(s.profile, run.caseId, run.difficulty)?.bestScore ?? 0,
+                  score.total,
+                ),
+              },
+            },
           },
         }));
       },
@@ -488,7 +591,7 @@ export const useStore = create<Store>()(
 
       dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
-      resetProfile: () => set({ profile: initialProfile }),
+      resetProfile: () => set({ profile: initialProfile() }),
 
       devSolve: (which) => {
         // Flag first and unconditionally. Returning early when nothing was
@@ -496,7 +599,7 @@ export const useStore = create<Store>()(
         // on it still wrote a dev-assisted completion to the profile.
         set((s) => ({ run: { ...s.run, devUsed: true } }));
         const activeRun = get().run;
-        const pending = getCase(activeRun.caseId).challenges.filter(
+        const pending = getCase(activeRun.caseId, activeRun.difficulty).challenges.filter(
           (c) => !activeRun.challenges[c.id].solved,
         );
         const target = which === 'all' ? pending : pending.slice(0, 1);
@@ -528,12 +631,16 @@ export const useStore = create<Store>()(
     {
       name: 'kql-quest-profile',
       partialize: (s) => ({ profile: s.profile }),
+      merge: mergePersistedState,
     },
   ),
 );
 
-export const evidenceById = (id: string, caseId = DEFAULT_CASE_ID) =>
-  getCase(caseId).evidence.find((e) => e.id === id);
+export const evidenceById = (
+  id: string,
+  caseId = DEFAULT_CASE_ID,
+  difficulty: Difficulty = DEFAULT_DIFFICULTY,
+) => getCase(caseId, difficulty).evidence.find((e) => e.id === id);
 
 export interface Objective {
   /** One line telling the player exactly what to do next. */
@@ -550,8 +657,12 @@ export interface Objective {
 }
 
 /** Derives "what should I be doing right now" from run state. */
-export function currentObjective(solvedIds: string[], caseId = DEFAULT_CASE_ID): Objective {
-  const caseDef = getCase(caseId);
+export function currentObjective(
+  solvedIds: string[],
+  caseId = DEFAULT_CASE_ID,
+  difficulty: Difficulty = DEFAULT_DIFFICULTY,
+): Objective {
+  const caseDef = getCase(caseId, difficulty);
   const challenges = caseDef.challenges;
   const solvedSet = new Set(solvedIds);
   const next = challenges.find((c) => !solvedSet.has(c.id));
@@ -581,8 +692,9 @@ export function currentObjective(solvedIds: string[], caseId = DEFAULT_CASE_ID):
 export function roomProgress(
   solvedIds: string[],
   caseId = DEFAULT_CASE_ID,
+  difficulty: Difficulty = DEFAULT_DIFFICULTY,
 ): { name: string; solved: number; total: number }[] {
-  const caseDef = getCase(caseId);
+  const caseDef = getCase(caseId, difficulty);
   const solvedSet = new Set(solvedIds);
   return caseDef.level.rooms.map(({ name }, i) => {
     const inRoom = caseDef.challenges.filter((c) => c.room === i);

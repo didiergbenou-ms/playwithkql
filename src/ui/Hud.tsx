@@ -1,5 +1,6 @@
 import type { CaseDefinition } from '../data/cases/types';
 import { currentObjective, roomProgress, useStore } from '../state/store';
+import { CaseDifficulty } from './CaseDifficulty';
 
 interface Props {
   caseDef: CaseDefinition;
@@ -14,8 +15,8 @@ export function Hud({ caseDef, onNotebook, onReference, onOptions, onQuit }: Pro
   const solvedIds = caseDef.challenges
     .filter((challenge) => run.challenges[challenge.id]?.solved)
     .map((challenge) => challenge.id);
-  const objective = currentObjective(solvedIds, caseDef.id);
-  const rooms = roomProgress(solvedIds, caseDef.id);
+  const objective = currentObjective(solvedIds, caseDef.id, run.difficulty);
+  const rooms = roomProgress(solvedIds, caseDef.id, run.difficulty);
   const currentRoomIndex = rooms.findIndex((room) => room.name === run.room);
   const crystalsLeft = run.crystals - run.crystalsSpent;
   const notesPocketed = caseDef.level.notes.filter((note) => run.notesRead.includes(note.id)).length;
@@ -25,6 +26,7 @@ export function Hud({ caseDef, onNotebook, onReference, onOptions, onQuit }: Pro
       <div className="hud-case">
         <span className="hud-case-no">CASE {caseDef.id}</span>
         <strong>{caseDef.title}</strong>
+        <CaseDifficulty caseDef={caseDef} />
         {caseDef.placeholder && <em>Prototype</em>}
       </div>
 

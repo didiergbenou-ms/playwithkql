@@ -11,6 +11,7 @@ from playwright.sync_api import expect, sync_playwright
 def enter_game(page, case_id, title, recruit):
     page.get_by_role("button", name=f"Select case {case_id}: {title}", exact=True).click()
     page.get_by_role("button", name="Open case file", exact=True).click()
+    page.get_by_role("button", name="Choose recruit", exact=True).click()
     page.get_by_role("button", name=re.compile(f"^{recruit}")).click()
     page.get_by_role("button", name=f"Deploy {recruit}", exact=True).click()
     page.get_by_role("button", name="Begin investigation", exact=True).click()

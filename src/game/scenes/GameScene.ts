@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { bus } from '../bus';
 import { DEFAULT_CASE_ID, getCase } from '../../data/cases';
 import type { CaseDefinition } from '../../data/cases/types';
+import { DEFAULT_DIFFICULTY, type Difficulty } from '../../data/difficulties';
 import { COLORS, PLAYER_H, PLAYER_W, generateTextures, registerAnimations } from '../textures';
 import { characterById, textureKey, type CharacterDef } from '../characters';
 import { TILE, parseLevel, type ParsedLevel } from '../levels/heartbeatHills';
@@ -21,6 +22,7 @@ type Interactable =
 
 interface SceneInit {
   caseId?: string;
+  difficulty?: Difficulty;
   solvedChallenges?: string[];
   openGates?: string[];
   characterId?: string;
@@ -99,7 +101,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   init(data: SceneInit) {
-    this.caseDef = getCase(data.caseId ?? DEFAULT_CASE_ID);
+    this.caseDef = getCase(data.caseId ?? DEFAULT_CASE_ID, data.difficulty ?? DEFAULT_DIFFICULTY);
     this.solvedIds = new Set(data.solvedChallenges ?? []);
     this.initialOpenGates = new Set(data.openGates ?? []);
     this.character = characterById(data.characterId ?? 'quill');

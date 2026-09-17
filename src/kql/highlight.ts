@@ -10,6 +10,11 @@
 const OPERATORS = new Set([
   'where',
   'project',
+  'project-away',
+  'project-keep',
+  'project-rename',
+  'search',
+  'render',
   'extend',
   'summarize',
   'distinct',
@@ -38,6 +43,8 @@ const KEYWORDS = new Set([
   'in',
   'matches',
   'between',
+  'timechart',
+  'columnchart',
   'true',
   'false',
   'null',
@@ -58,7 +65,7 @@ export function buildHighlightSchema(
 ): HighlightSchema {
   return {
     tables: new Set(meta.map((t) => t.name.toLowerCase())),
-    columns: new Set(meta.flatMap((t) => t.columns.map((c) => c.name.toLowerCase()))),
+    columns: new Set(['$table', ...meta.flatMap((t) => t.columns.map((c) => c.name.toLowerCase()))]),
   };
 }
 
@@ -94,8 +101,12 @@ export function highlightKql(src: string, schema: HighlightSchema): string {
 
     // number, possibly with a timespan suffix
     if (/[0-9]/.test(c)) {
-      let j = i;
-      while (j < src.length && /[0-9.]/.test(src[j])) j++;
+      let j = i + 1;
+      while (j < src.length && /[0-9]/.test(src[j])) j++;
+      if (src[j] === '.' && src[j + 1] !== '.') {
+        j++;
+        while (j < src.length && /[0-9]/.test(src[j])) j++;
+      }
       let k = j;
       while (k < src.length && /[a-zA-Z]/.test(src[k])) k++;
       const unit = src.slice(j, k);
@@ -109,21 +120,41 @@ export function highlightKql(src: string, schema: HighlightSchema): string {
       continue;
     }
 
-    // identifier
-    if (/[A-Za-z_]/.test(c)) {
-      let j = i;
+    if (c === '!' && /^!between\b/i.test(src.slice(i))) {
+      out += span('keyword', src.slice(i, i + 8));
+      i += 8;
+      continue;
+    }
+
+    // Only project operators include a hyphen; subtraction remains separate.
+    if (/[A-Za-z_$]/.test(c)) {
+      let j = i + 1;
       while (j < src.length && /[A-Za-z0-9_]/.test(src[j])) j++;
+      if (src.slice(i, j).toLowerCase() === 'project') {
+        const suffix = /^-(away|keep|rename)\b/i.exec(src.slice(j));
+        if (suffix) j += suffix[0].length;
+      }
       const word = src.slice(i, j);
       const lower = word.toLowerCase();
 
-      // a following '(' makes it a call regardless of what it is named
+      // A following '(' makes non-keyword identifiers look like calls.
       let k = j;
-      while (k < src.length && src[k] === ' ') k++;
+      while (k < src.length && /\s/.test(src[k])) k++;
       const isCall = src[k] === '(';
 
-      if (isCall) out += span('function', word);
+      if (lower === 'datetime' && isCall) {
+        const literal = /^\(\s*\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}:\d{2})?)?\s*\)/.exec(src.slice(k));
+        if (literal) {
+          out += span('function', word) + escapeHtml(src.slice(j, k + 1));
+          out += span('string', literal[0].slice(1, -1)) + ')';
+          i = k + literal[0].length;
+          continue;
+        }
+      }
+
+      if (KEYWORDS.has(lower)) out += span('keyword', word);
+      else if (isCall) out += span('function', word);
       else if (OPERATORS.has(lower)) out += span('operator', word);
-      else if (KEYWORDS.has(lower)) out += span('keyword', word);
       else if (schema.tables.has(lower)) out += span('table', word);
       else if (schema.columns.has(lower)) out += span('column', word);
       else out += escapeHtml(word);
@@ -135,6 +166,12 @@ export function highlightKql(src: string, schema: HighlightSchema): string {
     if (c === '|') {
       out += span('pipe', c);
       i++;
+      continue;
+    }
+
+    if (c === '.' && src[i + 1] === '.') {
+      out += span('op', '..');
+      i += 2;
       continue;
     }
 

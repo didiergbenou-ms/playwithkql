@@ -1,9 +1,11 @@
 import type { CaseDefinition, ColumnMeta } from '../data/cases/types';
+import { requireDifficulty } from '../data/difficulties';
 import { gradeChallenge } from '../kql/challenge';
 import { runQuery, toDisplayString } from '../kql/index';
 import type { Database } from '../kql/types';
 import { parseLevel, ROOM_WIDTH, ROWS } from '../game/levels/heartbeatHills';
 import { TRACKS } from '../game/music';
+import { CURRICULUM_SOURCES } from '../data/curriculumSources';
 
 function objectReferences(value: unknown, found = new Set<object>()): Set<object> {
   if (value === null || typeof value !== 'object' || found.has(value)) return found;
@@ -31,6 +33,8 @@ function matchesType(value: unknown, type: ColumnMeta['type']): boolean {
     case 'datetime': return value instanceof Date && Number.isFinite(value.getTime());
     case 'string': return typeof value === 'string';
     case 'int': return typeof value === 'number' && Number.isSafeInteger(value);
+    case 'real': return typeof value === 'number' && Number.isFinite(value);
+    case 'bool': return typeof value === 'boolean';
     case 'dynamic': return validValue(value);
     default: return false;
   }
@@ -55,7 +59,7 @@ function snapshotSignature(value: unknown): string {
  */
 export function validateCase(caseDef: CaseDefinition): string[] {
   const errors: string[] = [];
-  const prefix = `Case ${caseDef?.id || '<missing id>'}`;
+  const prefix = `Case ${caseDef?.id || '<missing id>'}${caseDef?.difficulty ? `:${caseDef.difficulty}` : ''}`;
   const check = (condition: unknown, message: string) => {
     if (!condition) errors.push(`${prefix}: ${message}`);
   };
@@ -76,6 +80,15 @@ export function validateCase(caseDef: CaseDefinition): string[] {
 
   inspect('structure', () => {
     for (const key of ['id', 'title', 'customer', 'summary'] as const) text(caseDef[key], key);
+    if (caseDef.difficulty !== undefined) requireDifficulty(caseDef.difficulty);
+    if (caseDef.questionSetStatus !== undefined) {
+      check(caseDef.difficulty !== undefined, 'questionSetStatus requires difficulty');
+      check(['placeholder', 'ready'].includes(caseDef.questionSetStatus), 'questionSetStatus must be placeholder or ready');
+      if (caseDef.questionSetStatus === 'placeholder') text(caseDef.questionSetNotice, 'questionSetNotice');
+      if (caseDef.questionSetStatus === 'ready') check(caseDef.questionSetNotice === null, 'ready questionSetNotice must be null');
+    } else {
+      check(caseDef.questionSetNotice === undefined || caseDef.questionSetNotice === null, 'questionSetNotice requires questionSetStatus');
+    }
     check(caseDef.id === caseDef.id.trim(), 'id must not have surrounding whitespace');
     check(typeof caseDef.placeholder === 'boolean', 'placeholder must be a boolean');
     if (caseDef.placeholder) text(caseDef.placeholderNotice, 'placeholderNotice');
@@ -198,7 +211,7 @@ export function validateCase(caseDef: CaseDefinition): string[] {
         `table ${name}: metadata columns must match database columns`);
       for (const column of meta.columns) {
         text(column.doc, `table ${name}.${column.name} doc`);
-        check(['datetime', 'string', 'int', 'dynamic'].includes(column.type), `table ${name}.${column.name}: unsupported metadata type "${column.type}"`);
+        check(['datetime', 'string', 'int', 'real', 'bool', 'dynamic'].includes(column.type), `table ${name}.${column.name}: unsupported metadata type "${column.type}"`);
       }
       for (const [index, row] of table.rows.entries()) {
         const label = `table ${name} row ${index}`;
@@ -228,7 +241,15 @@ export function validateCase(caseDef: CaseDefinition): string[] {
       check(challenge.hints.length >= 3, `${label} needs progressive hints ending in a complete query (at least three)`);
       unique(challenge.hints, `${label} hints`);
       if (challenge.requiredOperators) unique(challenge.requiredOperators, `${label} requiredOperators`);
+      if (challenge.forbiddenOperators) unique(challenge.forbiddenOperators, `${label} forbiddenOperators`);
       if (challenge.evidenceTokens) unique(challenge.evidenceTokens, `${label} evidenceTokens`);
+      if (challenge.sourceIds) {
+        check(challenge.sourceIds.length > 0, `${label} sourceIds must not be empty`);
+        unique(challenge.sourceIds, `${label} sourceIds`);
+        for (const id of challenge.sourceIds) {
+          check(CURRICULUM_SOURCES.some(source => source.id === id), `${label} unknown attribution source "${id}"`);
+        }
+      }
       check(caseDef.evidence.some(e => e.id === challenge.evidenceId), `${label} evidenceId "${challenge.evidenceId}" must link to evidence`);
       if (!db || !(caseDef.now instanceof Date) || !Number.isFinite(caseDef.now.getTime())) return;
       inspect(`${label} solution`, () => {
@@ -243,7 +264,10 @@ export function validateCase(caseDef: CaseDefinition): string[] {
       });
       inspect(`${label} worked example`, () => {
         const example = runQuery(challenge.concept.example.query, db!, { now: caseDef.now }).table;
-        check(example.columns.length > 0 && example.rows.length > 0, `${label} worked example must return rows and columns`);
+        check(challenge.concept.example.allowEmpty === undefined || typeof challenge.concept.example.allowEmpty === 'boolean',
+          `${label} example allowEmpty must be a boolean`);
+        check(example.columns.length > 0 && (example.rows.length > 0 || challenge.concept.example.allowEmpty === true),
+          `${label} worked example must return rows and columns (or explicitly declare allowEmpty for a zero-row lesson)`);
       });
       inspect(`${label} final hint`, () => {
         const grade = gradeChallenge(challenge, challenge.hints.at(-1) ?? '', db!, caseDef.now);

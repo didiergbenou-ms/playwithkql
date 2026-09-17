@@ -53,6 +53,9 @@ export function isWorkerResponse(value: unknown): value is WorkerResponse {
   }
   if (!record(value.result)) return false;
   const result = value.result;
+  if (result.visualization !== undefined &&
+    (!record(result.visualization) ||
+      (result.visualization.kind !== 'timechart' && result.visualization.kind !== 'columnchart'))) return false;
   if (value.kind === 'query-result') {
     return table(result.table) && result.features instanceof Set
       && [...result.features].every(feature => typeof feature === 'string');

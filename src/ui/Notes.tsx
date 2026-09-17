@@ -1,10 +1,12 @@
 import type { CaseDefinition } from '../data/cases/types';
 import { useStore } from '../state/store';
 import { getCase } from '../data/cases';
+import { CaseDifficulty } from './CaseDifficulty';
 
 function useActiveCase(caseDef?: CaseDefinition) {
   const runCaseId = useStore((s) => s.run.caseId);
-  return caseDef ?? getCase(runCaseId);
+  const difficulty = useStore((s) => s.run.difficulty);
+  return caseDef ?? getCase(runCaseId, difficulty);
 }
 
 export function NoteModal({
@@ -30,6 +32,7 @@ export function NoteModal({
           Esc
         </button>
       </header>
+      <CaseDifficulty caseDef={activeCase} />
       <pre className="note-body">{note.body}</pre>
       <footer className="modal-foot">
         <button className="primary" onClick={onClose}>
@@ -79,6 +82,7 @@ export function NotebookView({
         </button>
       </header>
 
+      <CaseDifficulty caseDef={caseDef} />
       <section aria-label="Pocketed field notes">
         <h3>Field notes · {fieldNotes.length} of {caseDef.level.notes.length} pocketed</h3>
         {fieldNotes.length === 0 ? (

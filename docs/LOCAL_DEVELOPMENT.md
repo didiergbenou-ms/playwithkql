@@ -68,7 +68,8 @@ If that port is already in use, Vite selects another one: open the **Local**
 URL printed in the terminal instead.
 
 You should see the **KQL Quest** menu. Click **Open case file** and follow the
-on-screen prompts. Use **A/D** to move, **Space** to jump, and **E** to interact.
+on-screen prompts: choose difficulty, then recruit, then begin the investigation.
+Use **A/D** to move, **Space** to jump, and **E** to interact.
 
 Do not open `index.html` directly from your file manager; use the local URL.
 
@@ -167,11 +168,11 @@ workbench and `check:content`; it does not change the normal game menu. Keep
 each draft's expected-result assertions with its own tests. Register a finished
 new case in `src/data/cases/index.ts` only when it is intended to be playable.
 
-Cases 002 and 003 currently use `createPlaceholderCase`, which deliberately
-copies Case 001's lessons and database. To give one its own investigation,
-replace that placeholder construction with an independent `CaseDefinition`.
-Keep its existing map and identity links. Do not change `src/data/case001.ts`
-expecting a change to affect only one placeholder.
+Playable cases use `createCurriculumCase` and their nine authored question sets.
+To change a terminal, edit the selected case/difficulty file. To change a case's
+investigation, coordinate its narrative, datasets and all three difficulty sets.
+Keep its map and identity links. `createPlaceholderCase` and the original
+`src/data/case001.ts` remain for legacy fixtures, not current playable questions.
 
 Author the complete evidence chain together: synthetic rows and schema,
 terminal objective, worked example, reference answer, progressive hints,
@@ -205,6 +206,11 @@ Direct links can omit the terminal ID to select the case's first terminal:
 The controls update the address bar; Back/Forward and reload retain the selected
 case/surface but reset local preview attempts.
 
+For a particular difficulty, use
+`?author=1&case=001&difficulty=expert&view=terminal`. The workbench defaults to
+Beginner; its difficulty selector exposes the registered case's three sets.
+Independent authoring drafts without difficulty variants keep their single set.
+
 The **content workbench** lets you select a case (including the independent
 starter), open a lesson/terminal directly, execute its queries and try its
 verdict. It reuses player-facing components but keeps preview interactions
@@ -219,6 +225,48 @@ this switch and opens the normal game.
 Before handing off, also play the affected case in the game. Direct terminal
 preview cannot prove that a platform is reachable, a gate blocks the intended
 route, or the final verdict is accessible.
+
+### Filling the 45 question slots
+
+Each file exports one `QUESTION_SET` with five numbered `slots`:
+
+The current files use `authoredSet` to define five complete lesson drafts.
+Edit the draft's `prompt`, `solution`, two progressive hints, example, evidence
+and source information; the helper produces the third complete-query hint and
+stable slots. Ready means executable: provisional adaptations remain labelled
+in `contentNote` until editorial review.
+
+| Case | Beginner | Intermediate | Expert |
+|---|---|---|---|
+| 001 | `src/data/questions/case001/beginner.ts` | `src/data/questions/case001/intermediate.ts` | `src/data/questions/case001/expert.ts` |
+| 002 | `src/data/questions/case002/beginner.ts` | `src/data/questions/case002/intermediate.ts` | `src/data/questions/case002/expert.ts` |
+| 003 | `src/data/questions/case003/beginner.ts` | `src/data/questions/case003/intermediate.ts` | `src/data/questions/case003/expert.ts` |
+
+Slot identity is **case:difficulty:terminal**, for example `001:expert:3`.
+For each incoming question, supply its objective, correct KQL answer, supporting
+table/schema, and intended evidence. Replace the slot's `lesson.prompt` and
+`lesson.solution`, then update `starter`, `hints`, `teaches`, `concept` (lesson,
+pattern, worked example), `requiredOperators`, `evidenceTokens`, and its
+`evidence` text as appropriate. The files initially reference independently
+cloned seeds only to keep all slots playable; do not edit the shared seed to
+customize one set.
+
+Keep `slot`, set `id`, `caseId` and `difficulty` stable. Map positions, gate links,
+evidence IDs and points are derived from the base case rather than entered again.
+If new questions need different rows, supply `dataset` with **database factory,
+tableMeta and fixed now together**; keep that case's root cause and map unchanged.
+
+Mark a finished slot `source: 'authored'`. Only after all five slots have their
+final content, set `questionSetStatus: 'ready'` and `questionSetNotice: null`.
+Until then the UI must disclose the reused/pending questions. Run
+`npm run check:content`, `npm run test:difficulties` and the workbench preview for
+that tier. Add independent expected-result assertions for the final questions;
+reference queries comparing against themselves are not proof of content quality.
+
+The March adaptation has revision `march-2026-v1`. Completion records are keyed
+by case, difficulty and revision, so old placeholder scores remain history rather
+than automatically completing the replacement lessons. Retain the revision for
+copy corrections; use a new one when materially replacing the exercises.
 
 ### Handoff
 
@@ -242,6 +290,8 @@ npm run check:content
 npm run test:authoring
 npm run test:performance
 npm run test:reliability
+npm run test:difficulties
+npm run test:curriculum
 npm run fuzz
 npm run build
 ```
@@ -258,6 +308,12 @@ use `npm run dev` for everyday development. Stop either server with **Ctrl+C**.
 Run checks **sequentially**: the TypeScript test scripts share `.tmp/test.mjs`.
 Do not launch multiple suites at the same time.
 
+For data changes, run `npm run seed:curriculum` before the tests. It regenerates
+the three supplied datasets plus the small synthetic enrichment dataset. Commit
+the generator and generated JSON together; CI checks for drift. The original
+August prototype corpus remains under `src/data/case001.ts` for regression
+fixtures, not as the source of current playable lessons.
+
 ### Engine and renderer checks
 
 Phaser is pinned to **4.2.1**. Updating the engine needs real browser checks;
@@ -272,6 +328,7 @@ python -m playwright install chromium
 python scripts/testPhaserBrowser.py
 python scripts/testPhaserBrowser.py --canvas
 python scripts/testKqlBrowser.py
+python scripts/testDifficultiesBrowser.py
 ```
 
 The first two commands are one-time browser-test setup, not requirements to play

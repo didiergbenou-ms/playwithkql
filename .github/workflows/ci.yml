@@ -61,6 +61,25 @@ jobs:
           node scripts/run.mjs scripts/testQueryWorker.ts
           node scripts/run.mjs scripts/testQueryDrafts.ts
 
+      - name: Difficulty question sets and progression
+        run: |
+          node scripts/run.mjs scripts/testQuestionSets.ts
+          node scripts/run.mjs scripts/testDifficultyState.ts
+          node scripts/run.mjs scripts/testDifficultyUi.tsx
+
+      - name: Adapted curriculum
+        run: |
+          node seed/curriculum/seed-case001.mjs
+          node seed/curriculum/seed-case002.mjs
+          node seed/curriculum/seed-case003.mjs
+          node seed/curriculum/seed-supplement.mjs
+          node seed/curriculum/verify.mjs
+          git diff --exit-code -- content/datasets
+          node scripts/run.mjs scripts/testCurriculumLanguage.ts
+          node scripts/run.mjs scripts/testCurriculumGrading.ts
+          node scripts/run.mjs scripts/testCurriculumContent.ts
+          node scripts/run.mjs scripts/testCurriculumUi.tsx
+
       # Adversarial input against the KQL parser. This is what caught the
       # stack overflow on deeply nested parentheses.
       - name: Fuzz
@@ -90,6 +109,7 @@ jobs:
           python scripts/testPhaserBrowser.py
           python scripts/testPhaserBrowser.py --canvas
           python scripts/testKqlBrowser.py
+          python scripts/testDifficultiesBrowser.py
 
       # Lets a reviewer download and open the actual build for a PR without
       # having to check the branch out and install anything.

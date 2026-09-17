@@ -12,18 +12,25 @@ export interface QueryResult {
   table: Table;
   /** Every operator + function the query used, e.g. {"where","summarize","arg_max"}. */
   features: Set<string>;
+  visualization?: { kind: 'timechart' | 'columnchart' };
 }
 
 /** Parse + run in one go. Throws KqlError with a friendly message. */
 export function runQuery(src: string, db: Database, opts?: EvalOptions): QueryResult {
   const ast = parse(src);
   const table = evaluate(ast, db, opts);
-  return { table, features: collectFeatures(ast) };
+  const last = ast.ops.at(-1);
+  return {
+    table,
+    features: collectFeatures(ast),
+    ...(last?.kind === 'render' ? { visualization: { kind: last.visualization } } : {}),
+  };
 }
 
 /** Walks the AST collecting operator names and function names. */
 export function collectFeatures(q: Query): Set<string> {
   const out = new Set<string>();
+  if (q.search !== undefined) out.add('search');
 
   const walkExpr = (e: Expr): void => {
     switch (e.k) {
@@ -35,6 +42,12 @@ export function collectFeatures(q: Query): Set<string> {
         out.add(e.op);
         walkExpr(e.l);
         walkExpr(e.r);
+        break;
+      case 'between':
+        out.add(e.negated ? '!between' : 'between');
+        walkExpr(e.expr);
+        walkExpr(e.lo);
+        walkExpr(e.hi);
         break;
       case 'un':
         walkExpr(e.e);

@@ -1,0 +1,100 @@
+{
+  "datasetId": "ds-case002-vaults",
+  "queryTime": "2026-03-11T12:00:00Z",
+  "tables": [
+    {
+      "name": "Syslog",
+      "columns": [
+        {
+          "name": "TimeGenerated",
+          "type": "datetime"
+        },
+        {
+          "name": "Computer",
+          "type": "string"
+        },
+        {
+          "name": "Facility",
+          "type": "string"
+        },
+        {
+          "name": "SeverityLevel",
+          "type": "string"
+        },
+        {
+          "name": "ProcessName",
+          "type": "string"
+        },
+        {
+          "name": "SyslogMessage",
+          "type": "string"
+        }
+      ],
+      "rowCount": 780
+    },
+    {
+      "name": "AzureActivity",
+      "columns": [
+        {
+          "name": "TimeGenerated",
+          "type": "datetime"
+        },
+        {
+          "name": "OperationNameValue",
+          "type": "string"
+        },
+        {
+          "name": "Caller",
+          "type": "string"
+        },
+        {
+          "name": "ActivityStatusValue",
+          "type": "string"
+        },
+        {
+          "name": "ResourceGroup",
+          "type": "string"
+        },
+        {
+          "name": "_ResourceId",
+          "type": "string"
+        }
+      ],
+      "rowCount": 200
+    },
+    {
+      "name": "Heartbeat",
+      "columns": [
+        {
+          "name": "TimeGenerated",
+          "type": "datetime"
+        },
+        {
+          "name": "Computer",
+          "type": "string"
+        },
+        {
+          "name": "OSType",
+          "type": "string"
+        },
+        {
+          "name": "Version",
+          "type": "string"
+        },
+        {
+          "name": "ComputerEnvironment",
+          "type": "string"
+        },
+        {
+          "name": "RemoteIPCountry",
+          "type": "string"
+        },
+        {
+          "name": "ResourceGroup",
+          "type": "string"
+        }
+      ],
+      "rowCount": 3296
+    }
+  ]
+}

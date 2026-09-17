@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { validateCase } from '../authoring/validateCase';
 import { DEFAULT_CASE_ID } from '../data/cases';
+import { DEFAULT_DIFFICULTY, DIFFICULTIES } from '../data/difficulties';
+import { CaseDifficulty } from '../ui/CaseDifficulty';
 import { Briefing } from '../ui/Briefing';
 import { TerminalModal } from '../ui/TerminalModal';
 import { VerdictView } from '../ui/VerdictView';
 import {
   parsePreviewSearch, PREVIEW_CASES, PREVIEW_VIEWS, previewSearch, previewSessionKey,
-  shouldClosePreview, type PreviewSelection,
+  shouldClosePreview, previewVariants, type PreviewSelection,
 } from './contentPreviewSelection';
 
 function PreviewSession({
@@ -48,6 +50,7 @@ function PreviewSession({
       {view === 'overview' && (
         <div className="panel">
           <h2>CASE {caseDef.id} · {caseDef.title}</h2>
+          <CaseDifficulty caseDef={caseDef} notice />
           <p>{caseDef.summary}</p>
           {caseDef.placeholderNotice && <p className="case-notice">{caseDef.placeholderNotice}</p>}
           <p>Open any surface directly. Verdict preview includes the full evidence corpus.</p>
@@ -147,8 +150,8 @@ export default function ContentPreview({ initialSearch }: { initialSearch?: stri
         <h1>Content workbench</h1>
         <p>No progress, profile changes, or achievements saved. No game world is running.</p>
         <p className="muted">
-          Share the address bar URL. Missing parameters default to case {DEFAULT_CASE_ID}, its first
-          terminal, and overview. Unknown values are errors. Switching case selects its first terminal.
+          Share the address bar URL. Missing parameters default to case {DEFAULT_CASE_ID}, Beginner, its first
+          terminal, and overview. Unknown values are errors. Switching case or difficulty selects its first terminal.
           Switching any selection or resetting clears local attempts, hints, solution, and verdict.
         </p>
         {selection ? (
@@ -164,6 +167,23 @@ export default function ContentPreview({ initialSearch }: { initialSearch?: stri
                   {PREVIEW_CASES.map((item) => (
                     <option key={item.id} value={item.id}>{item.id} · {item.title}</option>
                   ))}
+                </select>
+              </div>
+              <div className="content-preview-control">
+                <label htmlFor="preview-difficulty">Difficulty</label>
+                <select
+                  id="preview-difficulty"
+                  value={selection.caseDef.difficulty ?? DEFAULT_DIFFICULTY}
+                  onChange={(event) => {
+                    const params = new URLSearchParams(previewSearch(selection));
+                    params.set('difficulty', event.target.value);
+                    params.delete('terminal');
+                    navigateSearch(`?${params}`);
+                  }}
+                >
+                  {DIFFICULTIES.filter(item => previewVariants(selection.caseDef)
+                    .some(variant => (variant.difficulty ?? DEFAULT_DIFFICULTY) === item.id))
+                    .map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
                 </select>
               </div>
               <div className="content-preview-control">
@@ -216,6 +236,7 @@ export default function ContentPreview({ initialSearch }: { initialSearch?: stri
         <>
           <section className="panel content-preview-validation" aria-label="Case validation">
             <h2>Author validation · CASE {selection.caseDef.id}</h2>
+            <CaseDifficulty caseDef={selection.caseDef} />
             {issues.length ? (
               <>
                 <p>{issues.length} issue{issues.length === 1 ? '' : 's'} to review:</p>

@@ -1,0 +1,15 @@
+.query-chart {
+  margin: 16px 0;
+  padding: 12px;
+  background: var(--black);
+  border: 2px solid var(--cyan);
+}
+
+.query-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.query-chart text { font-family: var(--mono); font-size: 11px; fill: var(--white); }
+.query-chart figcaption { display: flex; flex-wrap: wrap; gap: 8px 16px; font-family: var(--mono); font-size: 12px; }
+.chart-notice { padding: 12px; border: 1px solid var(--amber); color: var(--amber); }
+.content-attribution { font-size: 12px; margin-top: 16px; }
+.content-attribution a { color: var(--cyan); }
+.content-attribution p { white-space: pre-wrap; }
+.curriculum-notice { border-left: 3px solid var(--amber); padding-left: 12px; font-size: 12px; color: var(--grey); }

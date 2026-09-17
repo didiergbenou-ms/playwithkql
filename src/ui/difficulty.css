@@ -1,0 +1,52 @@
+.difficulty-screen {
+  display: grid;
+  gap: 24px;
+}
+
+.difficulty-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.difficulty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  text-align: left;
+  min-width: 0;
+  white-space: normal;
+}
+
+.difficulty-card.chosen {
+  outline: 3px solid var(--cyan);
+  outline-offset: 4px;
+}
+
+.difficulty-card strong {
+  font-family: var(--pixel);
+  color: var(--amber);
+  font-size: 13px;
+}
+
+.difficulty-number {
+  font-family: var(--pixel);
+  font-size: 30px;
+  color: var(--cyan);
+}
+
+.difficulty-record {
+  margin-top: auto;
+  color: var(--white);
+}
+
+.case-difficulty {
+  margin: 10px 0;
+}
+
+@media (max-width: 760px) {
+  .difficulty-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

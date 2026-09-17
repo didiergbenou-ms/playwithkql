@@ -57,16 +57,7 @@ export function cloneTableMeta(meta: TableMeta[]): TableMeta[] {
 }
 
 export function cloneChallenges(challenges: ChallengeSpec[]): ChallengeSpec[] {
-  return challenges.map((challenge) => ({
-    ...challenge,
-    hints: [...challenge.hints],
-    requiredOperators: challenge.requiredOperators ? [...challenge.requiredOperators] : undefined,
-    evidenceTokens: challenge.evidenceTokens ? [...challenge.evidenceTokens] : undefined,
-    concept: {
-      ...challenge.concept,
-      example: { ...challenge.concept.example },
-    },
-  }));
+  return structuredClone(challenges);
 }
 
 export function cloneEvidence(evidence: Evidence[]): Evidence[] {

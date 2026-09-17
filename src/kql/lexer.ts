@@ -1,6 +1,6 @@
 import { KqlError } from './types';
 
-export type TokenKind = 'num' | 'str' | 'ident' | 'punc' | 'timespan' | 'eof';
+export type TokenKind = 'num' | 'str' | 'datetime' | 'ident' | 'punc' | 'timespan' | 'eof';
 
 export interface Token {
   kind: TokenKind;
@@ -12,7 +12,7 @@ export interface Token {
   pos: number;
 }
 
-const PUNCT2 = ['==', '!=', '<=', '>=', '=~', '!~', '&&', '||'];
+const PUNCT2 = ['..', '==', '!=', '<=', '>=', '=~', '!~', '&&', '||'];
 const PUNCT1 = ['<', '>', '=', '+', '-', '*', '/', '%', '|', '(', ')', ',', '.', '[', ']', '!'];
 
 const TIMESPAN_UNITS: Record<string, number> = {
@@ -58,6 +58,19 @@ export function tokenize(src: string): Token[] {
     }
 
     const start = i;
+
+    // Only the argument of datetime(...) admits an unquoted date/time.
+    // Do not rewrite the source: strings, comments and diagnostic offsets stay intact.
+    if (isDigit(c) && tokens.at(-1)?.value === '(' &&
+        tokens.at(-2)?.kind === 'ident' && tokens.at(-2)?.value.toLowerCase() === 'datetime') {
+      const literal = /^\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,7})?)?(?:[Zz]|[+-]\d{2}:\d{2})?)?(?=\s*(?:\)|\/\/))/.exec(src.slice(i));
+      if (!literal) {
+        throw new KqlError('Invalid bare datetime literal.', start, 'Use datetime(2026-03-11 09:15:00) or a quoted ISO datetime.');
+      }
+      i += literal[0].length;
+      tokens.push({ kind: 'datetime', value: literal[0], pos: start });
+      continue;
+    }
 
     // strings
     if (c === '"' || c === "'") {
@@ -110,7 +123,8 @@ export function tokenize(src: string): Token[] {
     }
 
     // identifiers / keywords
-    if (isIdentStart(c)) {
+    if (isIdentStart(c) || (c === '$' && isIdentStart(src[i + 1] ?? ''))) {
+      if (c === '$') i++;
       while (i < src.length && isIdentPart(src[i])) i++;
       tokens.push({ kind: 'ident', value: src.slice(start, i), pos: start });
       continue;

@@ -13,7 +13,7 @@ import { RELAY_RUINS } from '../src/game/levels/relayRuins';
 import { CASE001 } from '../src/data/cases/case001';
 import { CASE002 } from '../src/data/cases/case002';
 import { CASE003 } from '../src/data/cases/case003';
-import { CASES, DEFAULT_CASE_ID, getCase } from '../src/data/cases';
+import { CASES, CASE_VARIANTS, DEFAULT_CASE_ID, getCase } from '../src/data/cases';
 
 let passed = 0;
 const failures: string[] = [];
@@ -38,7 +38,7 @@ function eq<T>(actual: T, expected: T, label: string) {
   }
 }
 
-const CASE_LIST = [...CASES, CASE_STARTER];
+const CASE_LIST = [...CASE_VARIANTS, CASE_STARTER];
 
 function roomSignature(rows: string[]) {
   return rows.map((row) => row.padEnd(ROOM_WIDTH, ' ')).join('\n');
@@ -47,7 +47,19 @@ function roomSignature(rows: string[]) {
 check('registry: has unique case ids and keeps 001 as default', () => {
   eq(DEFAULT_CASE_ID, '001', 'default case');
   eq(new Set(CASES.map(item => item.id)).size, CASES.length, 'unique case ids');
-  assert(CASES.includes(CASE001), 'case001 must remain selectable');
+  assert(CASES.some(item => item.id === CASE001.id), 'case001 must remain selectable');
+  for (const base of [CASE001, CASE002, CASE003]) {
+    const canonical = getCase(base.id);
+    for (const [index, challenge] of base.challenges.entries()) {
+      for (const key of Object.keys(challenge) as (keyof typeof challenge)[]) {
+        eq(JSON.stringify(canonical.challenges[index][key]), JSON.stringify(challenge[key]),
+          `${base.id}: beginner challenge ${index + 1}.${key} preserved`);
+      }
+    }
+    for (const key of ['level', 'evidence', 'rootCauses', 'causalChain', 'email', 'debrief'] as const) {
+      eq(JSON.stringify(canonical[key]), JSON.stringify(base[key]), `${base.id}: ${key} preserved`);
+    }
+  }
   assert(!CASES.some(item => item.id === CASE_STARTER.id), 'starter must not be registered');
 });
 
@@ -79,11 +91,13 @@ check('registry: definitions are stable and cases do not share mutable lesson st
   eq(JSON.stringify(a.database()), before, 'database clone contents');
 });
 
-check('case001 adapter: preserves shipped flags and debrief intent', () => {
+check('case001 adapter: adopts the supplied timeline without changing case identity', () => {
   eq(CASE001.placeholder, false, 'case001 placeholder');
   eq(CASE001.placeholderNotice, null, 'case001 placeholder notice');
   eq(CASE001.email.from, 'j.alvarez@contoso.com', 'case001 email from');
-  assert(CASE001.debrief.title.includes('Proxy'), 'case001 debrief title');
+  assert(CASE001.debrief.title.includes('NSG'), 'case001 debrief title');
+  eq(CASE001.now.toISOString(), '2026-03-11T12:00:00.000Z', 'pinned curriculum clock');
+  eq(CASE001.fleetSize, 12, 'supplied fleet size');
   assert(!CASE001.debrief.followUp.includes('that is Case 002'), 'follow-up must not claim case002 already teaches parse_json');
 });
 

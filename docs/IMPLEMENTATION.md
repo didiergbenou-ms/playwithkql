@@ -8,29 +8,30 @@ Prototype status: **Case 001 "Heartbeat Hills" is complete and playable end to e
 
 ## Case files and map scaffolds
 
-The menu now offers Heartbeat Hills (001), Signal Harbor (002), and Relay Ruins
-(003). The latter two have new geometry but deliberately reuse the original
-beginner KQL tasks, synthetic dataset and verdict. Their menus, briefings,
-terminals and debriefs label this reuse; bespoke incident content is pending.
+The menu offers Heartbeat Hills (001), Signal Harbor (002), and Relay Ruins (003).
+Their geometry is unchanged by the adapted March 11 curriculum. Each map now has
+three five-question sets, with executable source-derived and locally adapted
+content. Ready sets still disclose editorial review status.
 
 | Authoring task | File |
 |---|---|
 | Register/select a case | `src/data/cases/index.ts` |
 | Shared case contract | `src/data/cases/types.ts` (`CaseDefinition`) |
-| Original content adapter | `src/data/cases/case001.ts` |
+| Heartbeat Hills adapter | `src/data/cases/case001.ts` |
 | Signal Harbor content | `src/data/cases/case002.ts` |
 | Relay Ruins content | `src/data/cases/case003.ts` |
-| Temporary lesson-copy factory | `src/data/cases/placeholder.ts` |
+| Legacy lesson-copy factory and shared cloning helpers | `src/data/cases/placeholder.ts` |
+| Current datasets, lesson helper and narrative | `src/data/curriculum/` |
+| Question content by case and difficulty | `src/data/questions/` |
 | Harbor geometry, room names, notes | `src/game/levels/signalHarbor.ts` |
 | Ruins geometry, room names, notes | `src/game/levels/relayRuins.ts` |
 | Common parser and original map | `src/game/levels/heartbeatHills.ts` |
 
-`createPlaceholderCase` currently copies the Case 001 lessons and prefixes
-their IDs and links. To author a genuinely new investigation, replace that
-factory call with a `CaseDefinition` supplying its own database, schema,
-challenges, evidence, root causes and debrief; keep the map's terminal order
-and gate links consistent. Do not edit the original dataset expecting a
-case-specific change: the placeholder factory intentionally reuses it.
+`createPlaceholderCase` remains for legacy fixtures and copying experiments.
+Playable cases use `createCurriculumCase` and authored question sets. Do not edit
+the old `src/data/case001.ts` corpus expecting a playable lesson change; it is
+retained for interpreter regressions. Keep terminal/gate identities consistent
+when changing the active curriculum.
 
 `getCase` returns a stable definition; treat it as configuration, not run state.
 Databases returned by each case's factory are independent snapshots. The
@@ -67,6 +68,42 @@ The workbench reuses `Briefing`, `TerminalModal` and the pure `VerdictView`;
 initializes App, the persisted store or Phaser. It keeps attempts, hints and
 verdict feedback in local React state. Production builds exclude the workbench,
 its catalog and validator; the URL flag alone cannot enable them.
+
+### Case difficulty and question sets
+
+The game still has three case maps. Each case offers Beginner, Intermediate and
+Expert after case selection and before recruit selection: nine question sets,
+five terminal slots per set, 45 slots total. The current 45-lesson adaptation uses the supplied curriculum's twelve Beginner
+tasks plus three locally authored Beginner additions, and fifteen adapted tasks
+at each higher difficulty. The supplied source pack describes a different
+12-case/57-terminal linear campaign; its progression, scoring and save rules
+are not imported. Supplemental synthetic data supports executable higher-tier
+tasks. Locally added or reshaped content is labelled for editorial review.
+
+Question-set files live under `src/data/questions/`. Stable
+`getCase(caseId, difficulty)` variants supply the selected lessons while keeping
+the case's map, investigation and root cause. `getCase(caseId)` selects Beginner
+for compatible callers; gameplay must pass the run's difficulty explicitly.
+`CASES` remains the three menu entries; `CASE_VARIANTS` contains all nine.
+
+Run identity includes difficulty; every fresh run resets terminal states, drafts,
+gates and notes. Intermediate and Expert challenge IDs are distinct from
+Beginner. Profile completion and best-score records use case/difficulty keys;
+existing aggregate profile scores and achievements remain game-wide. Old profile
+history cannot identify a case/difficulty, so it is not treated as a tier
+completion. Replay keeps the same case and difficulty.
+
+Replacement curricula set a question-set revision. Completion lookup uses
+`case:difficulty@revision`; earlier placeholder records remain in history and
+aggregate scores, but do not complete questions the player has never attempted.
+Increment the revision for materially replaced lessons, not for cosmetic edits.
+
+The authoring workbench has a difficulty selector and accepts links such as
+`?author=1&case=001&difficulty=expert&view=terminal`. Changing the tier resets
+local preview state and chooses its first terminal. `check:content` validates
+all nine playable variants plus authoring drafts. `test:difficulties` covers
+question wiring, independent progression and preview routing; the browser suite
+plays all 45 slots through their matching gates and verdicts.
 
 ---
 
@@ -203,6 +240,34 @@ test runner.
 drafts. Browser reliability checks run through `scripts/testKqlBrowser.py`
 against the production preview.
 
+### Adapted curriculum contracts
+
+The supplied pack is reference material, not an instruction to replace the
+game's progression system. Its three Beginner datasets retain their fixed
+`queryTime` of **2026-03-11T12:00:00Z**. The adapter converts declared datetime
+fields to real `Date` values; `now()` and `ago()` still use the case clock.
+Supplemental synthetic rows support the selected higher-tier tasks.
+
+The adopted extensions are deliberately bounded: literal cross-table `search`,
+column removal/renaming, inclusive `between`, UTC datetime literals,
+`case()`/`datetime_diff()`, and `render timechart`/`columnchart`.
+Charts are SVG views of actual worker result rows, with the result table retained.
+The chart preview has size/series limits; grading always sees the complete result.
+
+Sampling, column shaping and tied sorts use explicit lesson validation contracts.
+Tied sort keys do not require arbitrary tie ordering; typed values and row
+multiplicities must still match where content correctness is required.
+`project-away` and `project-keep` are opposites, not aliases, despite the
+source pack's alias table. No unsupported query can pass merely by containing
+an operator name and displaying a canned answer.
+
+There are no joins, anomaly-series routines, external data access or simulated
+query-performance scores added by this adaptation. Higher-tier objectives that
+relied on them are reshaped into supported local analysis and noted for review.
+The original skip rules, hint penalties, rank changes, collectible persistence
+and alternate save key are not adopted. Attribution accompanies the lessons and
+Options screen; `SOURCES.md` preserves the supplied ledger.
+
 ### Lightweight performance safeguards
 
 - `App.tsx` lazy-loads `PhaserGame` and preloads it during recruit selection.
@@ -266,7 +331,10 @@ device testing.
 
 ---
 
-## Case 001 — Heartbeat Hills
+## Historical prototype case — legacy regression corpus
+
+This section describes the original August proxy scenario retained in
+`src/data/case001.ts` for regression tests, not the current March curriculum.
 
 **Incident:** five Contoso production machines stopped sending heartbeats at
 09:15Z. The machines are up.

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CHARACTERS, characterPreviewUrl, type CharacterDef } from '../game/characters';
 import { useStore } from '../state/store';
+import type { CaseDefinition } from '../data/cases/types';
+import { CaseDifficulty } from './CaseDifficulty';
 
 /** Animated sprite preview — cycles the idle/run frames as an <img>. */
 function SpritePreview({ def, animate }: { def: CharacterDef; animate: boolean }) {
@@ -30,10 +32,12 @@ function SpritePreview({ def, animate }: { def: CharacterDef; animate: boolean }
 
 export function CharacterSelect({
   caseTitle,
+  caseDef,
   onPick,
   onBack,
 }: {
   caseTitle: string;
+  caseDef?: CaseDefinition;
   onPick: () => void;
   onBack: () => void;
 }) {
@@ -48,8 +52,9 @@ export function CharacterSelect({
       <div className="select-head">
         <span className="tag tag-cyan">KINGDOM OF SIGNALS</span>
         <h1>Choose your recruit</h1>
+        {caseDef && <CaseDifficulty caseDef={caseDef} />}
         <p className="muted">
-          Four investigators, four ways to cross {caseTitle}. The queries are the same — how you
+          Four investigators, four ways to cross {caseTitle}. Within this difficulty, the queries are the same — how you
           survive the trip is not.
         </p>
       </div>

@@ -1,6 +1,7 @@
 import type { CaseDefinition } from '../data/cases/types';
 import { formatKql } from '../kql/format';
 import { ACHIEVEMENTS, rankFor, scoreRun, useStore } from '../state/store';
+import { CaseDifficulty } from './CaseDifficulty';
 
 export function Debrief({
   caseDef,
@@ -28,6 +29,7 @@ export function Debrief({
     <div className="screen debrief">
       <div className="panel debrief-main">
         <span className="tag tag-cyan">CASE {caseDef.id} — CLOSED</span>
+        <CaseDifficulty caseDef={caseDef} notice />
         {run.devUsed && (
           <p className="dev-warn">
             Dev shortcuts were used on this run. The score below is not a real result and nothing
