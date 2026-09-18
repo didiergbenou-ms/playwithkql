@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CaseDefinition } from '../data/cases/types';
 import type { ChallengeSpec } from '../kql/challenge';
 import type { GradeResult } from '../kql/challenge';
@@ -14,6 +14,7 @@ import { DEFAULT_CASE_ID, getCase } from '../data/cases';
 import { CaseDifficulty } from './CaseDifficulty';
 import { ResultChart } from './ResultChart';
 import { ContentSources } from './ContentSources';
+import { useTouchControlsEnabled } from './TouchControls';
 
 interface Props {
   caseDef?: CaseDefinition;
@@ -126,6 +127,9 @@ export function TerminalModal({
   onSolved,
   onClose,
 }: Props) {
+  const touchEnabled = useTouchControlsEnabled();
+  const modalRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const db = useMemo(() => caseDef.database(), [caseDef]);
   const [query, setQuery] = useState(() => initialQuery ?? formatKql(spec.starter));
   const queryRef = useRef(query);
@@ -140,6 +144,12 @@ export function TerminalModal({
   const [pane, setPane] = useState<'learn' | 'task'>(
     alreadySolved || initialQuery !== undefined ? 'task' : 'learn',
   );
+  useLayoutEffect(() => {
+    // Learn and Solve share a scroller. Start the new pane at its heading,
+    // rather than inheriting the worked example's bottom-of-page position.
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    if (modalRef.current) modalRef.current.scrollTop = 0;
+  }, [pane]);
   const [exampleResult, setExampleResult] = useState<QueryResult | null>(null);
   const [exampleError, setExampleError] = useState<string | null>(null);
 
@@ -269,7 +279,8 @@ export function TerminalModal({
   ];
 
   return (
-    <div className="modal terminal-modal">
+    <div className={`modal terminal-modal${touchEnabled ? ' terminal-touch' : ''}`} ref={modalRef}>
+      <div className="terminal-scroll" ref={scrollRef}>
       <header className="modal-head">
         <div>
           <span className="tag tag-amber">KQL TERMINAL</span>
@@ -450,13 +461,13 @@ export function TerminalModal({
 
         <div className="editor-col">
           <span className="step-label">Step 2 · Write the query</span>
-          <KqlEditor value={query} onChange={changeQuery} onRun={run} meta={caseDef.tableMeta} autoFocus />
+          <KqlEditor value={query} onChange={changeQuery} onRun={run} meta={caseDef.tableMeta} autoFocus={!touchEnabled} />
 
           <div className="editor-actions">
-            <button className="primary big" onClick={run} disabled={running}>
+            {!touchEnabled && <button className="primary big" onClick={run} disabled={running}>
               Run query <kbd>Ctrl</kbd>+<kbd>Enter</kbd>
-            </button>
-            {running && <button className="ghost small" onClick={() => cancelRun('Query cancelled. No attempt recorded.')}>Cancel query</button>}
+            </button>}
+            {!touchEnabled && running && <button className="ghost small" onClick={() => cancelRun('Query cancelled. No attempt recorded.')}>Cancel query</button>}
             <button className="ghost small" onClick={resetQuery}>
               Reset
             </button>
@@ -469,7 +480,7 @@ export function TerminalModal({
             </button>
           </div>
           <span className="editor-tip">
-            <kbd>Ctrl</kbd>+<kbd>Space</kbd> suggestions · wrong answers cost nothing
+            {touchEnabled ? 'Tap the editor to type · tap a suggestion to complete · wrong answers cost nothing' : <><kbd>Ctrl</kbd>+<kbd>Space</kbd> suggestions · wrong answers cost nothing</>}
           </span>
 
           {running && <p role="status">Running query... You can cancel without losing your draft.</p>}
@@ -558,6 +569,13 @@ export function TerminalModal({
           </button>
         </footer>
       )}
+      </div>
+      {touchEnabled && pane === 'task' && <footer className="terminal-touch-actions">
+        {running
+          ? <button className="ghost" onClick={() => cancelRun('Query cancelled. No attempt recorded.')}>Cancel query</button>
+          : <button className="primary" onClick={run}>Run query</button>}
+        <button className="ghost" onClick={onClose}>Close terminal</button>
+      </footer>}
     </div>
   );
 }

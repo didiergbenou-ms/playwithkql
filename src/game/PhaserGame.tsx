@@ -2,17 +2,20 @@ import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
 import { bus } from './bus';
-import { GAME_HEIGHT, GAME_WIDTH } from './config';
+import { GAME_HEIGHT, GAME_WIDTH, PORTRAIT_MAX_WORLD_HEIGHT, PORTRAIT_MIN_WORLD_WIDTH } from './config';
+import { chooseViews, type ViewportLayout } from './viewport';
+import { touchInput } from './inputBridge';
 import { DEFAULT_CASE_ID } from '../data/cases';
 import { DEFAULT_DIFFICULTY, type Difficulty } from '../data/difficulties';
 
 declare global {
   interface Window {
-    __kql?: { game: Phaser.Game; bus: typeof bus };
+    __kql?: { game: Phaser.Game; bus: typeof bus; input: typeof touchInput };
   }
 }
 
 interface Props {
+  mobile?: boolean;
   solvedChallenges: string[];
   openGates: string[];
   characterId: string;
@@ -21,6 +24,7 @@ interface Props {
 }
 
 export function PhaserGame({
+  mobile = false,
   solvedChallenges,
   openGates,
   characterId,
@@ -29,11 +33,14 @@ export function PhaserGame({
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const mobileRef = useRef(mobile);
+  const fitRef = useRef<(() => void) | null>(null);
   // captured once — the scene is seeded on boot, then driven by the event bus
   const seed = useRef({ solvedChallenges, openGates, characterId, caseId, difficulty });
 
   useEffect(() => {
     if (!hostRef.current || gameRef.current) return;
+    hostRef.current.style.setProperty('--portrait-world-aspect', `${PORTRAIT_MIN_WORLD_WIDTH} / ${PORTRAIT_MAX_WORLD_HEIGHT}`);
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
@@ -55,15 +62,65 @@ export function PhaserGame({
       scene: [],
     });
 
-    const startScene = () => game.scene.add('Game', GameScene, true, seed.current);
+    let fitFrame: number | undefined;
+    let layout: ViewportLayout | undefined;
+    const fitParent = () => {
+      if (fitFrame !== undefined) return;
+      fitFrame = requestAnimationFrame(() => {
+        fitFrame = undefined;
+        if (gameRef.current !== game || !game.isRunning || !hostRef.current?.isConnected) return;
+        const host = hostRef.current;
+        // A detached/hidden host has no allocation yet. ResizeObserver will
+        // retry when layout exists; invalid public geometry inputs still throw.
+        if (host.clientWidth <= 0 || host.clientHeight <= 0) return;
+        const next = chooseViews(
+          host.clientWidth, host.clientHeight, mobileRef.current, undefined, undefined,
+          window.innerWidth < window.innerHeight ? 'portrait' : 'landscape',
+        );
+        const changed = !layout || JSON.stringify(next) !== JSON.stringify(layout);
+        layout = next;
+        if (game.scale.gameSize.width !== next.width || game.scale.gameSize.height !== next.height) {
+          game.scale.setGameSize(next.width, next.height);
+        }
+        game.scale.getParentBounds();
+        game.scale.refresh();
+        host.dataset.viewportMode = next.mode;
+        host.dataset.viewportCapped = String(next.unusedCssHeight > 1);
+        // Canvas backing dimensions are integers even when Scale's logical
+        // size is fractional. Fit the actual surface with one CSS scale.
+        const displayScale = Math.min(host.clientWidth / game.canvas.width, host.clientHeight / game.canvas.height);
+        host.style.setProperty('--game-content-width', `${game.canvas.width * displayScale}px`);
+        host.style.setProperty('--game-content-height', `${game.canvas.height * displayScale}px`);
+        host.style.setProperty('--game-unused-height', `${next.unusedCssHeight}px`);
+        if (host.parentElement?.classList.contains('game-viewport')) {
+          host.parentElement.dataset.viewportMode = next.mode;
+        }
+        const scene = game.scene.getScene('Game') as GameScene | null;
+        if (scene && changed) scene.setViewportLayout(next);
+        // setGameSize clears the backing surface even if the loop is asleep.
+        scene?.renderFrozenFrame();
+      });
+    };
+    fitRef.current = fitParent;
+    // React layout and phone browser chrome can resize the host without a
+    // window resize, including while Phaser's frame loop is sleeping.
+    const resizeObserver = new ResizeObserver(fitParent);
+    resizeObserver.observe(hostRef.current);
+    const startScene = () => {
+      game.scene.add('Game', GameScene, true, seed.current);
+      fitParent();
+    };
     if (game.isRunning) startScene();
     else game.events.once(Phaser.Core.Events.READY, startScene);
     gameRef.current = game;
 
     // debug handle for level designers and automated playtests
-    window.__kql = { game, bus };
+    window.__kql = { game, bus, input: touchInput };
 
     return () => {
+      fitRef.current = null;
+      resizeObserver.disconnect();
+      if (fitFrame !== undefined) cancelAnimationFrame(fitFrame);
       const g = gameRef.current;
       gameRef.current = null;
       if (window.__kql?.game === g) delete window.__kql;
@@ -76,6 +133,11 @@ export function PhaserGame({
       }
     };
   }, []);
+
+  useEffect(() => {
+    mobileRef.current = mobile;
+    fitRef.current?.();
+  }, [mobile]);
 
   return <div className="phaser-host" ref={hostRef} />;
 }

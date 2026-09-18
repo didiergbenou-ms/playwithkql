@@ -212,14 +212,16 @@ def main():
                 assert page.evaluate("__kql.game.renderer.type") == (1 if args.canvas else 2)
                 before = page.evaluate("__kql.game.scene.getScene('Game').player.x")
                 page.keyboard.down("d")
-                page.wait_for_timeout(220)
-                page.keyboard.up("d")
-                assert page.evaluate("__kql.game.scene.getScene('Game').player.x") > before + 5
+                try:
+                    page.wait_for_function("x=>__kql.game.scene.getScene('Game').player.x>x+5", arg=before, timeout=3000)
+                finally:
+                    page.keyboard.up("d")
                 page.wait_for_function("__kql.game.scene.getScene('Game').player.body.blocked.down")
                 page.keyboard.down("Space")
-                page.wait_for_timeout(65)
-                assert page.evaluate("__kql.game.scene.getScene('Game').player.body.velocity.y") < 0
-                page.keyboard.up("Space")
+                try:
+                    page.wait_for_function("__kql.game.scene.getScene('Game').player.body.velocity.y<0", timeout=3000)
+                finally:
+                    page.keyboard.up("Space")
                 page.keyboard.press("o")
                 page.wait_for_function("!__kql.game.loop.running")
                 page.evaluate("""() => {

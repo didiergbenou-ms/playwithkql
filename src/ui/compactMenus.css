@@ -1,0 +1,536 @@
+/* Import after mobile.css and compact game CSS. Only the four .compact-menu
+   screens opt in. Disclosure wrappers are layout-transparent on desktop. */
+.compact-menu .compact-menu-disclosure,
+.compact-menu .compact-menu-disclosure-body {
+  display: contents;
+}
+
+.compact-menu .compact-menu-phone,
+.compact-menu .compact-menu-disclosure-toggle {
+  display: none;
+}
+
+/* Narrow fine-pointer windows also get the phone picker. A large fine-pointer
+   touch laptop does not opt in merely because it has a touchscreen. */
+@media (max-width: 600px),
+  (max-width: 960px) and (max-height: 500px),
+  (max-width: 960px) and (pointer: coarse) {
+  .screen.compact-menu {
+    width: 100%;
+    min-width: 0;
+    padding: max(12px, env(safe-area-inset-top, 0px))
+      max(12px, env(safe-area-inset-right, 0px))
+      max(12px, env(safe-area-inset-bottom, 0px))
+      max(12px, env(safe-area-inset-left, 0px));
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    align-content: start;
+    justify-items: stretch;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .compact-menu :is(.menu-hero, .menu-side, .select-head, .recruit-detail,
+    .compact-menu-disclosure, .compact-menu-disclosure-body) {
+    min-width: 0;
+  }
+
+  .screen.compact-menu :is(p, pre, li, .muted, .prototype-note) {
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .screen.compact-menu p {
+    margin: 8px 0;
+  }
+
+  .screen.compact-menu h1 {
+    font-size: 16px;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .screen.compact-menu h2 {
+    font-size: 12px;
+  }
+
+  .screen.compact-menu .tag {
+    margin: 0;
+    padding: 3px 5px;
+    font-size: 8px;
+  }
+
+  .screen.compact-menu button {
+    min-width: 44px;
+    min-height: 44px;
+    max-width: 100%;
+    padding: 8px;
+    font-size: 9px;
+    line-height: 1.5;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .screen.compact-menu .panel {
+    border-width: 2px;
+    padding: 8px;
+    box-shadow: 0 0 0 2px var(--black), 4px 4px 0 var(--black);
+  }
+
+  .compact-menu .compact-menu-phone {
+    display: block;
+  }
+
+  .compact-menu .compact-menu-desktop {
+    display: none;
+  }
+
+  .compact-menu .compact-menu-disclosure {
+    display: block;
+  }
+
+  .compact-menu .compact-menu-disclosure-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+  }
+
+  .compact-menu .compact-menu-disclosure-body {
+    display: none;
+  }
+
+  .compact-menu .is-open > .compact-menu-disclosure-body {
+    display: block;
+    padding: 12px 0 4px;
+  }
+
+  .compact-menu .brief-actions {
+    display: grid;
+    grid-template-columns: minmax(72px, 1fr) minmax(0, 2fr);
+    gap: 8px;
+    align-items: stretch;
+    margin: 0;
+  }
+
+  .compact-menu .brief-actions button {
+    width: 100%;
+  }
+
+  /* Case picker: three map strips, then the action, not three landing pages. */
+  .compact-menu .menu-hero {
+    display: grid;
+    gap: 10px;
+  }
+
+  .compact-menu .menu-hero > .tag,
+  .compact-menu .tagline,
+  .compact-menu .menu-controls {
+    display: none;
+  }
+
+  .compact-menu .menu-hero h1 {
+    order: 0;
+    font-size: 22px;
+    line-height: 1.35;
+    margin: 0;
+  }
+
+  .compact-menu .menu-case {
+    display: contents;
+  }
+
+  .compact-menu .menu-case > button {
+    order: 2;
+    width: 100%;
+  }
+
+  .compact-menu .compact-menu-case-details {
+    order: 3;
+  }
+
+  .compact-menu .menu-case p {
+    max-width: none;
+  }
+
+  .compact-menu .case-dossiers {
+    order: 1;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    margin: 0;
+  }
+
+  .compact-menu .case-dossier {
+    grid-template-columns: 80px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 4px 10px;
+    align-content: center;
+    min-height: 64px;
+    padding: 8px;
+  }
+
+  .compact-menu .case-dossier-head {
+    grid-area: 1 / 2;
+    justify-content: flex-start;
+  }
+
+  .compact-menu .case-dossier strong {
+    grid-area: 2 / 2;
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  .compact-menu .case-thumb {
+    grid-area: 1 / 1 / 3 / 2;
+    align-self: center;
+    width: 80px;
+    height: 40px;
+  }
+
+  .compact-menu .case-dossier :is(.case-customer, .case-summary, .prototype-note) {
+    display: none;
+  }
+
+  .compact-menu :is(.case-dossier.selected, .recruit.chosen) {
+    box-shadow: inset 0 0 0 2px var(--cyan), 0 0 0 3px var(--black);
+  }
+
+  .compact-menu .menu-secondary {
+    order: 4;
+    margin: 0;
+  }
+
+  .compact-menu .menu-secondary button {
+    width: 100%;
+  }
+
+  .compact-menu .menu-side {
+    gap: 12px;
+  }
+
+  .compact-menu .achievements {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .compact-menu .achievements span {
+    font-size: 14px;
+  }
+
+  /* Difficulty keeps the choice legible; tier history/notices are opt-in. */
+  .compact-menu .select-head {
+    display: grid;
+    gap: 4px;
+    max-width: none;
+    text-align: left;
+  }
+
+  .compact-menu .select-head > .tag {
+    justify-self: start;
+  }
+
+  .compact-menu .difficulty-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .compact-menu .difficulty-card {
+    min-height: 64px;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .compact-menu .difficulty-card strong {
+    font-size: 10px;
+  }
+
+  .compact-menu .compact-menu-tier-description {
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .compact-menu .difficulty-card :is(.difficulty-number, .tag, .prototype-note, .difficulty-record) {
+    display: none;
+  }
+
+  .compact-menu .difficulty-card.chosen {
+    outline: 2px solid var(--cyan);
+    outline-offset: 1px;
+  }
+
+  .compact-menu .compact-menu-difficulty-footer {
+    display: grid;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .compact-menu .compact-menu-difficulty-footer::before,
+  .compact-menu .compact-menu-difficulty-footer::after {
+    display: none;
+  }
+
+  .compact-menu .compact-menu-difficulty-footer > .compact-menu-disclosure {
+    order: 2;
+  }
+
+  .compact-menu .compact-menu-difficulty-footer > .brief-actions {
+    order: 1;
+  }
+
+  /* The original animated pixels stay intact at a 2x display size. */
+  .compact-menu.select .select-head > .tag {
+    display: none;
+  }
+
+  .compact-menu.select h1 {
+    font-size: 14px;
+  }
+
+  .compact-menu .case-difficulty {
+    margin: 0;
+  }
+
+  .compact-menu .roster {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .compact-menu .recruit {
+    grid-template-columns: 32px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 4px 8px;
+    align-content: center;
+    justify-items: start;
+    min-height: 76px;
+  }
+
+  .compact-menu .recruit-art {
+    grid-area: 1 / 1 / 3 / 2;
+    width: 32px;
+    height: 48px;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+
+  .compact-menu .sprite-preview {
+    width: 32px;
+    height: 48px;
+    object-fit: contain;
+    image-rendering: pixelated;
+  }
+
+  .compact-menu .recruit strong {
+    grid-area: 1 / 2;
+    align-self: end;
+    font-size: 9px;
+  }
+
+  .compact-menu .recruit-title {
+    display: none;
+  }
+
+  .compact-menu .recruit-hearts {
+    grid-area: 2 / 2;
+    gap: 3px;
+    margin: 0;
+    align-self: start;
+  }
+
+  .compact-menu .recruit-hearts .heart {
+    width: 10px;
+    height: 10px;
+  }
+
+  .compact-menu .recruit-detail {
+    display: grid;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .compact-menu .compact-menu-recruit-summary {
+    order: 0;
+  }
+
+  .compact-menu .compact-menu-recruit-summary > span {
+    color: var(--amber);
+  }
+
+  .compact-menu .compact-menu-recruit-summary p {
+    margin: 4px 0 0;
+    color: var(--lime);
+  }
+
+  .compact-menu .recruit-detail > .brief-actions {
+    order: 1;
+  }
+
+  .compact-menu .recruit-detail > .compact-menu-disclosure {
+    order: 2;
+  }
+
+  /* The incident and immediate objective precede an ordinary, flowing CTA. */
+  .compact-menu .case-file {
+    display: grid;
+    gap: 8px;
+    max-width: none;
+  }
+
+  .compact-menu .case-file > header {
+    order: 0;
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+  }
+
+  .compact-menu .compact-menu-brief-summary {
+    order: 1;
+  }
+
+  .compact-menu .compact-menu-brief-summary p {
+    margin: 0 0 8px;
+  }
+
+  .compact-menu .compact-menu-objective {
+    color: var(--amber);
+  }
+
+  .compact-menu .case-file > .brief-actions {
+    order: 2;
+  }
+
+  .compact-menu .case-file > .compact-menu-touch-hint {
+    order: 3;
+    margin: 0;
+  }
+
+  .compact-menu .case-file > .compact-menu-disclosure {
+    order: 4;
+  }
+
+  .compact-menu .email {
+    margin: 8px 0;
+    padding: 8px;
+  }
+
+  .compact-menu .email-head {
+    flex-wrap: wrap;
+  }
+
+  /* A short landscape viewport is a two-column desk, never a tall stack. */
+  @media (min-width: 600px) and (max-height: 500px) {
+    .screen.compact-menu {
+      padding-top: max(8px, env(safe-area-inset-top, 0px));
+      padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+      gap: 8px 16px;
+    }
+
+    .compact-menu.menu {
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      grid-template-rows: auto repeat(4, auto);
+    }
+
+    .compact-menu .menu-hero {
+      display: contents;
+    }
+
+    .compact-menu .menu-hero h1 {
+      grid-area: 1 / 1 / 2 / 3;
+      font-size: 20px;
+    }
+
+    .compact-menu .case-dossiers {
+      grid-area: 2 / 1 / 6 / 2;
+      align-self: start;
+    }
+
+    .compact-menu .menu-case > button {
+      grid-area: 2 / 2;
+    }
+
+    .compact-menu .compact-menu-case-details {
+      grid-area: 3 / 2;
+    }
+
+    .compact-menu .menu-secondary {
+      grid-area: 4 / 2;
+    }
+
+    .compact-menu .compact-menu-record {
+      grid-area: 5 / 2;
+    }
+
+    .compact-menu.difficulty-screen {
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      grid-template-rows: auto auto 1fr;
+    }
+
+    .compact-menu.difficulty-screen > .select-head {
+      grid-area: 1 / 1 / 2 / 3;
+    }
+
+    .compact-menu .difficulty-grid {
+      grid-area: 2 / 1 / 4 / 2;
+      align-self: start;
+    }
+
+    .compact-menu .compact-menu-difficulty-footer {
+      display: contents;
+    }
+
+    .compact-menu .compact-menu-difficulty-footer > .brief-actions {
+      grid-area: 2 / 2;
+    }
+
+    .compact-menu .compact-menu-difficulty-footer > .compact-menu-disclosure {
+      grid-area: 3 / 2;
+      align-self: start;
+    }
+
+    .compact-menu .roster {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .compact-menu .recruit-detail {
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .compact-menu .recruit-detail > .compact-menu-disclosure {
+      grid-column: 1 / -1;
+    }
+
+    .compact-menu .case-file {
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .compact-menu .case-file > header {
+      grid-area: 1 / 1;
+    }
+
+    .compact-menu .compact-menu-brief-summary {
+      grid-area: 2 / 1 / 4 / 2;
+    }
+
+    .compact-menu .case-file > .brief-actions {
+      grid-area: 1 / 2;
+    }
+
+    .compact-menu .case-file > .compact-menu-touch-hint {
+      grid-area: 2 / 2;
+    }
+
+    .compact-menu .case-file > .compact-menu-disclosure {
+      grid-area: 3 / 2;
+    }
+  }
+}

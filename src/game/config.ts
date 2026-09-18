@@ -1,18 +1,22 @@
 /**
  * Render configuration, shared by the React host and the Phaser scene.
  *
- * The canvas renders at 640x360 and is upscaled by CSS with
- * image-rendering: pixelated. The camera then zooms 2x, so only 320x180 world
- * pixels — 20 x 11 tiles — are visible. That is roughly an NES field of view,
- * which keeps the character large on screen.
- *
- * Both the canvas scale and the camera zoom are integers, so pixels stay
- * perfectly square at every step.
+ * Desktop invariants: 640x360 backing, 2x camera zoom, 320x180 world FOV.
+ * CSS FIT scales both axes uniformly (not necessarily by an integer).
+ * Mobile uses bounded logical backing dimensions, independent of device DPR;
+ * viewport.ts allocates useful camera content before choosing that same scale.
  */
 export const GAME_WIDTH = 640;
 export const GAME_HEIGHT = 360;
 export const CAMERA_ZOOM = 2;
 
-/** Visible world size after zoom. */
+/** Desktop visible world size after zoom. */
 export const VIEW_WIDTH = GAME_WIDTH / CAMERA_ZOOM;
 export const VIEW_HEIGHT = GAME_HEIGHT / CAMERA_ZOOM;
+
+export const PORTRAIT_MIN_WORLD_WIDTH = 288;
+export const PORTRAIT_MAX_WORLD_HEIGHT = 208;
+export const MAX_BACKING_WIDTH = 640;
+export const MAX_BACKING_HEIGHT = 1400;
+/** Optional horizontal camera-follow offset in world pixels. */
+export const CAMERA_LOOKAHEAD = 24;

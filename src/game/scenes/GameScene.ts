@@ -6,11 +6,14 @@ import { DEFAULT_DIFFICULTY, type Difficulty } from '../../data/difficulties';
 import { COLORS, PLAYER_H, PLAYER_W, generateTextures, registerAnimations } from '../textures';
 import { characterById, textureKey, type CharacterDef } from '../characters';
 import { TILE, parseLevel, type ParsedLevel } from '../levels/heartbeatHills';
-import { CAMERA_ZOOM, VIEW_WIDTH } from '../config';
+import { CAMERA_LOOKAHEAD, CAMERA_ZOOM, VIEW_WIDTH } from '../config';
+import { type ViewportLayout } from '../viewport';
 import { audio } from '../audio';
+import { touchInput, type TouchPress } from '../inputBridge';
 import {
   GRAVITY, RUN_SPEED, AIR_ACCEL, GROUND_ACCEL, JUMP_VELOCITY,
   COYOTE_MS, BUFFER_MS, ENEMY_SPEED, MAX_FALL_SPEED,
+  HORIZONTAL_DRAG, horizontalDrag,
 } from '../physics';
 
 const DEFAULT_MAX_HEALTH = 3;
@@ -82,6 +85,8 @@ export class GameScene extends Phaser.Scene {
 
   private lastGroundedAt = -9999;
   private jumpQueuedAt = -9999;
+  private touchJumpQueuedAt = -9999;
+  private touchJumpPress: TouchPress | null = null;
   private invulnerableUntil = 0;
   private facing = 1;
 
@@ -95,6 +100,12 @@ export class GameScene extends Phaser.Scene {
   private nearest: Interactable | null = null;
   private frozen = false;
   private busOff: (() => void)[] = [];
+  /** Public read-only-by-convention layout for viewport/browser diagnostics. */
+  viewportLayout: ViewportLayout | null = null;
+  private baseZoom = CAMERA_ZOOM;
+  private cameraReady = false;
+  private lookahead = 0;
+  private zoomReturn: Phaser.Time.TimerEvent | null = null;
 
   constructor() {
     super('Game');
@@ -130,11 +141,16 @@ export class GameScene extends Phaser.Scene {
     this.nearest = null;
     this.objectiveTarget = null;
     this.frozen = false;
+    this.cameraReady = false;
+    this.lookahead = 0;
     this.lastGroundedAt = -9999;
     this.jumpQueuedAt = -9999;
+    this.touchJumpQueuedAt = -9999;
     this.invulnerableUntil = 0;
     this.interactLockUntil = 0;
     this.jumpHeld = false;
+    this.touchJumpPress = null;
+    touchInput.setBlocked(false);
     this.solidLookup.clear();
 
     this.buildBackground();
@@ -157,10 +173,109 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.16, 0.18);
     this.cameras.main.setDeadzone(56, 32);
     this.cameras.main.setBackgroundColor(COLORS.dark);
+    this.cameras.main.setName('main');
+    this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FOLLOW_UPDATE, this.afterCameraFollow, this);
+    this.events.on(Phaser.Scenes.Events.PRE_RENDER, this.prepareCameraFrame, this);
+    this.cameraReady = true;
+    if (this.viewportLayout) this.setViewportLayout(this.viewportLayout);
 
     this.checkpoint = { ...this.level.spawn };
+    // SceneManager marks RUNNING only after create returns. Delivering READY
+    // sooner would overwrite a modal's synchronous pause during cold loading.
+    this.events.once(Phaser.Scenes.Events.CREATE, this.announceReady, this);
+  }
+
+  private announceReady() {
     bus.emit('game:ready');
     this.emitHud();
+  }
+
+  /** Changes projection only: no scene restart, world resize or physics changes. */
+  setViewportLayout(layout: ViewportLayout) {
+    const previous = this.viewportLayout;
+    this.viewportLayout = layout;
+    if (!this.cameraReady) return;
+    if (!layout.mobile && previous?.mode === 'desktop') return;
+    const cam = this.cameras.main;
+    const view = layout.main;
+    this.zoomReturn?.remove(false);
+    this.zoomReturn = null;
+    cam.zoomEffect.reset();
+    this.baseZoom = layout.baseZoom;
+    cam.setViewport(view.x, view.y, view.width, view.height).setZoom(this.baseZoom);
+    cam.setBounds(0, 0, this.level.width, this.level.height);
+    if (layout.mobile) {
+      // Mobile has no vertical follow: jumping must never shift the route.
+      cam.startFollow(this.player, true, 0.35, 1);
+      cam.setDeadzone();
+      cam.setFollowOffset(-this.lookahead, this.player.y - this.level.height / 2);
+      cam.centerOn(this.player.x + this.lookahead, this.level.height / 2);
+    } else {
+      this.lookahead = 0;
+      cam.startFollow(this.player, true, 0.16, 0.18);
+      cam.setFollowOffset(0, 0);
+      cam.setDeadzone(56, 32);
+      this.roomBanner.setScale(1);
+      this.prompt.setScale(1);
+      this.parallaxFar.setSize(VIEW_WIDTH + TILE, 160);
+      this.parallaxNear.setSize(VIEW_WIDTH + TILE, 160);
+    }
+    this.prepareCameraFrame();
+    // Scale changes can happen outside the game loop (including while paused).
+    cam.preRender();
+  }
+
+  private prepareCameraFrame() {
+    if (!this.cameraReady || !this.viewportLayout?.mobile) return;
+    const cam = this.cameras.main;
+    cam.followOffset.y = this.player.y - this.level.height / 2;
+    const maxLead = Math.max(0, cam.width / cam.zoom / 2 - PLAYER_W - 8);
+    const centerX = cam.scrollX + cam.width / 2;
+    cam.centerOnX(Phaser.Math.Clamp(centerX, this.player.x - maxLead, this.player.x + maxLead));
+    // No interpolated vertical motion, even after a gate zoom or a paused resize.
+    cam.centerOnY(this.level.height / 2);
+  }
+
+  /** FOLLOW_UPDATE fires after main.preRender, before the camera is drawn. */
+  private afterCameraFollow() {
+    if (!this.viewportLayout?.mobile) return;
+    const cam = this.cameras.main;
+    const view = cam.worldView;
+    if (this.parallaxFar.width !== view.width + TILE) {
+      this.parallaxFar.setSize(view.width + TILE, 160);
+      this.parallaxNear.setSize(view.width + TILE, 160);
+    }
+    this.parallaxFar.x = view.x;
+    this.parallaxFar.tilePositionX = view.x * 0.3;
+    this.parallaxNear.x = view.x;
+    this.parallaxNear.tilePositionX = view.x * 0.55;
+    this.clampMobileHud();
+  }
+
+  private clampMobileHud() {
+    const view = this.cameras.main.worldView;
+    const margin = 5;
+    const fitX = (x: number, halfWidth: number) =>
+      Phaser.Math.Clamp(x, view.left + halfWidth + margin, view.right - halfWidth - margin);
+    const titleWidth = Math.max(...(this.roomBanner.list as Phaser.GameObjects.Text[]).map((text) => text.width));
+    this.roomBanner.setScale(Math.min(1, (view.width - 2 * margin) / Math.max(1, titleWidth)));
+    this.roomBanner.setPosition(view.centerX, view.top + Math.min(30, view.height / 4));
+    this.prompt.setScale(Math.min(1, (view.width - 2 * margin) / Math.max(1, this.promptText.width)));
+    this.prompt.x = fitX(this.prompt.x, this.promptText.width * this.prompt.scaleX / 2);
+    this.prompt.y = Phaser.Math.Clamp(this.prompt.y, view.top + this.promptText.height * this.prompt.scaleY + margin, view.bottom - margin);
+    this.waypoint.x = fitX(this.waypoint.x, this.waypoint.width / 2);
+    this.waypoint.y = Phaser.Math.Clamp(this.waypoint.y, view.top + 8, view.bottom - 8);
+  }
+
+  /** One normal render, with the entire scene paused, then sleep again. */
+  renderFrozenFrame() {
+    if (!this.cameraReady || !this.frozen || !this.game.isRunning) return;
+    this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
+    this.game.events.once(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
+    if (!this.game.loop.running) {
+      this.game.loop.resetDelta();
+      this.game.loop.wake();
+    }
   }
 
   private buildBackground() {
@@ -325,7 +440,7 @@ export class GameScene extends Phaser.Scene {
     this.player = this.physics.add.sprite(x, y, textureKey(this.character.id, 'idle0'));
     this.player.setSize(PLAYER_W, PLAYER_H).setOffset(3, 4);
     this.player.setMaxVelocity(200 * stats.speed, MAX_FALL_SPEED);
-    this.player.setDragX(800);
+    this.player.setDragX(HORIZONTAL_DRAG);
     (this.player.body as Phaser.Physics.Arcade.Body).setGravityY(GRAVITY);
     this.player.setDepth(10);
     this.player.play(`idle_${this.character.id}`);
@@ -401,6 +516,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private wireInput() {
+    this.busOff.push(touchInput.subscribeReset(() => {
+      this.jumpQueuedAt = -9999;
+      this.touchJumpQueuedAt = -9999;
+      this.touchJumpPress = null;
+    }));
     const kb = this.input.keyboard!;
     this.cursors = kb.createCursorKeys();
     this.keys = kb.addKeys('W,A,S,D,E,R,SPACE') as Record<string, Phaser.Input.Keyboard.Key>;
@@ -427,24 +547,33 @@ export class GameScene extends Phaser.Scene {
       bus.on('ui:openGate', ({ gateId, challengeId }) => {
         this.openGate(gateId, true);
         if (challengeId) this.markTerminalSolved(challengeId);
+        this.renderFrozenFrame();
       }),
     );
     this.busOff.push(
       bus.on('ui:setPaused', ({ paused }) => {
         this.frozen = paused;
+        touchInput.setBlocked(paused);
+        this.jumpQueuedAt = -9999;
+        this.touchJumpQueuedAt = -9999;
+        this.touchJumpPress = null;
+        this.jumpHeld = false;
         this.setKeyboardCapture(!paused);
         if (paused) {
           this.physics.pause();
           this.player.anims.pause();
+          // Unlike just physics.pause(), this also freezes enemy animation,
+          // timers, particles and tweens during a resize-triggered single frame.
+          if (!this.sys.isPaused()) this.sys.pause();
           // drop held keys so movement does not resume on close
           this.input.keyboard?.resetKeys();
-          this.jumpHeld = false;
           // Finish one render for a stable backdrop, then stop the Phaser
           // frame loop. React overlays and their animations remain independent.
           this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
           this.game.events.once(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
         } else {
           this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
+          this.sys.resume();
           this.physics.resume();
           this.player.anims.resume();
           // stop the key that closed the modal from immediately re-opening it
@@ -469,7 +598,16 @@ export class GameScene extends Phaser.Scene {
     // SHUTDOWN leaked these bus handlers; on re-entry the stale handler ran
     // against a destroyed scene, threw, and left the player on a black screen.
     const cleanup = () => {
+      this.events.off(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+      this.events.off(Phaser.Scenes.Events.DESTROY, cleanup);
+      touchInput.setBlocked(true);
       this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
+      this.events.off(Phaser.Scenes.Events.PRE_RENDER, this.prepareCameraFrame, this);
+      this.events.off(Phaser.Scenes.Events.CREATE, this.announceReady, this);
+      this.cameras.main?.off(Phaser.Cameras.Scene2D.Events.FOLLOW_UPDATE, this.afterCameraFollow, this);
+      this.zoomReturn?.remove(false);
+      this.zoomReturn = null;
+      this.cameraReady = false;
       this.busOff.forEach((off) => off());
       this.busOff = [];
     };
@@ -478,25 +616,42 @@ export class GameScene extends Phaser.Scene {
   }
 
   private sleepCoveredWorld() {
-    if (this.frozen && this.sys.isActive()) this.game.loop.sleep();
+    if (this.frozen && (this.sys.isActive() || this.sys.isPaused())) this.game.loop.sleep();
   }
 
   // ---- gameplay ------------------------------------------------------------
 
   update(_time: number, delta: number) {
-    if (this.frozen) return;
+    if (this.frozen) {
+      this.jumpQueuedAt = -9999;
+      this.touchJumpQueuedAt = -9999;
+      this.touchJumpPress = null;
+      return;
+    }
     const now = this.time.now;
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     const dt = delta / 1000;
 
-    const left = this.cursors.left.isDown || this.keys.A.isDown;
-    const right = this.cursors.right.isDown || this.keys.D.isDown;
-    const jumpDown = this.cursors.up.isDown || this.keys.W.isDown || this.keys.SPACE.isDown;
+    const touch = touchInput.getSnapshot();
+    const left = this.cursors.left.isDown || this.keys.A.isDown || touch.left;
+    const right = this.cursors.right.isDown || this.keys.D.isDown || touch.right;
+    this.player.setDragX(horizontalDrag(left, right));
+    const keyboardJump = this.cursors.up.isDown || this.keys.W.isDown || this.keys.SPACE.isDown;
+    const jumpDown = keyboardJump || touch.jump;
+    const touchJump = touchInput.consumePress('jump');
 
     const grounded = body.blocked.down || body.touching.down;
     if (grounded) this.lastGroundedAt = now;
-    if (jumpDown && !this.jumpHeld) this.jumpQueuedAt = now;
-    this.jumpHeld = jumpDown;
+    if (this.touchJumpPress && !touchInput.isValidPress(this.touchJumpPress)) {
+      this.touchJumpQueuedAt = -9999;
+      this.touchJumpPress = null;
+    }
+    if (touchJump) {
+      this.touchJumpQueuedAt = now;
+      this.touchJumpPress = touchJump;
+    }
+    if (keyboardJump && !this.jumpHeld) this.jumpQueuedAt = now;
+    this.jumpHeld = keyboardJump;
 
     // horizontal movement with separate ground/air acceleration
     const stats = this.character.stats;
@@ -513,13 +668,24 @@ export class GameScene extends Phaser.Scene {
       if (Math.abs(body.velocity.x) < 12) body.velocity.x = 0;
     }
     this.player.setFlipX(this.facing < 0);
+    if (this.viewportLayout?.mobile) {
+      // Input direction wins over inertia: reversal loses the old lead rapidly,
+      // rather than hiding the next landing while velocity catches up.
+      const direction = left === right ? 0 : right ? 1 : -1;
+      const target = direction * CAMERA_LOOKAHEAD;
+      const reversing = this.lookahead * target < 0;
+      this.lookahead = Phaser.Math.Linear(this.lookahead, target, 1 - Math.exp(-dt / (reversing ? 0.045 : 0.1)));
+      this.cameras.main.followOffset.x = -this.lookahead;
+    }
 
     // coyote time + input buffering
     const canCoyote = now - this.lastGroundedAt <= COYOTE_MS;
-    const buffered = now - this.jumpQueuedAt <= BUFFER_MS;
+    const buffered = now - this.jumpQueuedAt <= BUFFER_MS || now - this.touchJumpQueuedAt <= BUFFER_MS;
     if (buffered && canCoyote) {
       body.velocity.y = JUMP_VELOCITY * stats.jump;
       this.jumpQueuedAt = -9999;
+      this.touchJumpQueuedAt = -9999;
+      this.touchJumpPress = null;
       this.lastGroundedAt = -9999;
       this.puff(this.player.x, this.player.y + PLAYER_H / 2, 'spark_cyan', 5);
       audio.play('jump');
@@ -531,6 +697,7 @@ export class GameScene extends Phaser.Scene {
     this.updateAnimation(grounded, body.velocity);
     this.updateEnemies();
     this.updateProximity();
+    if (touchInput.consumePress('interact')) this.interact();
     this.updateCheckpoints();
     this.updateRoom();
 
@@ -625,7 +792,7 @@ export class GameScene extends Phaser.Scene {
         : best.kind === 'note'
           ? '[E] read'
           : '[E] submit verdict';
-    this.promptText.setText(label);
+    this.promptText.setText(touchInput.isEnabled() ? label.replace('[E]', '[USE]') : label);
     // clear of both the prop and the (taller) player sprite
     this.prompt.setPosition(bx, Math.min(by, this.player.y - PLAYER_H / 2) - 6).setVisible(true);
   }
@@ -720,7 +887,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private interact() {
-    if (this.frozen || !this.nearest || this.time.now < this.interactLockUntil) return;
+    if (this.frozen || !this.nearest || performance.now() < this.interactLockUntil) return;
     const target = this.nearest;
     if (target.kind === 'terminal') {
       bus.emit('game:terminal', { challengeId: target.challengeId });
@@ -794,7 +961,13 @@ export class GameScene extends Phaser.Scene {
     this.player.setVelocity(130 * dir, -150);
   }
 
-  private respawn() {    this.health = this.maxHealth;
+  private respawn() {
+    touchInput.reset();
+    this.jumpQueuedAt = -9999;
+    this.touchJumpQueuedAt = -9999;
+    this.touchJumpPress = null;
+    this.lastGroundedAt = -9999;
+    this.health = this.maxHealth;
     this.invulnerableUntil = this.time.now + 900;
     this.player.setVelocity(0, 0);
     this.player.setPosition(this.checkpoint.x, this.checkpoint.y - 4);
@@ -852,10 +1025,12 @@ export class GameScene extends Phaser.Scene {
       // camera punch: a brief zoom-in that snaps back reads as impact without
       // the vestibular problems of a big shake
       if (!this.reducedMotion) {
-        this.cameras.main.zoomTo(CAMERA_ZOOM * 1.06, 90, 'Quad.easeOut', true);
-        this.time.delayedCall(110, () =>
-          this.cameras.main.zoomTo(CAMERA_ZOOM, 220, 'Quad.easeOut', true),
-        );
+        this.zoomReturn?.remove(false);
+        this.cameras.main.zoomTo(this.baseZoom * 1.06, 90, 'Quad.easeOut', true);
+        this.zoomReturn = this.time.delayedCall(110, () => {
+          this.zoomReturn = null;
+          this.cameras.main.zoomTo(this.baseZoom, 220, 'Quad.easeOut', true);
+        });
         this.cameras.main.shake(180, 0.004);
       }
       // single flash, well inside the WCAG three-per-second limit

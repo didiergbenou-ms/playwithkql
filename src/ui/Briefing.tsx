@@ -1,29 +1,37 @@
 import type { CaseDefinition } from '../data/cases/types';
 import { CaseDifficulty } from './CaseDifficulty';
+import { CompactMenuDetails } from './MainMenu';
 
 export function Briefing({
   caseDef,
   onBegin,
   onBack,
+  touchEnabled = false,
 }: {
   caseDef: CaseDefinition;
   onBegin: () => void;
   onBack: () => void;
+  touchEnabled?: boolean;
 }) {
   const finalRoom = caseDef.level.rooms[caseDef.level.rooms.length - 1]?.name ?? 'the final room';
 
   return (
-    <div className="screen briefing">
+    <div className="screen briefing compact-menu">
       <div className="panel case-file">
         <header>
           <span className="tag tag-amber">CASE {caseDef.id} — ACTIVE</span>
           <h1>{caseDef.title}</h1>
-          <CaseDifficulty caseDef={caseDef} notice />
-          <p className="muted">
-            Customer: {caseDef.customer} · Fleet: {caseDef.fleetSize} machines · Severity A
-          </p>
         </header>
 
+        <div className="compact-menu-phone compact-menu-brief-summary">
+          <p>{caseDef.summary}</p>
+          <p className="compact-menu-objective">Solve {caseDef.challenges.length} terminals. Reach {finalRoom} and name the root cause.</p>
+        </div>
+        <CompactMenuDetails label="Full briefing & objectives">
+        <CaseDifficulty caseDef={caseDef} notice />
+        <p className="muted">
+          Customer: {caseDef.customer} · Fleet: {caseDef.fleetSize} machines · Severity A
+        </p>
         {caseDef.placeholderNotice && <p className="case-notice">{caseDef.placeholderNotice}</p>}
 
         <section className="email">
@@ -63,7 +71,9 @@ export function Briefing({
             includes a lesson before its task.
           </p>
         </section>
+        </CompactMenuDetails>
 
+        {touchEnabled && <p className="muted compact-menu-touch-hint"><span className="compact-menu-desktop">Use the arrow buttons to move and Jump to cross gaps. Tap Interact beside a terminal or field note. Open Menu to take a break or return to your checkpoint.</span><span className="compact-menu-phone">Arrows move · Jump · Use · Menu pauses</span></p>}
         <footer className="brief-actions">
           <button className="ghost" onClick={onBack}>
             Back

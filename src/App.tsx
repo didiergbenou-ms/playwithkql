@@ -22,10 +22,13 @@ import { TerminalModal } from './ui/TerminalModal';
 import { NoteModal, Notebook } from './ui/Notes';
 import { ReferenceCard } from './ui/ReferenceCard';
 import { OptionsModal } from './ui/OptionsModal';
+import { PauseModal } from './ui/PauseModal';
+import { MobilePauseMenu } from './ui/MobilePauseMenu';
 import { VerdictModal } from './ui/VerdictModal';
 import { Debrief } from './ui/Debrief';
 import { DevPanel } from './ui/DevPanel';
 import { ModalScrim } from './ui/ModalScrim';
+import { TouchControls, useTouchControlsEnabled } from './ui/TouchControls';
 import { CASES, getCase } from './data/cases';
 import { devActive, initDevMode, onDevChange } from './dev/secret';
 
@@ -44,6 +47,7 @@ type Overlay =
   | { kind: 'notebook' }
   | { kind: 'reference' }
   | { kind: 'options' }
+  | { kind: 'pause' }
   | { kind: 'dev' }
   | null;
 
@@ -55,15 +59,18 @@ const OVERLAY_LABELS: Record<NonNullable<Overlay>['kind'], string> = {
   notebook: 'Notebook',
   reference: 'KQL reference card',
   options: 'Options',
+  pause: 'Game paused',
   dev: 'Developer shortcuts',
 };
 
 export default function App() {
+  const touchEnabled = useTouchControlsEnabled();
   const screen = useStore((s) => s.screen);
   const setScreen = useStore((s) => s.setScreen);
   const run = useStore((s) => s.run);
   const startRun = useStore((s) => s.startRun);
   const setHud = useStore((s) => s.setHud);
+  const setRunPaused = useStore((s) => s.setRunPaused);
   const readNote = useStore((s) => s.readNote);
   const registerAttempt = useStore((s) => s.registerAttempt);
   const useHint = useStore((s) => s.useHint);
@@ -106,15 +113,16 @@ export default function App() {
     });
   }, [screen]);
 
-  // Unlock audio on the first real gesture — browsers keep the context
-  // suspended until then.
+  // Touch activation arrives on release, not pointerdown. Keep listening so
+  // Safari can recover after a call, app switch or an initially blocked resume.
   useEffect(() => {
-    const unlock = () => audio.unlock();
-    window.addEventListener('pointerdown', unlock, { once: true });
-    window.addEventListener('keydown', unlock, { once: true });
+    const unlock = (event: Event) => {
+      if (event.isTrusted) void audio.unlock();
+    };
+    const events = ['pointerup', 'touchend', 'click', 'keydown'] as const;
+    for (const event of events) window.addEventListener(event, unlock, true);
     return () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
+      for (const event of events) window.removeEventListener(event, unlock, true);
     };
   }, []);
 
@@ -153,6 +161,12 @@ export default function App() {
     bus.emit('ui:setPaused', { paused: overlay !== null });
   }, [overlay, screen]);
 
+  useEffect(() => {
+    if (screen !== 'playing' || overlay?.kind !== 'pause') return;
+    setRunPaused(true, run.runId);
+    return () => setRunPaused(false, run.runId);
+  }, [overlay?.kind, screen, run.runId, setRunPaused]);
+
   // Duck the music while a modal has the player's attention, then fade it out
   // entirely if they are still there. Reading and typing for minutes is exactly
   // when a looping background track starts to grate.
@@ -161,6 +175,10 @@ export default function App() {
     if (!overlay) {
       audio.setFocusMode(false);
       return;
+    }
+    if (overlay.kind === 'pause') {
+      audio.setFocusMode(true);
+      return () => audio.setFocusMode(false);
     }
     const t = setTimeout(() => audio.setFocusMode(true), 25_000);
     return () => clearTimeout(t);
@@ -181,6 +199,16 @@ export default function App() {
       // that same Escape also tore down the whole terminal, so dismissing the
       // suggestions threw away the query with them.
       if (e.defaultPrevented) return;
+
+      const target = e.target;
+      const editing = target instanceof HTMLElement &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+      if (screen === 'playing' && !editing && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey &&
+        e.key.toLowerCase() === 'p' && (!overlay || overlay.kind === 'pause')) {
+        e.preventDefault();
+        setOverlay(overlay ? null : { kind: 'pause' });
+        return;
+      }
 
       // While a celebration is on screen, Escape only dismisses that — closing
       // the terminal too would whip the result away before it can be read.
@@ -277,8 +305,14 @@ export default function App() {
       ? runCaseDef.challenges.find((challenge) => challenge.id === overlay.challengeId)
       : undefined;
 
+  const quit = () => {
+    setOverlay(null);
+    setCelebration(null);
+    setScreen('menu');
+  };
+
   return (
-    <div className="app">
+    <div className={`app${touchEnabled ? ' touch-enabled' : ''}`}>
       {screen === 'menu' && (
         <MainMenu
           cases={CASES}
@@ -309,28 +343,29 @@ export default function App() {
       )}
 
       {screen === 'briefing' && (
-        <Briefing caseDef={selectedCaseDef} onBegin={begin} onBack={() => setScreen('select')} />
+        <Briefing caseDef={selectedCaseDef} touchEnabled={touchEnabled} onBegin={begin} onBack={() => setScreen('select')} />
       )}
 
       {screen === 'playing' && (
         <div className="stage">
           <Hud
+            touchEnabled={touchEnabled}
             caseDef={runCaseDef}
             onNotebook={() => setOverlay({ kind: 'notebook' })}
             onReference={() => setOverlay({ kind: 'reference' })}
             onOptions={() => setOverlay({ kind: 'options' })}
-            onQuit={() => {
-              setOverlay(null);
-              setCelebration(null);
-              setScreen('menu');
-            }}
+            onPause={() => setOverlay({ kind: 'pause' })}
+            pauseDisabled={overlay !== null && overlay.kind !== 'pause'}
+            onQuit={quit}
           />
+          <div className="game-viewport">
           <Suspense fallback={
             <div className="phaser-host game-loading" role="status">
               Loading map...
             </div>
           }>
             <PhaserGame
+              mobile={touchEnabled}
               key={`${run.runId}-${runCaseDef.id}-${run.difficulty}-${character}`}
               characterId={character}
               caseId={runCaseDef.id}
@@ -339,9 +374,13 @@ export default function App() {
               openGates={run.openGates}
             />
           </Suspense>
+          {touchEnabled && <TouchControls key={run.runId} runId={run.runId} disabled={overlay !== null} />}
+          </div>
           <p className="stage-hint">
+            {touchEnabled ? 'Move and jump with the controls. Tap Interact near a terminal or note. Pause to return to your checkpoint.' : <>
             <kbd>A</kbd>/<kbd>D</kbd> move · <kbd>Space</kbd> jump · <kbd>E</kbd> interact ·{' '}
-            <kbd>Tab</kbd> notes · <kbd>K</kbd> KQL card · <kbd>R</kbd> respawn
+            <kbd>Tab</kbd> notes · <kbd>K</kbd> KQL card · <kbd>P</kbd> pause · <kbd>R</kbd> respawn
+            </>}
           </p>
         </div>
       )}
@@ -437,6 +476,20 @@ export default function App() {
           {overlay.kind === 'reference' && <ReferenceCard onClose={() => setOverlay(null)} />}
 
           {overlay.kind === 'options' && <OptionsModal onClose={() => setOverlay(null)} />}
+          {overlay.kind === 'pause' && (touchEnabled ? (
+            <MobilePauseMenu
+              caseDef={runCaseDef}
+              onResume={() => setOverlay(null)}
+              onRespawn={() => { bus.emit('ui:restartRoom'); setOverlay(null); }}
+              onNotebook={() => setOverlay({ kind: 'notebook' })}
+              onReference={() => setOverlay({ kind: 'reference' })}
+              onOptions={() => setOverlay({ kind: 'options' })}
+              onQuit={quit}
+            />
+          ) : <PauseModal onResume={() => setOverlay(null)} onRespawn={() => {
+              bus.emit('ui:restartRoom');
+              setOverlay(null);
+            }} />)}
 
           {overlay.kind === 'note' && (
             <NoteModal caseDef={runCaseDef} noteId={overlay.noteId} onClose={() => setOverlay(null)} />

@@ -1,3 +1,4 @@
+import { useId, useState, type ReactNode } from 'react';
 import type { CaseDefinition } from '../data/cases/types';
 import { ACHIEVEMENTS, RANKS, rankFor, useStore } from '../state/store';
 import { CaseMapThumbnail } from './CaseMapThumbnail';
@@ -8,6 +9,39 @@ interface Props {
   onSelectCase: (caseId: string) => void;
   onStart: () => void;
   onOptions: () => void;
+}
+
+/**
+ * Shared menu disclosure: collapsed on phones, ordinary expanded content on
+ * desktop. compactMenus.css owns the breakpoint; no viewport-dependent render.
+ * className optionally places the disclosure in a screen's compact grid.
+ */
+export function CompactMenuDetails({
+  label,
+  children,
+  className = '',
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div className={`compact-menu-disclosure ${className}${open ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="ghost compact-menu-disclosure-toggle"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen(value => !value)}
+      >
+        <span>{label}</span>
+        <span aria-hidden="true">{open ? '−' : '+'}</span>
+      </button>
+      <div id={id} className="compact-menu-disclosure-body">{children}</div>
+    </div>
+  );
 }
 
 export function MainMenu({ cases, selectedCaseId, onSelectCase, onStart, onOptions }: Props) {
@@ -21,7 +55,7 @@ export function MainMenu({ cases, selectedCaseId, onSelectCase, onStart, onOptio
     : 100;
 
   return (
-    <div className="screen menu">
+    <div className="screen menu compact-menu">
       <div className="menu-hero">
         <span className="tag tag-cyan">KINGDOM OF SIGNALS</span>
         <h1>
@@ -33,14 +67,17 @@ export function MainMenu({ cases, selectedCaseId, onSelectCase, onStart, onOptio
         </p>
 
         <div className="menu-case">
+          <CompactMenuDetails label="Case details" className="compact-menu-case-details">
           <div>
             <span className="case-no">CASE {selectedCase.id}</span>
             <h2>{selectedCase.title}</h2>
+            <p className="compact-menu-phone">{selectedCase.customer}</p>
             <p>{selectedCase.summary}</p>
             {selectedCase.placeholder && (
               <p className="prototype-note">Prototype — reused training tasks</p>
             )}
           </div>
+          </CompactMenuDetails>
           <button className="primary big" onClick={onStart}>
             Open case file
           </button>
@@ -97,6 +134,7 @@ export function MainMenu({ cases, selectedCaseId, onSelectCase, onStart, onOptio
         </div>
       </div>
 
+      <CompactMenuDetails label="Quest record" className="compact-menu-record">
       <aside className="menu-side">
         <section className="panel">
           <h3>Quest record</h3>
@@ -148,6 +186,7 @@ export function MainMenu({ cases, selectedCaseId, onSelectCase, onStart, onOptio
           </button>
         </section>
       </aside>
+      </CompactMenuDetails>
     </div>
   );
 }

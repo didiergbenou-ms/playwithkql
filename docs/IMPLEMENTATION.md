@@ -140,7 +140,96 @@ npm run server         # optional progress/leaderboard API on :3001
 | `Tab` | Notebook |
 | `K` | KQL reference card |
 | `O` | Options (music and SFX volume) |
+| `P` | Pause / resume the game and case timer |
 | `R` | Respawn |
+
+Touch devices also get a directional pair, Jump and Interact. Hold a direction
+and Jump together for running jumps; release Jump early for a shorter jump.
+On phones, a compact HUD shows health, terminal progress and **Menu**. Menu
+pauses the game and contains Resume, checkpoint return, notes, reference,
+options and the red Abandon action. Desktop retains its full HUD.
+Portrait is playable without a rotation lock.
+
+**Options > Controls and layout** offers Auto, Keyboard & mouse and Touch.
+Auto follows the primary pointer (`pointer: coarse` versus `pointer: fine`),
+not the presence of any touchscreen. A touchscreen laptop using its mouse keeps
+the desktop HUD; touch-primary phones/tablets keep their controls in either
+orientation. A manual override lasts for this visit, without restarting the
+scene or changing the profile. A pointer does not prove a physical keyboard
+exists, so the override remains available for connected mice/keyboards.
+
+### Phone layout and input
+
+`TouchControls.tsx` owns pointer capture and button feedback; the volatile
+`inputBridge.ts` tracks each pointer independently. `GameScene` merges touch
+with keyboard input in the existing character physics path. Movement and jump
+are held actions; interaction is a press, not a timeout-generated key event.
+Horizontal drag brakes released or opposing inputs; it is disabled while
+actively steering so it cannot cancel the manually applied air acceleration.
+Character speed caps, jump impulses, gravity and collision geometry are unchanged.
+Overlay transitions, cancellation, focus loss and teardown clear held inputs and
+pending actions. Neither pointer state nor active runs are added to saved profiles.
+
+`mobile.css` adapts the existing retro UI, with separate control space, safe-area
+padding and scrollable terminal content. Phone gameplay chrome has a 44px menu
+target instead of a permanently expanded desktop dashboard. Desktop stays at
+640x360 with a 2x camera. Mobile uses one camera in `viewport.ts`: portrait shows
+288 world pixels across (18 tiles), up to the room's 208-pixel height. There is
+no duplicate Route View. The portrait playfield and controls sit directly under
+the HUD instead of reserving an empty overview area. Landscape uses the full safe
+width, with 180 world pixels vertically and a separate bottom control deck.
+Extremely tall windows can retain spare space once the view reaches useful
+limits; the canvas must not stretch or add empty sky to hide that constraint.
+A host `ResizeObserver` changes mobile backing dimensions and projection without
+restarting the scene or changing physics. A paused resize renders one frozen
+frame, then sleeps again. Modal
+sizing follows the visible browser viewport so the editor can remain usable
+above a software keyboard; zoom remains enabled.
+
+Autocomplete uses `completionPlacement.ts` to fit a dialog-contained popup
+within the visual viewport and terminal scroll area, excluding the touch Run
+footer. It opens above the caret when needed, scrolls its own 44px options, and
+never moves the terminal merely to highlight an option. Editor autofocus is
+decided once on mount, not on a mid-session input-mode change.
+Switching Learn/Solve resets the shared terminal scroll container to its top
+after the new pane renders, including the worked-example and lesson CTA buttons.
+Query drafts and results are not reset by navigation.
+
+`test:mobile` covers the input bridge. `scripts/testMobileBrowser.py` covers
+phone-sized layouts, trusted Chromium multi-touch, held movement/jump, capture,
+cancellation, pause, terminal drafts/results and rotation, plus a physical
+platform route with all four recruits. Its route opens gates to isolate traversal;
+its reduced-viewport keyboard fixture is not a real OS keyboard. Keep actual
+iOS/Android handset checks alongside these browser-emulation regressions.
+
+`testCompactBrowser.py` also measures the UI's space budget: default case,
+difficulty and recruit choices plus their Continue action must fit the first
+screen, a phone HUD must be at most 64px (52px landscape), and no flexible gap
+may separate the portrait game and controls. Long descriptions and records are
+opt-in disclosures rather than default scrolling. Test toolbar-reduced windows,
+including 667x300 landscape, not only full device screen dimensions.
+
+`testViewport.ts` checks pure projection geometry. `testViewportBrowser.py`
+checks camera bounds, uniform sizing, background coverage and rotation while
+paused with both renderers. The existing mobile traversal suite exercises all
+four recruits in both orientations and checks that the next landing is visible.
+`scripts/runBrowserChecks.py` runs all existing browser suites independently and
+collects logs and screenshots under `browser-reports`. CI uploads that directory
+even on failure. Use the GitHub Actions runner when Scout's local browser/file
+approval gate blocks unattended testing; a passing geometry test is not proof of
+playability.
+For a small camera/terminal change, `testWorldAndTerminalBrowser.py` is the focused
+local check: one camera, wider portrait coverage, paused rotation, Learn/Solve
+scroll reset and query preservation in portrait, landscape and desktop. Use
+`--canvas` to cover the fallback renderer without running unrelated case suites.
+
+For focused remote diagnostics, manually run CI with `browser_scope=mobile-ui`
+(device modes and completion) or `mobile-play` (touch gameplay). The default is
+`all`; partial runs explicitly label their report and do not upload a release
+build. A partial success must never be treated as a release-wide pass.
+The `route` scope isolates Sparky's landscape route and standing-jump fixture,
+with frame-by-frame physics/input reports. Running routes wait for measured
+ground speed, not wall-clock sleeps or a synthetic velocity boost.
 
 ---
 
@@ -277,6 +366,10 @@ Options screen; `SOURCES.md` preserves the supplied ledger.
   render. Bus handlers still apply solved-terminal and gate changes while asleep.
   Resume resets the frame delta before waking. Cleanup must wake a sleeping
   game so Phaser can process its deferred destruction.
+- The HUD Pause button (or `P`) opens an explicit pause dialog. Resume, `P`,
+  Escape or dismissing that dialog resumes the same run. Manual pause time is
+  excluded from the time bonus, Quickdraw and debrief duration; normal terminal
+  reading/query time still counts. Abandon is styled red and still exits the run.
 - Terminal operator ticks use `parse` and `collectFeatures`, not query execution.
   They indicate syntax present, not a correct answer. Run still executes and
   grades the real result table; lesson examples and previews are unchanged.
@@ -827,5 +920,5 @@ called for a fun prototype, and every hour went into the game loop instead.
 
 1. Cases 002–005 — the case format is data, so a new case is a new file plus a new ASCII level.
 2. Wire the React client to `server/` for shared leaderboards.
-3. Mobile touch controls.
+3. Extend mobile browser coverage on physical handsets.
 4. Code-split Phaser (1.2 MB / 319 kB gzipped) — fine for a prototype, worth doing before this is used in anger.

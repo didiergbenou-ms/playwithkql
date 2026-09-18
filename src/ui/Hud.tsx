@@ -1,16 +1,21 @@
 import type { CaseDefinition } from '../data/cases/types';
 import { currentObjective, roomProgress, useStore } from '../state/store';
 import { CaseDifficulty } from './CaseDifficulty';
+import { useSecondaryTouchActivation } from './useSecondaryTouchActivation';
 
 interface Props {
   caseDef: CaseDefinition;
   onNotebook: () => void;
   onReference: () => void;
   onOptions: () => void;
+  onPause: () => void;
+  pauseDisabled?: boolean;
+  touchEnabled?: boolean;
   onQuit: () => void;
 }
 
-export function Hud({ caseDef, onNotebook, onReference, onOptions, onQuit }: Props) {
+export function Hud({ caseDef, onNotebook, onReference, onOptions, onPause, pauseDisabled = false, touchEnabled = false, onQuit }: Props) {
+  const touchActivation = useSecondaryTouchActivation();
   const run = useStore((s) => s.run);
   const solvedIds = caseDef.challenges
     .filter((challenge) => run.challenges[challenge.id]?.solved)
@@ -21,8 +26,31 @@ export function Hud({ caseDef, onNotebook, onReference, onOptions, onQuit }: Pro
   const crystalsLeft = run.crystals - run.crystalsSpent;
   const notesPocketed = caseDef.level.notes.filter((note) => run.notesRead.includes(note.id)).length;
 
+  if (touchEnabled) {
+    return (
+      <div className="hud hud-compact" {...touchActivation}>
+        <div className="compact-identity">
+          <strong>{caseDef.title}</strong>
+          <span>{run.room}</span>
+        </div>
+        <span className="hud-health" aria-label={`Health ${run.health} of ${run.maxHealth}`}>
+          {Array.from({ length: run.maxHealth }, (_, index) => (
+            <i key={index} className={index < run.health ? 'heart on' : 'heart'} />
+          ))}
+        </span>
+        <span className="obj-count" aria-label={`${objective.solved} of ${objective.total} terminals solved`}>
+          {objective.solved}/{objective.total}
+        </span>
+        <button className="ghost compact-menu-button" onClick={onPause}
+          disabled={pauseDisabled} aria-haspopup="dialog" aria-label="Pause (P)">
+          Menu
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="hud">
+    <div className="hud" {...touchActivation}>
       <div className="hud-case">
         <span className="hud-case-no">CASE {caseDef.id}</span>
         <strong>{caseDef.title}</strong>
@@ -82,20 +110,23 @@ export function Hud({ caseDef, onNotebook, onReference, onOptions, onQuit }: Pro
         </div>
 
         <div className="hud-right">
-          <button className="ghost small" onClick={onOptions}>
-            Options (O)
+          <button className="ghost small" onClick={onPause} disabled={pauseDisabled} aria-haspopup="dialog" aria-label="Pause (P)">
+            {touchEnabled ? 'Pause' : 'Pause (P)'}
+          </button>
+          <button className="ghost small" onClick={onOptions} aria-label="Options (O)">
+            {touchEnabled ? 'Options' : 'Options (O)'}
           </button>
           <button className="ghost small" onClick={onReference}>
-            KQL card (K)
+            {touchEnabled ? 'KQL card' : 'KQL card (K)'}
           </button>
           <button
             className="ghost small"
             onClick={onNotebook}
             title={`${notesPocketed} field notes pocketed; ${run.evidence.length} pieces of query evidence filed`}
           >
-            Notes ({notesPocketed}) (Tab)
+            Notes ({notesPocketed}){!touchEnabled && ' (Tab)'}
           </button>
-          <button className="ghost small" onClick={onQuit}>
+          <button className="abandon-button small" onClick={onQuit}>
             Abandon
           </button>
         </div>

@@ -71,7 +71,41 @@ You should see the **KQL Quest** menu. Click **Open case file** and follow the
 on-screen prompts: choose difficulty, then recruit, then begin the investigation.
 Use **A/D** to move, **Space** to jump, and **E** to interact.
 
+On touch devices, use the on-screen direction, Jump and Interact buttons.
+Movement and jumping work together with separate fingers. Both portrait and
+landscape are supported. Tap **Menu** to pause and find notes, KQL reference,
+options, **Return to checkpoint** and Abandon. Selection screens keep the main
+choices and Continue action visible; expand details when you want more context.
+
+If a hybrid device selects an unsuitable layout, open **Options > Controls and
+layout** and choose **Keyboard & mouse** or **Touch**. **Auto** uses the primary
+pointer rather than the mere presence of a touchscreen. The override applies
+for this visit and keeps the current investigation running.
+
 Do not open `index.html` directly from your file manager; use the local URL.
+
+For mobile emulation, enable touch in the browser's device toolbar before
+loading the game. After building and starting the existing production preview,
+run `python scripts/testMobileBrowser.py` with the same Playwright setup as the
+other browser suites. `npm run test:mobile` runs the deterministic input checks.
+`python scripts/testCompactBrowser.py` checks phone screen density and safe-area
+layouts; add `--screenshots <directory>` to save each menu and gameplay view.
+The single mobile camera adapts to orientation: portrait shows 18 tiles across
+and landscape uses the full safe width. No duplicate Route View is shown.
+Switching terminal panes resets the reading position without losing the query.
+For focused local verification after a camera/terminal change, run
+`python scripts/testWorldAndTerminalBrowser.py` against the production preview
+(and again with `--canvas` for the fallback renderer).
+For an audio activation/recovery change, run `python scripts/testAudioBrowser.py`.
+It checks touch-release activation, resume, cue scheduling and mute preservation;
+it cannot verify an iPhone's physical speaker, Silent Mode or Bluetooth route.
+If sound is missing on iPhone, check those device settings, then use
+**Options > Sound effects > Test effect** for the browser's audio status.
+GitHub Actions runs `python scripts/runBrowserChecks.py` against its own preview
+and uploads a **browser-reports** artifact containing logs and phone screenshots,
+including failed runs. This does not require launching a browser through Scout.
+Emulation covers multi-touch and viewport changes, but a physical handset is
+still needed to assess its native keyboard and browser chrome.
 
 ## 5. Make changes and restart when needed
 

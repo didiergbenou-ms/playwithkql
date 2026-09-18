@@ -14,6 +14,12 @@ export const COYOTE_MS = 110;
 export const BUFFER_MS = 140;
 export const ENEMY_SPEED = 26;
 export const MAX_FALL_SPEED = 460;
+export const HORIZONTAL_DRAG = 800;
+
+/** Arcade otherwise applies drag against our manually driven velocity. */
+export function horizontalDrag(left: boolean, right: boolean): number {
+  return left !== right ? 0 : HORIZONTAL_DRAG;
+}
 
 /**
  * Apex height in pixels for a given jump multiplier: v^2 / 2g.

@@ -173,10 +173,11 @@ class FakeAudioContext {
 
   readonly destination = new FakeAudioNode();
   readonly sampleRate = 48_000;
-  state: AudioContextState = 'running';
+  state: AudioContextState | 'interrupted' = 'running';
   oscillatorCount = 0;
   bufferSourceCount = 0;
   resumeCalls = 0;
+  resumeError: Error | null = null;
 
   constructor() {
     FakeAudioContext.instances.push(this);
@@ -217,8 +218,9 @@ class FakeAudioContext {
   }
 
   resume() {
-    this.state = 'running';
     this.resumeCalls++;
+    if (this.resumeError) return Promise.reject(this.resumeError);
+    this.state = 'running';
     return Promise.resolve();
   }
 
@@ -468,6 +470,48 @@ check('unlock resumes audio without restarting inaudible music', () => {
     clock.advance(60);
     assert(audio.getDebugState().schedulerRunning, 'music did not resume after focus ended');
   });
+});
+
+check('Safari interrupted state resumes on a later gesture', () => {
+  withHarness(({ audio, ctx }) => {
+    ctx.state = 'interrupted';
+    const before = ctx.resumeCalls;
+    void audio.unlock();
+    assert(ctx.resumeCalls === before + 1, 'interrupted context was not resumed');
+    assert(String(ctx.state) === 'running', 'context did not recover from interruption');
+    ctx.suspendForTest();
+    void audio.unlock();
+    assert(ctx.resumeCalls === before + 2, 'later gesture did not retry the suspended context');
+  });
+});
+
+async function checkAsync(name: string, fn: () => Promise<void>) {
+  try { await fn(); passed++; }
+  catch (err) { failures.push(`${name}\n    ${err instanceof Error ? err.message : String(err)}`); }
+}
+
+await checkAsync('a rejected resume is reported, resolves false and can be retried', async () => {
+  let first = Promise.resolve(true);
+  let retry = () => Promise.resolve(false);
+  const warnings: unknown[][] = [];
+  const oldWarn = console.warn;
+  console.warn = (...args: unknown[]) => { warnings.push(args); };
+  try {
+    withHarness(({ audio, ctx }) => {
+      ctx.suspendForTest();
+      ctx.resumeError = new Error('Gesture required');
+      first = audio.unlock();
+      retry = () => {
+        ctx.resumeError = null;
+        return audio.unlock();
+      };
+    });
+    assert(await first === false, 'rejected resume reported success');
+    assert(warnings.length === 1, 'resume failure was silently swallowed');
+    assert(await retry() === true, 'later resume could not recover');
+  } finally {
+    console.warn = oldWarn;
+  }
 });
 
 console.log(`\n  ${passed} passed, ${failures.length} failed\n`);

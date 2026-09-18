@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { audio, cueForTier } from '../game/audio';
+import { useModalViewport } from './useModalViewport';
 
 export interface CelebrationData {
   tier: 1 | 2 | 3;
@@ -97,6 +98,7 @@ function Confetti({ count, reduced }: { count: number; reduced: boolean }) {
 }
 
 export function Celebration({ data, onDone }: { data: CelebrationData; onDone: () => void }) {
+  const viewportRef = useModalViewport();
   const reduced = useMemo(prefersReducedMotion, []);
   const [leaving, setLeaving] = useState(false);
 
@@ -127,7 +129,7 @@ export function Celebration({ data, onDone }: { data: CelebrationData; onDone: (
   const particles = data.tier === 3 ? 46 : data.tier === 2 ? 26 : 14;
 
   return (
-    <div className={`celebrate tier-${data.tier} ${leaving ? 'out' : ''} ${reduced ? 'calm' : ''}`}>
+    <div ref={viewportRef} className={`celebrate tier-${data.tier} ${leaving ? 'out' : ''} ${reduced ? 'calm' : ''}`}>
       {/* Not mounted at all under reduced motion. Slowing the confetti to six
           drifting particles still puts moving objects on screen, which is what
           the Options screen promises not to do. The card itself carries the
@@ -150,7 +152,7 @@ export function Celebration({ data, onDone }: { data: CelebrationData; onDone: (
         {data.evidence && <p className="celebrate-evidence">Evidence filed — {data.evidence}</p>}
         {data.nextHint && <p className="celebrate-next">{data.nextHint}</p>}
 
-        <p className="celebrate-skip">press any key</p>
+        <p className="celebrate-skip">tap or press any key</p>
       </div>
     </div>
   );

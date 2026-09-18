@@ -16,6 +16,8 @@ import { VerdictModal } from '../src/ui/VerdictModal';
 import { CHALLENGES, ROOT_CAUSES } from '../src/data/case001';
 import { useStore } from '../src/state/store';
 import { getCase } from '../src/data/cases';
+import { Hud } from '../src/ui/Hud';
+import { PauseModal } from '../src/ui/PauseModal';
 
 let passed = 0;
 const failures: string[] = [];
@@ -45,6 +47,25 @@ function assert(cond: boolean, msg: string) {
 }
 
 const noop = () => {};
+
+check('HUD exposes Pause and gives Abandon its distinct destructive style', () => {
+  const html = renderToStaticMarkup(
+    <Hud caseDef={getCase('001')} onNotebook={noop} onReference={noop} onOptions={noop} onPause={noop} onQuit={noop} />,
+  );
+  assert(html.includes('Pause (P)'), 'Pause control missing');
+  assert(html.includes('aria-haspopup="dialog"'), 'Pause does not announce its dialog');
+  assert(/class="abandon-button small"[^>]*>Abandon</.test(html), 'Abandon lost destructive style');
+  const css = readFileSync(new URL('../src/ui/pauseControls.css', import.meta.url), 'utf8');
+  assert(/button\.abandon-button\s*\{[^}]*background:\s*var\(--red\)/.test(css), 'Abandon is not red');
+});
+
+check('pause dialog offers Resume without a destructive default action', () => {
+  const html = renderToStaticMarkup(<PauseModal onResume={noop} />);
+  assert(html.includes('Game paused'), 'Pause heading missing');
+  assert(html.includes('Resume game'), 'Resume action missing');
+  assert(html.includes('case timer are paused'), 'Pause timer behavior is not explained');
+  assert(!html.includes('Abandon'), 'Pause defaults to a destructive action');
+});
 
 /** `alreadySolved` is the supported way to open straight on the solve pane. */
 function renderTerminal(opts: { solved: boolean; draft?: string }) {

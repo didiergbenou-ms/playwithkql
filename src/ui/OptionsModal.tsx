@@ -1,10 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { audio, type AudioSettings } from '../game/audio';
 import { TRACKS } from '../game/music';
 import { ContentSources } from './ContentSources';
+import { setInputMode, useInputMode, useTouchControlsEnabled, type InputMode } from './inputMode';
 
 export function OptionsModal({ onClose }: { onClose: () => void }) {
   const [s, setS] = useState<AudioSettings>(() => audio.getSettings());
+  const inputMode = useInputMode();
+  const touchEnabled = useTouchControlsEnabled();
+  const [soundTest, setSoundTest] = useState<string | null>(null);
+  const testRequest = useRef(0);
+  useEffect(() => () => { testRequest.current++; }, []);
 
   const apply = (patch: Partial<AudioSettings>) => {
     audio.update(patch);
@@ -26,6 +32,23 @@ export function OptionsModal({ onClose }: { onClose: () => void }) {
           Close (Esc)
         </button>
       </header>
+
+      <section className="opt-group">
+        <h3>Controls and layout</h3>
+        <div className="input-mode-options" role="group" aria-label="Controls and layout">
+          {(['auto', 'keyboard', 'touch'] as InputMode[]).map((value) => (
+            <button key={value} className={inputMode === value ? 'primary small' : 'ghost small'}
+              onClick={() => setInputMode(value)} aria-pressed={inputMode === value}>
+              {value === 'auto' ? 'Auto' : value === 'keyboard' ? 'Keyboard & mouse' : 'Touch'}
+            </button>
+          ))}
+        </div>
+        <p className="opt-note">
+          {touchEnabled ? 'Touch layout is active.' : 'Desktop controls are active.'}{' '}
+          Auto follows your primary pointer, not whether a touchscreen is present.
+          Overrides apply for this visit and do not restart your investigation.
+        </p>
+      </section>
 
       <section className="opt-group">
         <h3>Music</h3>
@@ -76,11 +99,25 @@ export function OptionsModal({ onClose }: { onClose: () => void }) {
           <span className="opt-value">{Math.round(s.sfxVolume * 100)}%</span>
         </div>
         <div className="opt-row">
-          <button className="ghost small" onClick={() => audio.play('correctGood')}>
+          <button className="ghost small" onClick={async () => {
+            const request = ++testRequest.current;
+            if (!s.sfxOn || s.sfxVolume <= 0) {
+              setSoundTest('Turn on sound effects and raise their volume first.');
+              return;
+            }
+            const ready = await audio.unlock();
+            if (request !== testRequest.current) return;
+            if (ready) audio.play('correctGood');
+            setSoundTest(ready
+              ? 'Audio engine is running. If you hear nothing, check Silent Mode, media volume and Bluetooth output.'
+              : 'The browser has not enabled audio yet. Tap Test effect again after returning to this page.');
+          }}>
             Test effect
           </button>
           <span className="opt-note">Query-accepted cue</span>
         </div>
+        {soundTest && <p className="opt-note" role="status">{soundTest}</p>}
+        <p className="opt-note">On iPhone, Silent Mode or the selected Bluetooth output may silence browser audio.</p>
       </section>
 
       <section className="opt-group">

@@ -1,4 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { useModalViewport } from './useModalViewport';
+import { useSecondaryTouchActivation } from './useSecondaryTouchActivation';
 
 /**
  * Modal scrim with real dialog semantics.
@@ -24,6 +26,7 @@ const FOCUSABLE = [
   'input:not([disabled])',
   'select:not([disabled])',
   'textarea:not([disabled])',
+  'summary',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
@@ -38,15 +41,26 @@ export function ModalScrim({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const viewportRef = useModalViewport();
+  const touchActivation = useSecondaryTouchActivation();
+  const backdropPress = useRef<{ id: number; x: number; y: number } | null>(null);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const node = ref.current;
-
-    // Prefer the first real control; fall back to the container itself, which
-    // is why it carries tabIndex={-1}.
-    const first = node?.querySelector<HTMLElement>(FOCUSABLE);
-    (first ?? node)?.focus();
+    const { scrollX, scrollY } = window;
+    const body = document.body;
+    const saved = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    Object.assign(body.style, {
+      position: 'fixed', top: `${-scrollY}px`, left: `${-scrollX}px`,
+      width: '100%', overflow: 'hidden',
+    });
 
     const onKeyDown = (e: KeyboardEvent) => {
       // Bubble phase, and skipped when already handled. In capture phase this
@@ -80,15 +94,37 @@ export function ModalScrim({
       document.removeEventListener('keydown', onKeyDown);
       // Returning focus matters as much as taking it: without this the caret
       // lands back at the top of the document on every close.
-      previouslyFocused?.focus?.();
+      Object.assign(body.style, saved);
+      previouslyFocused?.focus?.({ preventScroll: true });
+      window.scrollTo(scrollX, scrollY);
     };
   }, []);
+
+  useEffect(() => {
+    // Switching from the pause menu to notes replaces the controls without
+    // closing the scrim. Give the newly displayed dialog a real focus target.
+    const node = ref.current;
+    const first = node?.querySelector<HTMLElement>(FOCUSABLE);
+    (first ?? node)?.focus({ preventScroll: true });
+  }, [label]);
 
   return (
     <div
       className="scrim"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onDismiss?.();
+      ref={viewportRef}
+      onPointerDown={(e) => {
+        backdropPress.current = e.button === 0 && e.target === e.currentTarget
+          ? { id: e.pointerId, x: e.clientX, y: e.clientY }
+          : null;
+      }}
+      onPointerCancel={() => { backdropPress.current = null; }}
+      onPointerUp={(e) => {
+        const started = backdropPress.current;
+        backdropPress.current = null;
+        // A delayed compatibility click from the touch that opened this modal
+        // must not dismiss it. Only a new, stationary backdrop gesture can.
+        if (started?.id === e.pointerId && e.target === e.currentTarget &&
+            Math.hypot(e.clientX - started.x, e.clientY - started.y) <= 8) onDismiss?.();
       }}
     >
       <div
@@ -98,6 +134,7 @@ export function ModalScrim({
         aria-label={label}
         tabIndex={-1}
         className="scrim-dialog"
+        {...touchActivation}
       >
         {children}
       </div>

@@ -38,6 +38,9 @@ export interface RunState {
   runId: number;
   startedAt: number;
   finishedAt: number | null;
+  /** Only the user-requested Pause button stops the run clock. */
+  pauseStartedAt: number | null;
+  pausedDurationMs: number;
   fragments: number;
   crystals: number;
   /** Crystals spent on free hints. */
@@ -150,6 +153,8 @@ function emptyRun(
     runId,
     startedAt: Date.now(),
     finishedAt: null,
+    pauseStartedAt: null,
+    pausedDurationMs: 0,
     fragments: 0,
     crystals: 0,
     crystalsSpent: 0,
@@ -235,6 +240,16 @@ export function challengeXp(points: number, p: ChallengeProgress | undefined): n
   return Math.round(points * challengeMultiplier(p));
 }
 
+/** Terminal reading still counts; only explicit manual pauses are excluded. */
+export function elapsedRunMs(
+  run: Pick<RunState, 'startedAt' | 'finishedAt'> &
+    Partial<Pick<RunState, 'pauseStartedAt' | 'pausedDurationMs'>>,
+  now = Date.now(),
+): number {
+  const end = Math.min(run.finishedAt ?? now, run.pauseStartedAt ?? Infinity);
+  return Math.max(0, end - run.startedAt - Math.max(0, run.pausedDurationMs ?? 0));
+}
+
 export function scoreRun(run: RunState): ScoreBreakdown {
   const completion = run.verdictCorrect ? 500 : 0;
   const challenges = getCase(run.caseId, run.difficulty).challenges;
@@ -251,7 +266,7 @@ export function scoreRun(run: RunState): ScoreBreakdown {
     ? Math.round((run.fragments / run.totalFragments) * 100)
     : 0;
 
-  const minutes = ((run.finishedAt ?? Date.now()) - run.startedAt) / 60_000;
+  const minutes = elapsedRunMs(run) / 60_000;
   const time = Math.round(100 * Math.min(1, Math.max(0, 1 - (minutes - 5) / 15)));
 
   return { completion, accuracy, clues, time, total: completion + accuracy + clues + time };
@@ -277,6 +292,8 @@ interface Store {
   selectCase: (caseId: string) => void;
   selectDifficulty: (difficulty: Difficulty) => void;
   startRun: (totalFragments: number, totalCrystals: number, caseId?: string, difficulty?: Difficulty) => void;
+  /** Stale run IDs are expected from overlay effect cleanup and are ignored. */
+  setRunPaused: (paused: boolean, runId: number) => void;
   setHud: (p: Partial<RunState>) => void;
   readNote: (id: string) => void;
   registerAttempt: (challengeId: string) => void;
@@ -411,6 +428,24 @@ export const useStore = create<Store>()(
           toasts: [],
         }),
 
+      setRunPaused: (paused, runId) => {
+        const { run } = get();
+        if (run.runId !== runId || run.finishedAt !== null) return;
+        const pauseStartedAt = run.pauseStartedAt ?? null;
+        if (paused === (pauseStartedAt !== null)) return;
+        const now = Date.now();
+        set({
+          run: paused
+            ? { ...run, pauseStartedAt: now }
+            : {
+                ...run,
+                pauseStartedAt: null,
+                pausedDurationMs:
+                  Math.max(0, run.pausedDurationMs ?? 0) + Math.max(0, now - (pauseStartedAt ?? now)),
+              },
+        });
+      },
+
       setHud: (p) => set((s) => ({ run: { ...s.run, ...p } })),
 
       readNote: (id) =>
@@ -525,6 +560,7 @@ export const useStore = create<Store>()(
         if (correct && !caseDef.challenges.every((c) => activeRun.challenges[c.id]?.solved)) {
           throw new Error('Solve the active case terminals before submitting its verdict.');
         }
+        // Retain an active pause marker so elapsedRunMs stays capped after completion.
         set((s) => ({
           run: { ...s.run, verdictId: optionId, verdictCorrect: correct, finishedAt: Date.now() },
         }));
@@ -544,7 +580,7 @@ export const useStore = create<Store>()(
         if (caseDef.level.notes.every((note) => run.notesRead.includes(note.id))) award('librarian');
         if (run.deaths === 0) award('flawless');
         if (Object.values(run.challenges).every((c) => hintsSeen(c) === 0)) award('no-hints');
-        if ((run.finishedAt ?? Date.now()) - run.startedAt < 8 * 60_000) award('quickdraw');
+        if (elapsedRunMs(run) < 8 * 60_000) award('quickdraw');
 
         set((s) => ({
           profile: {
