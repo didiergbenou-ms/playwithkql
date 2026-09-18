@@ -123,6 +123,7 @@ jobs:
           node scripts/serve.mjs 4173 > "$RUNNER_TEMP/phaser-preview.log" 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          python -m unittest discover -s scripts -p testTouchGestures.py
           python scripts/runBrowserChecks.py --only "$BROWSER_SCOPE"
 
       - name: Upload browser reports

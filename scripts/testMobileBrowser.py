@@ -24,12 +24,21 @@ class Fingers:
         })
 
     def down(self, pointer, button, offset=0):
-        box = self.page.get_by_role("button", name=button, exact=True).bounding_box()
-        assert box, f"Missing touch target: {button}"
-        self.points[pointer] = {
-            "id": pointer, "x": box["x"] + box["width"] / 2 + offset,
-            "y": box["y"] + box["height"] / 2, "radiusX": 4, "radiusY": 4,
-        }
+        self.down_many([(pointer, button, offset)])
+
+    def down_many(self, presses):
+        # Read every target before starting any finger. Separate CDP starts
+        # can consume the coyote window while the runner looks up Jump.
+        additions = {}
+        for pointer, button, offset in presses:
+            assert pointer not in self.points and pointer not in additions, f"Pointer already held: {pointer}"
+            box = self.page.get_by_role("button", name=button, exact=True).bounding_box()
+            assert box, f"Missing touch target: {button}"
+            additions[pointer] = {
+                "id": pointer, "x": box["x"] + box["width"] / 2 + offset,
+                "y": box["y"] + box["height"] / 2, "radiusX": 4, "radiusY": 4,
+            }
+        self.points.update(additions)
         self.send("touchStart")
 
     def move(self, pointer, x, y):
@@ -166,8 +175,7 @@ def settled(page):
 def test_fingers(page):
     fingers = Fingers(page)
     start = position(page)
-    fingers.down(1, "Move right")
-    fingers.down(2, "Jump")
+    fingers.down_many([(1, "Move right", 0), (2, "Jump", 0)])
     page.wait_for_function("""start=>{
       const p=__kql.game.scene.getScene('Game').player;
       return p.x>start.x+5 && p.y<start.y-5;
@@ -474,10 +482,10 @@ def test_touch_route(page, recruit):
               const c=__kql.game.scene.getScene('Game').cameras.main;
               return x>=c.worldView.left && x<=c.worldView.right;
             }""", column * 16 + 8), f"{recruit}: next landing is off-camera before takeoff"
-        if 1 not in fingers.points:
-            fingers.down(1, "Move right")
         if jump:
-            fingers.down(2, "Jump")
+            fingers.down_many([(1, "Move right", 0), (2, "Jump", 0)])
+        else:
+            fingers.down(1, "Move right")
         page.wait_for_function(
             "x=>__kql.game.scene.getScene('Game').player.x>=x-2", arg=column * 16 + 8,
         )
