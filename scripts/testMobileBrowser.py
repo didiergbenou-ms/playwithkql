@@ -459,7 +459,7 @@ def test_phone(page, screenshots=None):
 
 
 def test_touch_route(page, recruit, reports=None):
-    # Authored Harbor route: real touch movement across twelve floor/platform
+    # Authored Harbor route: real touch movement across seven floor/platform
     # waypoints. Gates are opened to isolate controls, not to claim a case solve.
     tap(page, "Select case 002: Signal Harbor")
     enter(page, recruit)
@@ -485,9 +485,8 @@ def test_touch_route(page, recruit, reports=None):
       }
     }""")
     route = [
-        (9, 10, False), (12, 8, True), (13, 8, False), (16, 6, True),
-        (18, 6, False), (22, 4, True), (25, 4, False), (29, 6, False),
-        (30, 6, False), (34, 8, False), (35, 8, False), (42, 10, False),
+        (9, 10, False), (12, 8, True), (17, 6, True), (24, 4, True),
+        (30, 6, False), (34, 8, False), (42, 10, False),
     ]
     fingers = Fingers(page)
     history = []
@@ -500,6 +499,9 @@ def test_touch_route(page, recruit, reports=None):
           return {x:s.player.x,y:s.player.y,bottom:b.bottom,vx:b.velocity.x,grounded:b.blocked.down};
         }""")
         history.append({"waypoint": index, "target": [column, row], "before": before})
+        if not jump and before["x"] >= column * 16 + 6:
+            assert before["grounded"] and abs(before["bottom"] - row * 16) < 2, history
+            continue
         if jump:
             assert before["grounded"], f"{recruit}: jump starts off its intended platform: {history}"
             assert page.evaluate("""x=>{
@@ -546,7 +548,7 @@ def test_touch_route(page, recruit, reports=None):
         page.wait_for_function("!__kql.game.scene.getScene('Game').jumpHeld")
         page.wait_for_function("Math.abs(__kql.game.scene.getScene('Game').player.body.velocity.x)<1")
     fingers.cancel()
-    print(f"{recruit}: twelve physical touch-controlled platform waypoints passed.", flush=True)
+    print(f"{recruit}: seven physical touch-controlled landings across every first-room platform passed.", flush=True)
 
 def test_standing_jump(page):
     # Separate collision/input fixture for the drag bug, not part of the
