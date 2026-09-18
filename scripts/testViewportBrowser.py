@@ -69,9 +69,8 @@ def main():
                     page.screenshot(path=str(args.screenshots / f"adaptive-{width}x{height}.png"))
                 controls_fit(page)
                 g = geometry(page)
+                assert len(g["cameras"]) == 1, "Route overview must not be recreated during rotation"
                 for camera in g["cameras"]:
-                    if camera["name"] == "route-label":
-                        continue
                     assert camera["view"]["height"] <= 209
                     assert camera["view"]["y"] >= -1, f"Camera shows unbounded sky: {camera}"
                     assert camera["view"]["y"] + camera["view"]["height"] <= 209

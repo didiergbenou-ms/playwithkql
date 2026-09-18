@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   CAMERA_LOOKAHEAD, CAMERA_ZOOM, GAME_HEIGHT, GAME_WIDTH, MAX_BACKING_HEIGHT,
-  MAX_BACKING_WIDTH, OVERVIEW_LABEL_CSS_HEIGHT, OVERVIEW_MAX_CSS_HEIGHT,
-  OVERVIEW_MIN_CSS_HEIGHT, OVERVIEW_MIN_WIDTH_RATIO, PORTRAIT_MAX_WORLD_HEIGHT,
+  MAX_BACKING_WIDTH, PORTRAIT_MAX_WORLD_HEIGHT,
   PORTRAIT_MIN_WORLD_WIDTH, VIEW_HEIGHT, VIEW_WIDTH,
 } from '../src/game/config.ts';
 import { chooseViews, type CameraView, type ViewportLayout } from '../src/game/viewport.ts';
@@ -39,6 +38,9 @@ function bounds(view: CameraView, layout: ViewportLayout, levelWidth: number, le
 function invariants(hostWidth: number, hostHeight: number, mobile: boolean, levelWidth = 2944, levelHeight = 208) {
   const layout = chooseViews(hostWidth, hostHeight, mobile, levelWidth, levelHeight);
   assert.deepEqual(layout, chooseViews(hostWidth, hostHeight, mobile, levelWidth, levelHeight));
+  assert.deepEqual(Object.keys(layout).sort(), [
+    'baseZoom', 'cssHeight', 'cssWidth', 'height', 'main', 'mobile', 'mode', 'unusedCssHeight', 'width',
+  ]);
   assert.equal(layout.mobile, mobile);
   assert.equal(layout.mode, !mobile ? 'desktop' : hostWidth < hostHeight ? 'portrait' : 'landscape');
   for (const value of [layout.width, layout.height, layout.cssWidth, layout.cssHeight, layout.baseZoom]) {
@@ -51,7 +53,9 @@ function invariants(hostWidth: number, hostHeight: number, mobile: boolean, leve
   near(layout.cssWidth, layout.width * cssScale);
   near(layout.cssHeight, layout.height * cssScale);
   near(layout.cssWidth / layout.width, layout.cssHeight / layout.height);
-  near(layout.main.y + layout.main.height, layout.height);
+  assert.equal(layout.main.x, 0);
+  assert.equal(layout.main.y, 0);
+  assert.equal(layout.main.height, layout.height);
   near(layout.baseZoom, layout.main.zoom);
   near(layout.main.width, layout.width);
   bounds(layout.main, layout, levelWidth, levelHeight);
@@ -61,28 +65,14 @@ function invariants(hostWidth: number, hostHeight: number, mobile: boolean, leve
     if (layout.mode === 'portrait') {
       near(layout.main.worldWidth, PORTRAIT_MIN_WORLD_WIDTH);
       assert.ok(layout.main.worldHeight <= PORTRAIT_MAX_WORLD_HEIGHT + epsilon);
+      near(layout.cssWidth, hostWidth);
+      near(layout.cssHeight, Math.min(hostHeight, hostWidth * 208 / 288));
     } else {
       near(layout.main.worldHeight, VIEW_HEIGHT);
       near(layout.main.worldWidth, Math.min(levelWidth, hostWidth / hostHeight * VIEW_HEIGHT));
       near(layout.cssHeight, hostHeight);
     }
   }
-  if (layout.overview) {
-    assert.equal(layout.mode, 'portrait');
-    bounds(layout.overview, layout, levelWidth, levelHeight);
-    near(layout.overview.worldHeight, levelHeight);
-    near(layout.overview.width, layout.width);
-    near(layout.overview.y, layout.labelHeight);
-    near(layout.main.y, layout.labelHeight + layout.overview.height);
-    near(layout.labelHeight * cssScale, OVERVIEW_LABEL_CSS_HEIGHT);
-    assert.ok(layout.overview.height * cssScale >= OVERVIEW_MIN_CSS_HEIGHT - epsilon);
-    assert.ok(layout.overview.height * cssScale <= OVERVIEW_MAX_CSS_HEIGHT + epsilon);
-    assert.ok(layout.overview.worldWidth >= layout.main.worldWidth * OVERVIEW_MIN_WIDTH_RATIO - epsilon);
-  } else {
-    assert.equal(layout.labelHeight, 0);
-    assert.equal(layout.main.y, 0);
-  }
-  near(layout.height, layout.main.height + (layout.overview?.height ?? 0) + layout.labelHeight);
   return layout;
 }
 
@@ -95,26 +85,25 @@ check('desktop always uses exact 640x360 / 2x geometry and uniform FIT', () => {
   for (const [w, h] of [[320, 568], [1920, 1080], [844, 320], [100, 10000], [10000, 10]]) {
     const layout = invariants(w, h, false);
     assert.deepEqual(layout.main, { x: 0, y: 0, width: 640, height: 360, zoom: 2, worldWidth: 320, worldHeight: 180 });
-    assert.equal(layout.overview, null);
   }
   const fitted = chooseViews(320, 568, false);
   assert.deepEqual([fitted.cssWidth, fitted.cssHeight, fitted.unusedCssHeight], [320, 180, 388]);
 });
 
-check('requested portrait samples cap the overview, exclude surplus and retain full main height', () => {
-  for (const [w, h, expectedHeight, overviewWorldWidth] of [
-    [320, 568, 473.14285714285717, 416],
-    [393, 700, 540.9285714285714, 510.9],
-    [430, 844, 575.2857142857142, 559],
+check('requested portrait samples show 288x208 world pixels with actual fitted CSS height', () => {
+  for (const [w, h, expectedHeight] of [
+    [320, 568, 231.11111111111111],
+    [393, 700, 283.8333333333333],
+    [430, 844, 310.55555555555554],
   ]) {
     const layout = invariants(w, h, true);
-    assert.ok(layout.overview);
     near(layout.cssHeight, expectedHeight);
     near(layout.cssWidth, w);
     near(layout.main.worldHeight, 208);
-    near(layout.overview.worldWidth, overviewWorldWidth);
+    near(layout.main.worldWidth, 288);
     near(layout.width, 640);
-    near(layout.main.zoom, 640 / 224);
+    near(layout.height, 462.22222222222223);
+    near(layout.main.zoom, 640 / 288);
     near(layout.unusedCssHeight, h - expectedHeight);
   }
 });
@@ -122,7 +111,6 @@ check('requested portrait samples cap the overview, exclude surplus and retain f
 check('requested landscape samples use all available height and width', () => {
   for (const [w, h, expectedWorldWidth] of [[667, 300, 400.2], [844, 320, 474.75]]) {
     const layout = invariants(w, h, true);
-    assert.equal(layout.overview, null);
     near(layout.cssWidth, w);
     near(layout.cssHeight, h);
     near(layout.main.worldWidth, expectedWorldWidth);
@@ -130,50 +118,52 @@ check('requested landscape samples use all available height and width', () => {
   }
 });
 
-check('uncapped portrait overview spends all remaining height, including its label', () => {
+check('portrait widens visible world rather than enlarging sprites or backing', () => {
   const layout = invariants(320, 400, true);
-  assert.ok(layout.overview);
-  near(layout.cssHeight, 400);
-  near(layout.unusedCssHeight, 0);
-  near(layout.overview.height * layout.cssHeight / layout.height, 400 - 320 * 208 / 224 - 16);
+  assert.equal(PORTRAIT_MIN_WORLD_WIDTH, 288);
+  near(layout.main.worldWidth / 224, 9 / 7);
+  assert.ok(layout.main.zoom < 640 / 224);
+  near(layout.cssWidth / layout.main.worldWidth, layout.cssHeight / layout.main.worldHeight);
 });
 
-check('overview drawable minimum excludes the label and is inclusive', () => {
-  const threshold = 320 * (208 / 224) + 16 + 64;
-  assert.ok(invariants(320, threshold, true).overview);
-  const below = invariants(320, threshold - 0.001, true);
-  assert.equal(below.overview, null);
-  near(below.cssHeight, 320 * 208 / 224);
-  near(below.unusedCssHeight, 80 - 0.001);
+check('tiny portrait hosts retain uniform scale without minimum CSS allocation', () => {
+  for (const [w, h, expectedHeight] of [[1, 2, 13 / 18], [0.125, 0.5, 13 / 144], [32, 64, 208 / 9]]) {
+    const layout = invariants(w, h, true);
+    near(layout.cssHeight, expectedHeight);
+    near(layout.main.worldWidth, 288);
+    near(layout.main.worldHeight, 208);
+  }
 });
 
 check('portrait main-only keeps its FOV without stretching near square hosts', () => {
   const layout = invariants(393, 394, true);
-  assert.equal(layout.overview, null);
-  near(layout.cssHeight, 393 * 208 / 224);
+  near(layout.cssHeight, 393 * 208 / 288);
   near(layout.main.worldHeight, 208);
-  near(layout.main.worldWidth, 224);
+  near(layout.main.worldWidth, 288);
 });
 
-check('overview width-ratio cap may leave unused height rather than a narrow redundant overview', () => {
-  const layout = invariants(160, 600, true);
-  assert.ok(layout.overview);
-  near(layout.overview.worldWidth, 336);
-  near(layout.overview.height * layout.cssHeight / layout.height, 160 * 208 / 336);
-  assert.ok(layout.unusedCssHeight > 0);
-  assert.equal(invariants(100, 600, true).overview, null);
+check('collapsed portrait host keeps portrait FOV instead of switching to landscape', () => {
+  const layout = chooseViews(377, 272, true, undefined, undefined, 'portrait');
+  assert.equal(layout.mode, 'portrait');
+  near(layout.main.worldWidth, 288);
+  near(layout.cssHeight, 272);
+  assert.ok(layout.main.worldHeight <= 208);
 });
 
-check('overview respects actual level width and full actual level height', () => {
-  assert.equal(invariants(320, 568, true, 300).overview, null);
-  assert.equal(invariants(320, 568, true, 400).overview, null);
-  assert.ok(invariants(320, 568, true, 416).overview);
-  const custom = invariants(320, 568, true, 736, 300);
-  assert.ok(custom.overview);
-  near(custom.overview.worldHeight, 300);
-  near(custom.overview.worldWidth, 600);
-  near(custom.main.worldHeight, 208);
-  assert.equal(invariants(320, 568, true, 736, 1000).overview, null);
+check('fractional portrait CSS dimensions are not independently rounded', () => {
+  const layout = invariants(393.25, 700.75, true);
+  near(layout.cssWidth, 393.25);
+  near(layout.cssHeight, 284.0138888888889);
+  near(layout.unusedCssHeight, 416.7361111111111);
+  near(layout.main.worldWidth, 288);
+  near(layout.main.worldHeight, 208);
+});
+
+check('portrait FOV stays fixed for all supported level bounds', () => {
+  const normal = invariants(320, 568, true);
+  for (const [width, height] of [[288, 208], [300, 208], [736, 300], [2944, 1000]]) {
+    assert.deepEqual(invariants(320, 568, true, width, height), normal);
+  }
 });
 
 check('ultra-tall hosts exclude empty sky from the backing aspect', () => {
@@ -183,15 +173,17 @@ check('ultra-tall hosts exclude empty sky from the backing aspect', () => {
   near(tall.height, normal.height);
   near(tall.cssHeight, normal.cssHeight);
   assert.deepEqual(tall.main, normal.main);
-  assert.deepEqual(tall.overview, normal.overview);
 });
 
-check('height-limited backing keeps a single uniform scale with a tall actual level', () => {
-  const layout = invariants(100, 1000, true, 2944, 1000);
-  assert.ok(layout.overview);
-  near(layout.height, 1400);
-  assert.ok(layout.width < 640);
-  near(layout.cssHeight, 100 * 208 / 224 + 16 + 160);
+check('representable extreme portrait dimensions preserve useful world and bounded backing', () => {
+  for (const [w, h] of [[1e-200, 1], [1e200, 1e201], [320, Number.MAX_VALUE]]) {
+    const layout = invariants(w, h, true);
+    near(layout.width, 640);
+    near(layout.height, 640 * 208 / 288);
+    near(layout.main.worldWidth, 288);
+    near(layout.main.worldHeight, 208);
+    near(layout.cssHeight / layout.cssWidth, 208 / 288);
+  }
 });
 
 check('ultra-wide and ultra-short hosts cap width, not the 180-world-pixel height', () => {
@@ -227,9 +219,9 @@ check('levels too small for the selected FOV fail explicitly, with exact minimum
   assert.throws(() => chooseViews(640, 360, false, 319, 208), RangeError);
   assert.throws(() => chooseViews(640, 360, false, 320, 179), RangeError);
   invariants(640, 360, false, 320, 180);
-  assert.throws(() => chooseViews(320, 568, true, 223, 208), RangeError);
+  assert.throws(() => chooseViews(320, 568, true, 287, 208), RangeError);
   assert.throws(() => chooseViews(320, 568, true, 2944, 207), RangeError);
-  invariants(320, 568, true, 224, 208);
+  invariants(320, 568, true, 288, 208);
   assert.throws(() => chooseViews(667, 300, true, 179, 208), RangeError);
   assert.throws(() => chooseViews(667, 300, true, 2944, 179), RangeError);
   invariants(667, 300, true, 180, 180);
@@ -240,8 +232,8 @@ check('unrepresentable backing geometry fails rather than returning NaN or infin
   assert.throws(() => chooseViews(Number.MIN_VALUE, 568, true), RangeError);
 });
 
-check('deterministic grid covers bounds, FIT, occupancy and overview budgets', () => {
-  for (const w of [32, 100, 160, 224, 320, 393, 430, 640, 844, 1400, 4096]) {
+check('deterministic grid covers single-camera bounds, FIT and backing occupancy', () => {
+  for (const w of [0.125, 1, 32, 100, 160, 288, 320, 393.25, 430, 640, 844, 1400, 4096]) {
     for (const h of [1, 64, 180, 300, 320, 400, 568, 700, 844, 1400, 10000]) {
       invariants(w, h, true);
       invariants(w, h, false);

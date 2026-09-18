@@ -137,27 +137,27 @@ def controls_fit(page):
     controls = page.locator(".touch-controls").bounding_box()
     assert controls and controls["y"] - (canvas["y"] + canvas["height"]) <= 12, "Gap before controller deck"
     assert canvas["width"] >= viewport["width"] - 24, "Game does not fill available width"
-    assert viewport["height"] - (controls["y"] + controls["height"]) <= 16, "Unused space below controls"
     if viewport["width"] > viewport["height"]:
+        assert viewport["height"] - (controls["y"] + controls["height"]) <= 16, "Unused landscape space below controls"
         assert hud["height"] <= 52, "Landscape HUD too tall"
         assert canvas["height"] >= viewport["height"] - 140, f"Landscape game wastes its available area: {canvas}"
     else:
-        assert canvas["height"] >= min(viewport["height"] - 156, (viewport["width"] - 16) * 208 / 224 + 176) - 2, (
-            f"Portrait view fails the useful action/overview height budget: {canvas}"
+        assert canvas["y"] - (hud["y"] + hud["height"]) <= 14, "Removed overview still reserves a portrait gap"
+        assert canvas["height"] >= min(viewport["height"] - 156, (viewport["width"] - 16) * 208 / 288) - 2, (
+            f"Portrait view fails the single-world height budget: {canvas}"
         )
     assert abs(canvas["height"] - layout["cssHeight"]) < 2, "Canvas stretched beyond its uniform camera scale"
     cameras = page.evaluate("""__kql.game.scene.getScene('Game').cameras.cameras
       .filter(c=>c.visible).map(c=>({x:c.x,y:c.y,width:c.width,height:c.height,
         worldWidth:c.width/c.zoomX,worldHeight:c.height/c.zoomY}))""")
     main = cameras[0]
-    assert main["worldWidth"] >= (223 if layout["mode"] == "portrait" else 179), (
+    assert main["worldWidth"] >= (287 if layout["mode"] == "portrait" else 179), (
         f"Main action view is too narrow for the viewport contract: {main}"
     )
     assert main["worldHeight"] <= 209, f"Extra canvas height replaced blank space with sky: {main}"
     total_area = sum(c["width"] * c["height"] for c in cameras)
     assert total_area >= backing["width"] * backing["height"] * .9, f"Unassigned camera space: {cameras}"
-    if len(cameras) > 1:
-        assert cameras[1]["worldWidth"] >= main["worldWidth"] * 1.5, "Route view adds no wider context"
+    assert len(cameras) == 1, "A duplicate route camera is still present"
 
 
 def position(page):

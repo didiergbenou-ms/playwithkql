@@ -72,7 +72,10 @@ export function PhaserGame({
         // A detached/hidden host has no allocation yet. ResizeObserver will
         // retry when layout exists; invalid public geometry inputs still throw.
         if (host.clientWidth <= 0 || host.clientHeight <= 0) return;
-        const next = chooseViews(host.clientWidth, host.clientHeight, mobileRef.current);
+        const next = chooseViews(
+          host.clientWidth, host.clientHeight, mobileRef.current, undefined, undefined,
+          window.innerWidth < window.innerHeight ? 'portrait' : 'landscape',
+        );
         const changed = !layout || JSON.stringify(next) !== JSON.stringify(layout);
         layout = next;
         if (game.scale.gameSize.width !== next.width || game.scale.gameSize.height !== next.height) {
@@ -88,6 +91,10 @@ export function PhaserGame({
         host.style.setProperty('--game-content-width', `${game.canvas.width * displayScale}px`);
         host.style.setProperty('--game-content-height', `${game.canvas.height * displayScale}px`);
         host.style.setProperty('--game-unused-height', `${next.unusedCssHeight}px`);
+        if (host.parentElement?.classList.contains('game-viewport')) {
+          host.parentElement.dataset.viewportMode = next.mode;
+          host.parentElement.style.setProperty('--fitted-world-height', `${next.cssHeight}px`);
+        }
         const scene = game.scene.getScene('Game') as GameScene | null;
         if (scene && changed) scene.setViewportLayout(next);
         // setGameSize clears the backing surface even if the loop is asleep.

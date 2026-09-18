@@ -100,12 +100,8 @@ export class GameScene extends Phaser.Scene {
   private nearest: Interactable | null = null;
   private frozen = false;
   private busOff: (() => void)[] = [];
-  /** Public read-only-by-convention handles for viewport/browser diagnostics. */
+  /** Public read-only-by-convention layout for viewport/browser diagnostics. */
   viewportLayout: ViewportLayout | null = null;
-  overviewCamera: Phaser.Cameras.Scene2D.Camera | null = null;
-  private routeLabelCamera: Phaser.Cameras.Scene2D.Camera | null = null;
-  private routeOutline: Phaser.GameObjects.Graphics | null = null;
-  private routeLabel: Phaser.GameObjects.Text | null = null;
   private baseZoom = CAMERA_ZOOM;
   private cameraReady = false;
   private lookahead = 0;
@@ -224,43 +220,9 @@ export class GameScene extends Phaser.Scene {
       this.parallaxFar.setSize(VIEW_WIDTH + TILE, 160);
       this.parallaxNear.setSize(VIEW_WIDTH + TILE, 160);
     }
-    this.configureOverview(layout);
     this.prepareCameraFrame();
     // Scale changes can happen outside the game loop (including while paused).
     cam.preRender();
-    this.overviewCamera?.preRender();
-    this.routeLabelCamera?.preRender();
-  }
-
-  private configureOverview(layout: ViewportLayout) {
-    const view = layout.overview;
-    if (!view) {
-      this.overviewCamera?.setVisible(false);
-      this.routeLabelCamera?.setVisible(false);
-      return;
-    }
-    if (!this.overviewCamera) {
-      const cam = this.cameras.add(0, 0, 1, 1, false, 'overview');
-      this.overviewCamera = cam;
-      this.routeOutline = this.add.graphics().setDepth(80);
-      this.routeLabel = this.add.text(0, 0, 'ROUTE VIEW', {
-        fontFamily: 'monospace', fontSize: '10px', color: '#9ef7ed',
-      }).setScrollFactor(0).setOrigin(0, 0.5).setDepth(90);
-      this.routeLabelCamera = this.cameras.add(0, 0, 1, 1, false, 'route-label');
-      this.routeLabelCamera.ignore(this.children.list.filter((child) => child !== this.routeLabel));
-      cam.ignore([this.parallaxFar, this.parallaxNear, this.prompt, this.roomBanner, this.waypoint, this.routeLabel]);
-      this.cameras.main.ignore([this.routeOutline, this.routeLabel]);
-    }
-    const cam = this.overviewCamera;
-    cam.setVisible(true).setViewport(view.x, view.y, view.width, view.height).setZoom(view.zoom);
-    cam.setBounds(0, 0, this.level.width, this.level.height);
-    cam.centerOn(this.player.x + this.lookahead, this.level.height / 2);
-    cam.setBackgroundColor(this.level.rooms[Math.max(0, this.currentRoom)].tint);
-    const labelCam = this.routeLabelCamera!;
-    labelCam.setVisible(true).setViewport(0, 0, layout.width, layout.labelHeight).setZoom(1);
-    labelCam.centerOn(layout.width / 2, layout.labelHeight / 2).setBackgroundColor(COLORS.dark);
-    const cssToLogical = layout.width / layout.cssWidth;
-    this.routeLabel!.setFontSize(10 * cssToLogical).setPosition(8 * cssToLogical, layout.labelHeight / 2);
   }
 
   private prepareCameraFrame() {
@@ -274,7 +236,7 @@ export class GameScene extends Phaser.Scene {
     cam.centerOnY(this.level.height / 2);
   }
 
-  /** FOLLOW_UPDATE fires after main.preRender, before either camera is drawn. */
+  /** FOLLOW_UPDATE fires after main.preRender, before the camera is drawn. */
   private afterCameraFollow() {
     if (!this.viewportLayout?.mobile) return;
     const cam = this.cameras.main;
@@ -288,20 +250,6 @@ export class GameScene extends Phaser.Scene {
     this.parallaxNear.x = view.x;
     this.parallaxNear.tilePositionX = view.x * 0.55;
     this.clampMobileHud();
-    const route = this.overviewCamera;
-    if (!route?.visible || !this.routeOutline) return;
-    route.centerOn(cam.midPoint.x, this.level.height / 2);
-    const cssZoom = route.zoom * this.viewportLayout.cssWidth / this.viewportLayout.width;
-    const stroke = 1.5 / cssZoom;
-    const left = Math.max(0, view.left);
-    const top = Math.max(0, view.top);
-    const right = Math.min(this.level.width, view.right);
-    const bottom = Math.min(this.level.height, view.bottom);
-    this.routeOutline.clear().lineStyle(stroke, COLORS.cyan, 0.95)
-      .strokeRect(left + stroke / 2, top + stroke / 2, Math.max(0, right - left - stroke), Math.max(0, bottom - top - stroke));
-    // Highlight the real player, not a second simulated or reconstructed sprite.
-    this.routeOutline.lineStyle(2 / cssZoom, COLORS.lime, 1)
-      .strokeCircle(this.player.x, this.player.y, Math.max(PLAYER_H * 0.65, 5 / cssZoom));
   }
 
   private clampMobileHud() {
@@ -659,16 +607,6 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main?.off(Phaser.Cameras.Scene2D.Events.FOLLOW_UPDATE, this.afterCameraFollow, this);
       this.zoomReturn?.remove(false);
       this.zoomReturn = null;
-      // The camera/display-list plugins may already have destroyed their
-      // children when SHUTDOWN reaches us; don't destroy those objects twice.
-      if (this.overviewCamera && this.cameras.cameras.includes(this.overviewCamera)) this.cameras.remove(this.overviewCamera);
-      if (this.routeLabelCamera && this.cameras.cameras.includes(this.routeLabelCamera)) this.cameras.remove(this.routeLabelCamera);
-      if (this.routeOutline?.scene) this.routeOutline.destroy();
-      if (this.routeLabel?.scene) this.routeLabel.destroy();
-      this.overviewCamera = null;
-      this.routeLabelCamera = null;
-      this.routeOutline = null;
-      this.routeLabel = null;
       this.cameraReady = false;
       this.busOff.forEach((off) => off());
       this.busOff = [];
@@ -914,7 +852,6 @@ export class GameScene extends Phaser.Scene {
 
     bus.emit('game:room', { name: room.name, index: idx });
     this.cameras.main.setBackgroundColor(room.tint);
-    this.overviewCamera?.setBackgroundColor(room.tint);
 
     const [title, sub] = this.roomBanner.list as Phaser.GameObjects.Text[];
     title.setText(room.name);
@@ -1120,7 +1057,6 @@ export class GameScene extends Phaser.Scene {
       emitting: false,
     });
     emitter.setDepth(50);
-    this.routeLabelCamera?.ignore(emitter);
     emitter.explode(count);
     this.time.delayedCall(600, () => emitter.destroy());
   }

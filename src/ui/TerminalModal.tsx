@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CaseDefinition } from '../data/cases/types';
 import type { ChallengeSpec } from '../kql/challenge';
 import type { GradeResult } from '../kql/challenge';
@@ -128,6 +128,8 @@ export function TerminalModal({
   onClose,
 }: Props) {
   const touchEnabled = useTouchControlsEnabled();
+  const modalRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const db = useMemo(() => caseDef.database(), [caseDef]);
   const [query, setQuery] = useState(() => initialQuery ?? formatKql(spec.starter));
   const queryRef = useRef(query);
@@ -142,6 +144,12 @@ export function TerminalModal({
   const [pane, setPane] = useState<'learn' | 'task'>(
     alreadySolved || initialQuery !== undefined ? 'task' : 'learn',
   );
+  useLayoutEffect(() => {
+    // Learn and Solve share a scroller. Start the new pane at its heading,
+    // rather than inheriting the worked example's bottom-of-page position.
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    if (modalRef.current) modalRef.current.scrollTop = 0;
+  }, [pane]);
   const [exampleResult, setExampleResult] = useState<QueryResult | null>(null);
   const [exampleError, setExampleError] = useState<string | null>(null);
 
@@ -271,8 +279,8 @@ export function TerminalModal({
   ];
 
   return (
-    <div className={`modal terminal-modal${touchEnabled ? ' terminal-touch' : ''}`}>
-      <div className="terminal-scroll">
+    <div className={`modal terminal-modal${touchEnabled ? ' terminal-touch' : ''}`} ref={modalRef}>
+      <div className="terminal-scroll" ref={scrollRef}>
       <header className="modal-head">
         <div>
           <span className="tag tag-amber">KQL TERMINAL</span>

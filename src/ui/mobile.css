@@ -156,6 +156,13 @@
   box-shadow: none;
 }
 
+@media (orientation: portrait) {
+  .touch-enabled .game-viewport[data-viewport-mode='portrait'] {
+    flex: 0 0 auto;
+    height: calc(var(--fitted-world-height) + var(--touch-deck));
+  }
+}
+
 .touch-enabled .phaser-host canvas {
   width: var(--game-content-width, 100%) !important;
   height: var(--game-content-height, 100%) !important;

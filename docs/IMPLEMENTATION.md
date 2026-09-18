@@ -173,12 +173,12 @@ pending actions. Neither pointer state nor active runs are added to saved profil
 `mobile.css` adapts the existing retro UI, with separate control space, safe-area
 padding and scrollable terminal content. Phone gameplay chrome has a 44px menu
 target instead of a permanently expanded desktop dashboard. Desktop stays at
-640x360 with a 2x camera. Mobile uses `viewport.ts`: portrait has a 224-world-pixel
-wide action view, up to the room's 208-pixel height, and a wider live route view
-when there is enough vertical space. The overview shows actual terrain and a
-main-camera footprint, not a second simulation. Landscape uses the full safe
+640x360 with a 2x camera. Mobile uses one camera in `viewport.ts`: portrait shows
+288 world pixels across (18 tiles), up to the room's 208-pixel height. There is
+no duplicate Route View. The portrait playfield and controls sit directly under
+the HUD instead of reserving an empty overview area. Landscape uses the full safe
 width, with 180 world pixels vertically and a separate bottom control deck.
-Extremely tall windows can retain spare space once both views reach useful
+Extremely tall windows can retain spare space once the view reaches useful
 limits; the canvas must not stretch or add empty sky to hide that constraint.
 A host `ResizeObserver` changes mobile backing dimensions and projection without
 restarting the scene or changing physics. A paused resize renders one frozen
@@ -191,6 +191,9 @@ within the visual viewport and terminal scroll area, excluding the touch Run
 footer. It opens above the caret when needed, scrolls its own 44px options, and
 never moves the terminal merely to highlight an option. Editor autofocus is
 decided once on mount, not on a mid-session input-mode change.
+Switching Learn/Solve resets the shared terminal scroll container to its top
+after the new pane renders, including the worked-example and lesson CTA buttons.
+Query drafts and results are not reset by navigation.
 
 `test:mobile` covers the input bridge. `scripts/testMobileBrowser.py` covers
 phone-sized layouts, trusted Chromium multi-touch, held movement/jump, capture,
@@ -215,6 +218,10 @@ collects logs and screenshots under `browser-reports`. CI uploads that directory
 even on failure. Use the GitHub Actions runner when Scout's local browser/file
 approval gate blocks unattended testing; a passing geometry test is not proof of
 playability.
+For a small camera/terminal change, `testWorldAndTerminalBrowser.py` is the focused
+local check: one camera, wider portrait coverage, paused rotation, Learn/Solve
+scroll reset and query preservation in portrait, landscape and desktop. Use
+`--canvas` to cover the fallback renderer without running unrelated case suites.
 
 For focused remote diagnostics, manually run CI with `browser_scope=mobile-ui`
 (device modes and completion) or `mobile-play` (touch gameplay). The default is

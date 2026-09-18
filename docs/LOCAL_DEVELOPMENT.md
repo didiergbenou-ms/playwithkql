@@ -90,8 +90,12 @@ run `python scripts/testMobileBrowser.py` with the same Playwright setup as the
 other browser suites. `npm run test:mobile` runs the deterministic input checks.
 `python scripts/testCompactBrowser.py` checks phone screen density and safe-area
 layouts; add `--screenshots <directory>` to save each menu and gameplay view.
-The mobile action camera adapts to orientation; a portrait route overview gives
-wider context while landscape uses the full safe width. Physics are unchanged.
+The single mobile camera adapts to orientation: portrait shows 18 tiles across
+and landscape uses the full safe width. No duplicate Route View is shown.
+Switching terminal panes resets the reading position without losing the query.
+For focused local verification after a camera/terminal change, run
+`python scripts/testWorldAndTerminalBrowser.py` against the production preview
+(and again with `--canvas` for the fallback renderer).
 GitHub Actions runs `python scripts/runBrowserChecks.py` against its own preview
 and uploads a **browser-reports** artifact containing logs and phone screenshots,
 including failed runs. This does not require launching a browser through Scout.
