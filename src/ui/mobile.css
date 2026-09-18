@@ -158,8 +158,16 @@
 
 @media (orientation: portrait) {
   .touch-enabled .game-viewport[data-viewport-mode='portrait'] {
+    /* Derive height from width, not the previous measured canvas height. */
     flex: 0 0 auto;
-    height: calc(var(--fitted-world-height) + var(--touch-deck));
+    height: auto;
+    grid-template-rows: auto var(--touch-deck);
+    container-type: inline-size;
+  }
+
+  .touch-enabled .game-viewport[data-viewport-mode='portrait'] > .phaser-host {
+    height: auto;
+    aspect-ratio: var(--portrait-world-aspect);
   }
 }
 

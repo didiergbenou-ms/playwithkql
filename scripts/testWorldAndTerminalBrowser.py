@@ -26,6 +26,7 @@ def check_camera(page, mobile):
         hud = page.locator(".hud").bounding_box()
         controls = page.locator(".touch-controls").bounding_box()
         assert canvas and hud and controls
+        assert canvas["height"] >= canvas["width"] * 208 / 288 - 2, "Portrait retained a previous, smaller height"
         assert canvas["y"] - (hud["y"] + hud["height"]) <= 14, "Old overview gap remains above the world"
         assert controls["y"] - (canvas["y"] + canvas["height"]) <= 12, "Controls detached from the world"
     else:
@@ -98,6 +99,11 @@ def main():
                     page.goto(args.url, wait_until="networkidle")
                     enter(page)
                     state = check_camera(page, mobile)
+                    if mobile and width < height:
+                        for portrait_width in [320, 360, 430, 393]:
+                            page.set_viewport_size({"width": portrait_width, "height": height})
+                            page.wait_for_timeout(150)
+                            check_camera(page, True)
                     if args.screenshots:
                         page.screenshot(path=str(args.screenshots / f"single-world-{width}.png"))
                     if mobile:

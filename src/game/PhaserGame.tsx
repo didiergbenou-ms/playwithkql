@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
 import { bus } from './bus';
-import { GAME_HEIGHT, GAME_WIDTH } from './config';
+import { GAME_HEIGHT, GAME_WIDTH, PORTRAIT_MAX_WORLD_HEIGHT, PORTRAIT_MIN_WORLD_WIDTH } from './config';
 import { chooseViews, type ViewportLayout } from './viewport';
 import { touchInput } from './inputBridge';
 import { DEFAULT_CASE_ID } from '../data/cases';
@@ -40,6 +40,7 @@ export function PhaserGame({
 
   useEffect(() => {
     if (!hostRef.current || gameRef.current) return;
+    hostRef.current.style.setProperty('--portrait-world-aspect', `${PORTRAIT_MIN_WORLD_WIDTH} / ${PORTRAIT_MAX_WORLD_HEIGHT}`);
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
@@ -93,7 +94,6 @@ export function PhaserGame({
         host.style.setProperty('--game-unused-height', `${next.unusedCssHeight}px`);
         if (host.parentElement?.classList.contains('game-viewport')) {
           host.parentElement.dataset.viewportMode = next.mode;
-          host.parentElement.style.setProperty('--fitted-world-height', `${next.cssHeight}px`);
         }
         const scene = game.scene.getScene('Game') as GameScene | null;
         if (scene && changed) scene.setViewportLayout(next);
