@@ -433,6 +433,8 @@ def test_phone(page, screenshots=None):
             page.get_by_role("dialog").get_by_role("button", name=re.compile("^(Close|Esc)")).first.tap()
         page.wait_for_function("__kql.game.loop.running")
     interact(page, "note", lag_scene_clock=True)
+    page.locator(".scrim").dispatch_event("click")
+    expect(page.get_by_role("dialog", name="Field note", exact=True)).to_be_visible()
     tap(page, "Pocket it")
     tap(page, "Notes (1)")
     no_overflow(page, "notebook")

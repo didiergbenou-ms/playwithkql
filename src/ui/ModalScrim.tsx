@@ -43,6 +43,7 @@ export function ModalScrim({
   const ref = useRef<HTMLDivElement>(null);
   const viewportRef = useModalViewport();
   const touchActivation = useSecondaryTouchActivation();
+  const backdropPress = useRef<{ id: number; x: number; y: number } | null>(null);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -111,8 +112,19 @@ export function ModalScrim({
     <div
       className="scrim"
       ref={viewportRef}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onDismiss?.();
+      onPointerDown={(e) => {
+        backdropPress.current = e.button === 0 && e.target === e.currentTarget
+          ? { id: e.pointerId, x: e.clientX, y: e.clientY }
+          : null;
+      }}
+      onPointerCancel={() => { backdropPress.current = null; }}
+      onPointerUp={(e) => {
+        const started = backdropPress.current;
+        backdropPress.current = null;
+        // A delayed compatibility click from the touch that opened this modal
+        // must not dismiss it. Only a new, stationary backdrop gesture can.
+        if (started?.id === e.pointerId && e.target === e.currentTarget &&
+            Math.hypot(e.clientX - started.x, e.clientY - started.y) <= 8) onDismiss?.();
       }}
     >
       <div
