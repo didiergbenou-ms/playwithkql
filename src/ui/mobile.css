@@ -81,6 +81,16 @@
   font-size: 9px;
 }
 
+.input-mode-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.input-mode-options button {
+  min-height: 44px;
+}
+
 .touch-enabled :is(button, input, select, textarea) {
   min-width: 0;
   max-width: 100%;

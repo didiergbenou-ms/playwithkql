@@ -11,6 +11,15 @@ on:
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
+    inputs:
+      browser_scope:
+        description: Browser diagnostics scope (only all qualifies a release)
+        type: choice
+        default: all
+        options:
+          - all
+          - mobile-ui
+          - mobile-play
 
 jobs:
   verify:
@@ -42,6 +51,8 @@ jobs:
           node scripts/run.mjs scripts/testTouchInput.ts
           node scripts/run.mjs scripts/testCompactUi.tsx
           node scripts/run.mjs scripts/testViewport.ts
+          node scripts/run.mjs scripts/testInputMode.ts
+          node scripts/run.mjs scripts/testCompletionPlacement.ts
 
       - name: Case content and isolation
         run: |
@@ -106,11 +117,13 @@ jobs:
 
       - name: Phaser renderer and gameplay
         timeout-minutes: 20
+        env:
+          BROWSER_SCOPE: ${{ inputs.browser_scope || 'all' }}
         run: |
           node scripts/serve.mjs 4173 > "$RUNNER_TEMP/phaser-preview.log" 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
-          python scripts/runBrowserChecks.py
+          python scripts/runBrowserChecks.py --only "$BROWSER_SCOPE"
 
       - name: Upload browser reports
         if: always()
@@ -124,6 +137,7 @@ jobs:
       # Lets a reviewer download and open the actual build for a PR without
       # having to check the branch out and install anything.
       - name: Upload build
+        if: success() && (inputs.browser_scope == '' || inputs.browser_scope == 'all')
         uses: actions/upload-artifact@v4
         with:
           name: dist

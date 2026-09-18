@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { audio, type AudioSettings } from '../game/audio';
 import { TRACKS } from '../game/music';
 import { ContentSources } from './ContentSources';
+import { setInputMode, useInputMode, useTouchControlsEnabled, type InputMode } from './inputMode';
 
 export function OptionsModal({ onClose }: { onClose: () => void }) {
   const [s, setS] = useState<AudioSettings>(() => audio.getSettings());
+  const inputMode = useInputMode();
+  const touchEnabled = useTouchControlsEnabled();
 
   const apply = (patch: Partial<AudioSettings>) => {
     audio.update(patch);
@@ -26,6 +29,23 @@ export function OptionsModal({ onClose }: { onClose: () => void }) {
           Close (Esc)
         </button>
       </header>
+
+      <section className="opt-group">
+        <h3>Controls and layout</h3>
+        <div className="input-mode-options" role="group" aria-label="Controls and layout">
+          {(['auto', 'keyboard', 'touch'] as InputMode[]).map((value) => (
+            <button key={value} className={inputMode === value ? 'primary small' : 'ghost small'}
+              onClick={() => setInputMode(value)} aria-pressed={inputMode === value}>
+              {value === 'auto' ? 'Auto' : value === 'keyboard' ? 'Keyboard & mouse' : 'Touch'}
+            </button>
+          ))}
+        </div>
+        <p className="opt-note">
+          {touchEnabled ? 'Touch layout is active.' : 'Desktop controls are active.'}{' '}
+          Auto follows your primary pointer, not whether a touchscreen is present.
+          Overrides apply for this visit and do not restart your investigation.
+        </p>
+      </section>
 
       <section className="opt-group">
         <h3>Music</h3>

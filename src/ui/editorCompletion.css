@@ -1,0 +1,72 @@
+/* Import after mobile.css. Position the wrapper, not the legacy mobile popup:
+   its !important auto insets have no effect on a static inner box. */
+.kql-completion-layer {
+  position: fixed;
+  z-index: 30;
+  font-family: var(--mono);
+}
+
+.kql-completion-layer > .kql-suggest {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  overflow: hidden;
+  border: 2px solid var(--cyan);
+  box-shadow: none;
+}
+
+.kql-completion-layer .kql-suggest ul {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.kql-completion-layer .kql-suggest li {
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 0;
+  padding: 4px 8px;
+  line-height: 18px;
+  user-select: none;
+}
+
+.kql-completion-layer .kql-suggest li:has(.det) {
+  grid-template-rows: 18px 14px;
+}
+
+.kql-completion-layer .kql-suggest .lbl,
+.kql-completion-layer .kql-suggest .det {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.kql-completion-layer .kql-suggest .det {
+  grid-column: 2;
+  line-height: 14px;
+}
+
+.kql-completion-layer .kql-suggest-doc {
+  box-sizing: border-box;
+  flex: 0 0 72px;
+  height: 72px;
+  max-height: 72px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}

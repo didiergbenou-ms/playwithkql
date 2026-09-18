@@ -228,6 +228,33 @@ def interact(page, kind, index=0, lag_scene_clock=False):
       return n?.kind===kind && (n.noteId??n.challengeId??'verdict')===id &&
         performance.now()>=s.interactLockUntil;
     }""", arg=[kind, identity])
+    page.evaluate("""()=>{
+      const s=__kql.game.scene.getScene('Game');
+      window.interactionTrace=[];
+      window.originalInteract=s.interact;
+      const input=__kql.input;
+      window.originalTouchMethods={};
+      for(const method of ['press','release','cancel','consumePress','reset','setBlocked','setEnabled']){
+        const original=input[method];
+        originalTouchMethods[method]=original;
+        input[method]=function(...args){
+          const result=original.apply(this,args);
+          if(method!=='consumePress'||result){
+            interactionTrace.push({method,args,result,enabled:input.isEnabled(),blocked:input.isBlocked(),
+              at:performance.now(),held:input.getSnapshot()});
+            if(interactionTrace.length>40)interactionTrace.shift();
+          }
+          return result;
+        };
+      }
+      s.interact=function(){
+        interactionTrace.push({at:performance.now(),sceneTime:this.time.now,
+          lock:this.interactLockUntil,frozen:this.frozen,paused:this.sys.isPaused(),
+          nearest:this.nearest?.noteId??this.nearest?.challengeId??this.nearest?.kind,
+          player:[this.player.x,this.player.y],velocity:[this.player.body.velocity.x,this.player.body.velocity.y]});
+        return originalInteract.call(this);
+      };
+    }""")
     if lag_scene_clock:
         page.evaluate("""()=>{
           const s=__kql.game.scene.getScene('Game');
@@ -237,7 +264,24 @@ def interact(page, kind, index=0, lag_scene_clock=False):
     try:
         tap(page, "Interact")
         expect(page.get_by_role("dialog")).to_be_visible()
+    except Exception:
+        print(json.dumps(page.evaluate("""()=>{
+          const s=__kql.game.scene.getScene('Game');
+          return {trace:interactionTrace,at:performance.now(),sceneTime:s.time.now,
+            input:{enabled:__kql.input.isEnabled(),blocked:__kql.input.isBlocked(),held:__kql.input.getSnapshot()},
+            lock:s.interactLockUntil,frozen:s.frozen,paused:s.sys.isPaused(),loop:__kql.game.loop.running,
+            nearest:s.nearest?.noteId??s.nearest?.challengeId??s.nearest?.kind,
+            player:[s.player.x,s.player.y],velocity:[s.player.body.velocity.x,s.player.body.velocity.y],
+            buttons:[...document.querySelectorAll('.touch-button')].map(b=>({
+              label:b.getAttribute('aria-label'),disabled:b.disabled,pressed:b.getAttribute('aria-pressed')}))};
+        }"""), indent=2), flush=True)
+        raise
     finally:
+        page.evaluate("""()=>{
+          const s=__kql.game.scene.getScene('Game');
+          s.interact=originalInteract;delete window.originalInteract;delete window.interactionTrace;
+          Object.assign(__kql.input,originalTouchMethods);delete window.originalTouchMethods;
+        }""")
         if lag_scene_clock:
             page.evaluate("""()=>{
               __kql.game.scene.getScene('Game').events.off('preupdate',window.lagSceneClock);

@@ -77,6 +77,11 @@ landscape are supported. Tap **Menu** to pause and find notes, KQL reference,
 options, **Return to checkpoint** and Abandon. Selection screens keep the main
 choices and Continue action visible; expand details when you want more context.
 
+If a hybrid device selects an unsuitable layout, open **Options > Controls and
+layout** and choose **Keyboard & mouse** or **Touch**. **Auto** uses the primary
+pointer rather than the mere presence of a touchscreen. The override applies
+for this visit and keeps the current investigation running.
+
 Do not open `index.html` directly from your file manager; use the local URL.
 
 For mobile emulation, enable touch in the browser's device toolbar before

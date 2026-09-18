@@ -4,40 +4,7 @@ import {
 } from 'react';
 import { touchInput, type TouchAction, type TouchPress } from '../game/inputBridge';
 
-const COARSE_POINTER = '(any-pointer: coarse)';
-let touchObserved = false;
-
-function touchAvailable() {
-  return typeof window !== 'undefined' && (
-    touchObserved || window.matchMedia?.(COARSE_POINTER).matches === true ||
-    (!window.matchMedia && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
-  );
-}
-
-function subscribeTouchAvailability(listener: () => void) {
-  const media = window.matchMedia?.(COARSE_POINTER);
-  const pointer = (event: globalThis.PointerEvent) => {
-    if (event.pointerType !== 'touch') return;
-    touchObserved = true;
-    listener();
-  };
-  media?.addEventListener('change', listener);
-  window.addEventListener('focus', listener);
-  window.addEventListener('pageshow', listener);
-  window.addEventListener('resize', listener);
-  window.addEventListener('pointerdown', pointer);
-  return () => {
-    media?.removeEventListener('change', listener);
-    window.removeEventListener('focus', listener);
-    window.removeEventListener('pageshow', listener);
-    window.removeEventListener('resize', listener);
-    window.removeEventListener('pointerdown', pointer);
-  };
-}
-
-export function useTouchControlsEnabled(): boolean {
-  return useSyncExternalStore(subscribeTouchAvailability, touchAvailable, () => false);
-}
+export { useTouchControlsEnabled } from './inputMode';
 
 type CapturedPress = { press: TouchPress; button: HTMLButtonElement };
 const ACTIONS: Record<TouchAction, { label: string; glyph: string; text: string }> = {

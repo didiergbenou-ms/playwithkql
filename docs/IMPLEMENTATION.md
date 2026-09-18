@@ -150,6 +150,14 @@ pauses the game and contains Resume, checkpoint return, notes, reference,
 options and the red Abandon action. Desktop retains its full HUD.
 Portrait is playable without a rotation lock.
 
+**Options > Controls and layout** offers Auto, Keyboard & mouse and Touch.
+Auto follows the primary pointer (`pointer: coarse` versus `pointer: fine`),
+not the presence of any touchscreen. A touchscreen laptop using its mouse keeps
+the desktop HUD; touch-primary phones/tablets keep their controls in either
+orientation. A manual override lasts for this visit, without restarting the
+scene or changing the profile. A pointer does not prove a physical keyboard
+exists, so the override remains available for connected mice/keyboards.
+
 ### Phone layout and input
 
 `TouchControls.tsx` owns pointer capture and button feedback; the volatile
@@ -175,6 +183,12 @@ frame, then sleeps again. Modal
 sizing follows the visible browser viewport so the editor can remain usable
 above a software keyboard; zoom remains enabled.
 
+Autocomplete uses `completionPlacement.ts` to fit a dialog-contained popup
+within the visual viewport and terminal scroll area, excluding the touch Run
+footer. It opens above the caret when needed, scrolls its own 44px options, and
+never moves the terminal merely to highlight an option. Editor autofocus is
+decided once on mount, not on a mid-session input-mode change.
+
 `test:mobile` covers the input bridge. `scripts/testMobileBrowser.py` covers
 phone-sized layouts, trusted Chromium multi-touch, held movement/jump, capture,
 cancellation, pause, terminal drafts/results and rotation, plus a physical
@@ -198,6 +212,11 @@ collects logs and screenshots under `browser-reports`. CI uploads that directory
 even on failure. Use the GitHub Actions runner when Scout's local browser/file
 approval gate blocks unattended testing; a passing geometry test is not proof of
 playability.
+
+For focused remote diagnostics, manually run CI with `browser_scope=mobile-ui`
+(device modes and completion) or `mobile-play` (touch gameplay). The default is
+`all`; partial runs explicitly label their report and do not upload a release
+build. A partial success must never be treated as a release-wide pass.
 
 ---
 

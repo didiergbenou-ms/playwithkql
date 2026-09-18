@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run.mjs scripts/testKql.ts",
     "test:ui": "node scripts/run.mjs scripts/testUi.tsx && node scripts/run.mjs scripts/testNotes.tsx && node scripts/run.mjs scripts/testPauseClock.ts",
-    "test:mobile": "node scripts/run.mjs scripts/testTouchInput.ts && node scripts/run.mjs scripts/testCompactUi.tsx && node scripts/run.mjs scripts/testViewport.ts",
+    "test:mobile": "node scripts/run.mjs scripts/testTouchInput.ts && node scripts/run.mjs scripts/testCompactUi.tsx && node scripts/run.mjs scripts/testViewport.ts && node scripts/run.mjs scripts/testInputMode.ts && node scripts/run.mjs scripts/testCompletionPlacement.ts",
     "test:cases": "node scripts/run.mjs scripts/testCaseContent.ts && node scripts/run.mjs scripts/testCases.ts",
     "test:performance": "node scripts/run.mjs scripts/testAudioScheduling.ts && node scripts/run.mjs scripts/testPerfUi.tsx",
     "check:content": "node scripts/run.mjs scripts/checkContent.ts",

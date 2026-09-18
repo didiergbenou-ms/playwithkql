@@ -38,6 +38,7 @@ export function createTouchInput() {
 
   return {
     isEnabled: () => enabled,
+    isBlocked: () => blocked,
     getSnapshot: (): TouchHeld => held,
     subscribe(listener: () => void) {
       listeners.add(listener);

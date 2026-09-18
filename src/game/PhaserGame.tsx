@@ -4,12 +4,13 @@ import { GameScene } from './scenes/GameScene';
 import { bus } from './bus';
 import { GAME_HEIGHT, GAME_WIDTH } from './config';
 import { chooseViews, type ViewportLayout } from './viewport';
+import { touchInput } from './inputBridge';
 import { DEFAULT_CASE_ID } from '../data/cases';
 import { DEFAULT_DIFFICULTY, type Difficulty } from '../data/difficulties';
 
 declare global {
   interface Window {
-    __kql?: { game: Phaser.Game; bus: typeof bus };
+    __kql?: { game: Phaser.Game; bus: typeof bus; input: typeof touchInput };
   }
 }
 
@@ -107,7 +108,7 @@ export function PhaserGame({
     gameRef.current = game;
 
     // debug handle for level designers and automated playtests
-    window.__kql = { game, bus };
+    window.__kql = { game, bus, input: touchInput };
 
     return () => {
       fitRef.current = null;

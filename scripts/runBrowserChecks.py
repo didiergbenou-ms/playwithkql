@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:4173/")
     parser.add_argument("--reports", type=Path, default=Path("browser-reports"))
+    parser.add_argument("--only", choices=["all", "mobile-ui", "mobile-play"], default="all")
     args = parser.parse_args()
     args.reports.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + 20
@@ -26,6 +27,8 @@ def main():
             time.sleep(0.25)
 
     suites = [
+        ("input-modes", "testInputModeBrowser.py", ["--screenshots", str(args.reports / "input-modes")]),
+        ("completion", "testCompletionBrowser.py", ["--screenshots", str(args.reports / "completion")]),
         ("viewport-webgl", "testViewportBrowser.py", ["--screenshots", str(args.reports / "viewport-webgl")]),
         ("viewport-canvas", "testViewportBrowser.py", ["--canvas", "--screenshots", str(args.reports / "viewport-canvas")]),
         ("compact-layouts", "testCompactBrowser.py", ["--screenshots", str(args.reports / "compact")]),
@@ -36,6 +39,10 @@ def main():
         ("difficulty-cases", "testDifficultiesBrowser.py", []),
         ("pause-lifecycle", "testPauseBrowser.py", []),
     ]
+    if args.only == "mobile-ui":
+        suites = [suite for suite in suites if suite[0] in ("input-modes", "completion")]
+    elif args.only == "mobile-play":
+        suites = [suite for suite in suites if suite[0] == "mobile-play"]
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     failures = []
     for name, script, extra in suites:
@@ -49,7 +56,8 @@ def main():
         print("::endgroup::", flush=True)
         if result.returncode:
             failures.append(name)
-    summary = "\n".join(f"{name}: {'FAILED' if name in failures else 'passed'}" for name, _, _ in suites)
+    summary = f"Scope: {args.only}\n" + "\n".join(
+        f"{name}: {'FAILED' if name in failures else 'passed'}" for name, _, _ in suites)
     (args.reports / "summary.txt").write_text(summary + "\n", encoding="utf-8")
     print(summary, flush=True)
     return 1 if failures else 0
