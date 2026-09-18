@@ -2,6 +2,8 @@ node_modules
 dist
 .deploy
 .tmp
+pages-reports
+__pycache__
 server/data
 *.local
 .DS_Store
