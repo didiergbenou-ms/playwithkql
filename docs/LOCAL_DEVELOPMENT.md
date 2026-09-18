@@ -96,6 +96,11 @@ Switching terminal panes resets the reading position without losing the query.
 For focused local verification after a camera/terminal change, run
 `python scripts/testWorldAndTerminalBrowser.py` against the production preview
 (and again with `--canvas` for the fallback renderer).
+For an audio activation/recovery change, run `python scripts/testAudioBrowser.py`.
+It checks touch-release activation, resume, cue scheduling and mute preservation;
+it cannot verify an iPhone's physical speaker, Silent Mode or Bluetooth route.
+If sound is missing on iPhone, check those device settings, then use
+**Options > Sound effects > Test effect** for the browser's audio status.
 GitHub Actions runs `python scripts/runBrowserChecks.py` against its own preview
 and uploads a **browser-reports** artifact containing logs and phone screenshots,
 including failed runs. This does not require launching a browser through Scout.

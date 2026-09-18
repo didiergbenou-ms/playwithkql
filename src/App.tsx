@@ -113,15 +113,16 @@ export default function App() {
     });
   }, [screen]);
 
-  // Unlock audio on the first real gesture — browsers keep the context
-  // suspended until then.
+  // Touch activation arrives on release, not pointerdown. Keep listening so
+  // Safari can recover after a call, app switch or an initially blocked resume.
   useEffect(() => {
-    const unlock = () => audio.unlock();
-    window.addEventListener('pointerdown', unlock, { once: true });
-    window.addEventListener('keydown', unlock, { once: true });
+    const unlock = (event: Event) => {
+      if (event.isTrusted) void audio.unlock();
+    };
+    const events = ['pointerup', 'touchend', 'click', 'keydown'] as const;
+    for (const event of events) window.addEventListener(event, unlock, true);
     return () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
+      for (const event of events) window.removeEventListener(event, unlock, true);
     };
   }, []);
 

@@ -179,6 +179,7 @@ export class GameAudio {
   private focusStopTimer: ReturnType<typeof setTimeout> | null = null;
   private focusStopToken = 0;
   private musicSources = new Set<OwnedMusicSource>();
+  private lastUnlockWarning: string | null = null;
 
   constructor() {
     this.settings = { ...DEFAULT_SETTINGS, ...this.load() };
@@ -273,12 +274,15 @@ export class GameAudio {
   }
 
   /** Must be called from a user gesture, or the context stays suspended. */
-  unlock() {
+  unlock(): Promise<boolean> {
     try {
       if (!this.ctx) {
         const legacyWindow = window as LegacyAudioWindow;
         const Ctor = window.AudioContext ?? legacyWindow.webkitAudioContext;
-        if (!Ctor) return;
+        if (!Ctor) {
+          this.warnUnlockFailure('Web Audio is unavailable in this browser.');
+          return Promise.resolve(false);
+        }
         this.ctx = new Ctor();
         this.master = this.ctx.createGain();
         this.master.gain.value = 0.55;
@@ -290,10 +294,34 @@ export class GameAudio {
         this.musicBus.connect(this.master);
         this.applyVolumes();
       }
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
-      if (this.shouldRunScheduler()) this.startScheduler();
-    } catch {
-      /* audio unavailable — the game stays fully playable */
+      const ctx = this.ctx;
+      const resumed = () => {
+        if (ctx !== this.ctx || ctx.state !== 'running') return false;
+        this.lastUnlockWarning = null;
+        if (this.shouldRunScheduler()) this.startScheduler();
+        return true;
+      };
+      const state: string = ctx.state;
+      if (state === 'suspended' || state === 'interrupted') {
+        // Do not cache a pending resume: a later valid touch must be able to
+        // retry even if Safari left an earlier non-gesture request unresolved.
+        return ctx.resume().then(resumed, (error: unknown) => {
+          this.warnUnlockFailure(error);
+          return false;
+        });
+      }
+      return Promise.resolve(resumed());
+    } catch (error: unknown) {
+      this.warnUnlockFailure(error);
+      return Promise.resolve(false);
+    }
+  }
+
+  private warnUnlockFailure(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message !== this.lastUnlockWarning) {
+      console.warn('[audio] Could not start audio; a later user gesture can retry.', message);
+      this.lastUnlockWarning = message;
     }
   }
 
