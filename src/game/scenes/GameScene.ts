@@ -13,6 +13,7 @@ import { touchInput, type TouchPress } from '../inputBridge';
 import {
   GRAVITY, RUN_SPEED, AIR_ACCEL, GROUND_ACCEL, JUMP_VELOCITY,
   COYOTE_MS, BUFFER_MS, ENEMY_SPEED, MAX_FALL_SPEED,
+  HORIZONTAL_DRAG, horizontalDrag,
 } from '../physics';
 
 const DEFAULT_MAX_HEALTH = 3;
@@ -491,7 +492,7 @@ export class GameScene extends Phaser.Scene {
     this.player = this.physics.add.sprite(x, y, textureKey(this.character.id, 'idle0'));
     this.player.setSize(PLAYER_W, PLAYER_H).setOffset(3, 4);
     this.player.setMaxVelocity(200 * stats.speed, MAX_FALL_SPEED);
-    this.player.setDragX(800);
+    this.player.setDragX(HORIZONTAL_DRAG);
     (this.player.body as Phaser.Physics.Arcade.Body).setGravityY(GRAVITY);
     this.player.setDepth(10);
     this.player.play(`idle_${this.character.id}`);
@@ -696,6 +697,7 @@ export class GameScene extends Phaser.Scene {
     const touch = touchInput.getSnapshot();
     const left = this.cursors.left.isDown || this.keys.A.isDown || touch.left;
     const right = this.cursors.right.isDown || this.keys.D.isDown || touch.right;
+    this.player.setDragX(horizontalDrag(left, right));
     const keyboardJump = this.cursors.up.isDown || this.keys.W.isDown || this.keys.SPACE.isDown;
     const jumpDown = keyboardJump || touch.jump;
     const touchJump = touchInput.consumePress('jump');

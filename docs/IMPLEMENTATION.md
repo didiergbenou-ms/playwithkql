@@ -164,6 +164,9 @@ exists, so the override remains available for connected mice/keyboards.
 `inputBridge.ts` tracks each pointer independently. `GameScene` merges touch
 with keyboard input in the existing character physics path. Movement and jump
 are held actions; interaction is a press, not a timeout-generated key event.
+Horizontal drag brakes released or opposing inputs; it is disabled while
+actively steering so it cannot cancel the manually applied air acceleration.
+Character speed caps, jump impulses, gravity and collision geometry are unchanged.
 Overlay transitions, cancellation, focus loss and teardown clear held inputs and
 pending actions. Neither pointer state nor active runs are added to saved profiles.
 
@@ -217,6 +220,9 @@ For focused remote diagnostics, manually run CI with `browser_scope=mobile-ui`
 (device modes and completion) or `mobile-play` (touch gameplay). The default is
 `all`; partial runs explicitly label their report and do not upload a release
 build. A partial success must never be treated as a release-wide pass.
+The `route` scope isolates Sparky's landscape route and standing-jump fixture,
+with frame-by-frame physics/input reports. Running routes wait for measured
+ground speed, not wall-clock sleeps or a synthetic velocity boost.
 
 ---
 

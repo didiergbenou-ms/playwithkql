@@ -1,9 +1,20 @@
 import assert from 'node:assert/strict';
 import { createTouchInput, type TouchAction, type TouchPress } from '../src/game/inputBridge.ts';
+import { horizontalDrag, HORIZONTAL_DRAG } from '../src/game/physics.ts';
 
 let passed = 0;
 const failures: string[] = [];
 const empty = { left: false, right: false, jump: false, interact: false };
+
+check('active steering is not cancelled by Arcade drag', () => {
+  assert.equal(horizontalDrag(true, false), 0);
+  assert.equal(horizontalDrag(false, true), 0);
+});
+check('release and opposing inputs retain the existing braking', () => {
+  assert.equal(horizontalDrag(false, false), HORIZONTAL_DRAG);
+  assert.equal(horizontalDrag(true, true), HORIZONTAL_DRAG);
+  assert.equal(HORIZONTAL_DRAG, 800);
+});
 
 function check(name: string, test: () => void) {
   try {

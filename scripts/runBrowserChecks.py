@@ -13,7 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:4173/")
     parser.add_argument("--reports", type=Path, default=Path("browser-reports"))
-    parser.add_argument("--only", choices=["all", "mobile-ui", "mobile-play"], default="all")
+    parser.add_argument("--only", choices=["all", "mobile-ui", "mobile-play", "route"], default="all")
     args = parser.parse_args()
     args.reports.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + 20
@@ -43,6 +43,8 @@ def main():
         suites = [suite for suite in suites if suite[0] in ("input-modes", "completion")]
     elif args.only == "mobile-play":
         suites = [suite for suite in suites if suite[0] == "mobile-play"]
+    elif args.only == "route":
+        suites = [("route", "testMobileBrowser.py", ["--route-only", "--screenshots", str(args.reports / "route")])]
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     failures = []
     for name, script, extra in suites:

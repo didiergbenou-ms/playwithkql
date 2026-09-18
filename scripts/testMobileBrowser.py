@@ -38,6 +38,10 @@ class Fingers:
                 "id": pointer, "x": box["x"] + box["width"] / 2 + offset,
                 "y": box["y"] + box["height"] / 2, "radiusX": 4, "radiusY": 4,
             }
+        self.start_prepared(additions)
+
+    def start_prepared(self, additions):
+        assert not (self.points.keys() & additions.keys()), "Cannot restart a held pointer"
         self.points.update(additions)
         self.send("touchStart")
 
@@ -454,7 +458,7 @@ def test_phone(page, screenshots=None):
     assert page.evaluate("__kql.game!==mobileGame")
 
 
-def test_touch_route(page, recruit):
+def test_touch_route(page, recruit, reports=None):
     # Authored Harbor route: real touch movement across twelve floor/platform
     # waypoints. Gates are opened to isolate controls, not to claim a case solve.
     tap(page, "Select case 002: Signal Harbor")
@@ -462,6 +466,23 @@ def test_touch_route(page, recruit):
     page.evaluate("""()=>{
       const s=__kql.game.scene.getScene('Game');
       for(const id of Object.values(s.caseDef.level.gateChars))s.openGate(id,false);
+      window.routeFrames=[];window.routePointers=[];
+      const capture=phase=>{
+        if(routeFrames.length>=360)return;
+        const b=s.player.body;
+        routeFrames.push({phase,frame:__kql.game.loop.frame,now:s.time.now,at:performance.now(),
+          x:s.player.x,y:s.player.y,bodyX:b.x,bodyY:b.y,bottom:b.bottom,vx:b.velocity.x,vy:b.velocity.y,
+          grounded:b.blocked.down,touchingDown:b.touching.down,up:b.blocked.up,
+          input:__kql.input.getSnapshot(),enabled:__kql.input.isEnabled(),blocked:__kql.input.isBlocked()});
+      };
+      s.physics.world.on('worldstep',()=>capture('physics'));
+      s.events.on('postupdate',()=>capture('scene'));
+      for(const type of ['pointerdown','pointerup','pointercancel','lostpointercapture']){
+        document.addEventListener(type,e=>{
+          const button=e.target.closest?.('.touch-button');
+          if(button)routePointers.push({type,id:e.pointerId,at:performance.now(),name:button.getAttribute('aria-label')});
+        },true);
+      }
     }""")
     route = [
         (9, 10, False), (12, 8, True), (13, 8, False), (16, 6, True),
@@ -471,6 +492,7 @@ def test_touch_route(page, recruit):
     fingers = Fingers(page)
     history = []
     for index, (column, row, jump) in enumerate(route):
+        page.evaluate("window.routeFrames=[];window.routePointers=[]")
         # Interior stopping points leave room for ground drag and browser/CDP
         # latency. An edge position followed by settling can walk off the ledge.
         before = page.evaluate("""()=>{
@@ -485,7 +507,19 @@ def test_touch_route(page, recruit):
               return x>=c.worldView.left && x<=c.worldView.right;
             }""", column * 16 + 8), f"{recruit}: next landing is off-camera before takeoff"
         if jump:
-            fingers.down_many([(1, "Move right", 0), (2, "Jump", 0)])
+            # These waypoints exercise running jumps. Measure Jump first
+            # so its dispatch cannot be delayed by a DOM lookup after run-up.
+            box = page.get_by_role("button", name="Jump", exact=True).bounding_box()
+            assert box
+            jump_point = {2: {"id": 2, "x": box["x"] + box["width"] / 2,
+                             "y": box["y"] + box["height"] / 2, "radiusX": 4, "radiusY": 4}}
+            fingers.down(1, "Move right")
+            page.wait_for_function("""()=>{
+              const s=__kql.game.scene.getScene('Game');
+              return s.player.body.velocity.x >= 118*s.character.stats.speed*0.5 &&
+                s.player.body.blocked.down;
+            }""", timeout=3000)
+            fingers.start_prepared(jump_point)
         else:
             fingers.down(1, "Move right")
         page.wait_for_function(
@@ -500,6 +534,12 @@ def test_touch_route(page, recruit):
         except Exception:
             print(json.dumps({"recruit": recruit, "waypoint": index, "target": [column, row],
                               "state": position(page), "history": history}), flush=True)
+            trace = page.evaluate("({frames:routeFrames,pointers:routePointers})")
+            if reports:
+                (reports / f"route-trace-{page.viewport_size['width']}-{recruit}.json").write_text(
+                    json.dumps(trace, indent=2), encoding="utf-8")
+            else:
+                print(json.dumps(trace), flush=True)
             raise
         if 2 in fingers.points:
             fingers.up(2)
@@ -507,6 +547,32 @@ def test_touch_route(page, recruit):
         page.wait_for_function("Math.abs(__kql.game.scene.getScene('Game').player.body.velocity.x)<1")
     fingers.cancel()
     print(f"{recruit}: twelve physical touch-controlled platform waypoints passed.", flush=True)
+
+def test_standing_jump(page):
+    # Separate collision/input fixture for the drag bug, not part of the
+    # non-teleported platform route above.
+    page.evaluate("""()=>{
+      const s=__kql.game.scene.getScene('Game');
+      __kql.input.reset();
+      s.player.body.reset(220,116);
+    }""")
+    page.wait_for_function("""()=>{
+      const b=__kql.game.scene.getScene('Game').player.body;
+      return b.blocked.down && Math.abs(b.bottom-128)<1 && Math.abs(b.velocity.x)<1;
+    }""")
+    fingers = Fingers(page)
+    fingers.down_many([(1, "Move right", 0), (2, "Jump", 0)])
+    try:
+        page.wait_for_function("""()=>{
+          const b=__kql.game.scene.getScene('Game').player.body;
+          return b.blocked.down && Math.abs(b.bottom-96)<1;
+        }""", timeout=5000)
+        assert page.evaluate("__kql.game.scene.getScene('Game').player.body.drag.x") == 0
+    finally:
+        fingers.cancel()
+    settled(page)
+    assert page.evaluate("__kql.game.scene.getScene('Game').player.body.drag.x") == 800
+    print("SPARKY: standing-jump fixture reaches the upper platform, release restores braking.", flush=True)
 
 
 def test_phone_case(page):
@@ -548,6 +614,7 @@ def main():
     parser.add_argument("--url", default="http://127.0.0.1:4173/")
     parser.add_argument("--channel", default="chromium")
     parser.add_argument("--screenshots", type=Path, help="Optional output directory for phone screenshots")
+    parser.add_argument("--route-only", action="store_true", help="Diagnose the landscape Sparky route only")
     args = parser.parse_args()
     if args.screenshots:
         args.screenshots.mkdir(parents=True, exist_ok=True)
@@ -563,6 +630,23 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(channel=args.channel, headless=True)
         try:
+            if args.route_only:
+                context = browser.new_context(viewport={"width": 844, "height": 320},
+                                              is_mobile=True, has_touch=True, reduced_motion="reduce")
+                page = context.new_page()
+                page.set_default_timeout(15000)
+                try:
+                    page.goto(args.url, wait_until="networkidle")
+                    test_touch_route(page, "SPARKY", args.screenshots)
+                    test_standing_jump(page)
+                finally:
+                    if args.screenshots:
+                        (args.screenshots / "route-frames.json").write_text(
+                            json.dumps(page.evaluate("({frames:window.routeFrames??[],pointers:window.routePointers??[]})"),
+                                       indent=2), encoding="utf-8")
+                        page.screenshot(path=str(args.screenshots / "route-diagnostic.png"))
+                    context.close()
+                return
             context = browser.new_context(
                 viewport={"width": 390, "height": 844}, device_scale_factor=3,
                 is_mobile=True, has_touch=True, reduced_motion="reduce",
@@ -614,9 +698,14 @@ def main():
                     page.on("pageerror", lambda error: errors.append(str(error)))
                     page.goto(args.url, wait_until="networkidle")
                     try:
-                        test_touch_route(page, recruit)
+                        test_touch_route(page, recruit, args.screenshots)
+                        if recruit == "SPARKY":
+                            test_standing_jump(page)
                     except Exception:
                         if args.screenshots:
+                            (args.screenshots / f"route-frames-{width}-{recruit}.json").write_text(
+                                json.dumps(page.evaluate("({frames:window.routeFrames??[],pointers:window.routePointers??[]})"),
+                                           indent=2), encoding="utf-8")
                             page.screenshot(path=str(args.screenshots / f"route-failure-{width}-{recruit}.png"))
                         raise
                     assert not errors, errors

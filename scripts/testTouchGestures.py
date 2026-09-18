@@ -68,6 +68,16 @@ class TouchGestureTests(unittest.TestCase):
             fingers.down_many([(1, "Jump", 0)])
         self.assertEqual(page.events, before)
 
+    def test_prepared_jump_keeps_running_finger_without_another_dom_measurement(self):
+        page = FakePage()
+        fingers = Fingers(page)
+        fingers.down(1, "Move right")
+        before = len(page.events)
+        fingers.start_prepared({2: {"id": 2, "x": 228, "y": 628, "radiusX": 4, "radiusY": 4}})
+        self.assertEqual(len(page.events), before + 1)
+        self.assertEqual(page.events[-1][2]["type"], "touchStart")
+        self.assertEqual([point["id"] for point in page.events[-1][2]["touchPoints"]], [1, 2])
+
 
 if __name__ == "__main__":
     unittest.main()
