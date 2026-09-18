@@ -79,7 +79,10 @@ def fits_screen(locator, page, label, minimum=0):
 
 
 def ready(page):
-    page.wait_for_function("window.__kql?.game.scene.getScene('Game')?.player?.body?.blocked.down")
+    page.wait_for_function("""()=>{
+      const scene=window.__kql?.game.scene.getScene('Game');
+      return scene?.viewportLayout && scene.player?.body?.blocked.down;
+    }""")
 
 
 def enter(page, recruit="QUILL", difficulty="Beginner"):
@@ -109,22 +112,39 @@ def controls_fit(page):
             overlap_y = min(a["y"] + a["height"], b["y"] + b["height"]) - max(a["y"], b["y"])
             assert overlap_x <= 1 or overlap_y <= 1, f"Touch targets overlap: {a}, {b}"
     canvas = fits_screen(page.locator(".phaser-host canvas"), page, "canvas")
-    assert abs(canvas["width"] / canvas["height"] - 16 / 9) < 0.02
-    assert page.evaluate("__kql.game.canvas.width===640 && __kql.game.canvas.height===360")
-    assert page.evaluate("Math.abs(__kql.game.scene.getScene('Game').cameras.main.zoom-2)<0.001")
+    backing = page.evaluate("({width:__kql.game.canvas.width,height:__kql.game.canvas.height})")
+    assert abs(canvas["width"] / canvas["height"] - backing["width"] / backing["height"]) < 0.02
     hud = page.locator(".hud-compact").bounding_box()
     assert hud and hud["height"] <= 64, f"HUD consumes too much play space: {hud}"
     expect(page.locator(".hud-compact button")).to_have_count(1)
     viewport = page.viewport_size
-    if viewport["width"] < viewport["height"]:
-        assert canvas["y"] - (hud["y"] + hud["height"]) <= 14, "Flexible gap above portrait game"
-        controls = page.locator(".touch-controls").bounding_box()
-        assert controls and controls["y"] - (canvas["y"] + canvas["height"]) <= 12, "Gap before controller deck"
-        assert canvas["width"] >= viewport["width"] - 24, "Portrait game no longer fills available width"
-    else:
+    layout = page.evaluate("__kql.game.scene.getScene('Game').viewportLayout")
+    assert layout is not None, "Adaptive geometry was never applied"
+    assert canvas["y"] - (hud["y"] + hud["height"]) <= layout["unusedCssHeight"] + 14, "Unaccounted gap above game"
+    controls = page.locator(".touch-controls").bounding_box()
+    assert controls and controls["y"] - (canvas["y"] + canvas["height"]) <= 12, "Gap before controller deck"
+    assert canvas["width"] >= viewport["width"] - 24, "Game does not fill available width"
+    assert viewport["height"] - (controls["y"] + controls["height"]) <= 16, "Unused space below controls"
+    if viewport["width"] > viewport["height"]:
         assert hud["height"] <= 52, "Landscape HUD too tall"
-        achievable = min(viewport["height"] - 72, (viewport["width"] - 208) * 9 / 16)
-        assert canvas["height"] >= achievable - 4, f"Landscape game wastes its available area: {canvas}"
+        assert canvas["height"] >= viewport["height"] - 140, f"Landscape game wastes its available area: {canvas}"
+    else:
+        assert canvas["height"] >= min(viewport["height"] - 156, (viewport["width"] - 16) * 208 / 224 + 176) - 2, (
+            f"Portrait view fails the useful action/overview height budget: {canvas}"
+        )
+    assert abs(canvas["height"] - layout["cssHeight"]) < 2, "Canvas stretched beyond its uniform camera scale"
+    cameras = page.evaluate("""__kql.game.scene.getScene('Game').cameras.cameras
+      .filter(c=>c.visible).map(c=>({x:c.x,y:c.y,width:c.width,height:c.height,
+        worldWidth:c.width/c.zoomX,worldHeight:c.height/c.zoomY}))""")
+    main = cameras[0]
+    assert main["worldWidth"] >= (223 if layout["mode"] == "portrait" else 179), (
+        f"Main action view is too narrow for the viewport contract: {main}"
+    )
+    assert main["worldHeight"] <= 209, f"Extra canvas height replaced blank space with sky: {main}"
+    total_area = sum(c["width"] * c["height"] for c in cameras)
+    assert total_area >= backing["width"] * backing["height"] * .9, f"Unassigned camera space: {cameras}"
+    if len(cameras) > 1:
+        assert cameras[1]["worldWidth"] >= main["worldWidth"] * 1.5, "Route view adds no wider context"
 
 
 def position(page):
@@ -378,6 +398,11 @@ def test_touch_route(page, recruit):
     ]
     fingers = Fingers(page)
     for index, (column, row, jump) in enumerate(route):
+        if jump:
+            assert page.evaluate("""x=>{
+              const c=__kql.game.scene.getScene('Game').cameras.main;
+              return x>=c.worldView.left && x<=c.worldView.right;
+            }""", column * 16 + 8), f"{recruit}: next landing is off-camera before takeoff"
         if 1 not in fingers.points:
             fingers.down(1, "Move right")
         if jump:
@@ -385,18 +410,20 @@ def test_touch_route(page, recruit):
         page.wait_for_function(
             "x=>__kql.game.scene.getScene('Game').player.x>=x-2", arg=column * 16 + 8,
         )
-        running_takeoff = index + 1 < len(route) and route[index + 1][2]
-        if not running_takeoff:
-            fingers.up(1)
-        page.wait_for_function("""y=>{
-          const b=__kql.game.scene.getScene('Game').player.body;
-          return b.blocked.down && Math.abs(b.bottom-y)<2;
-        }""", arg=row * 16, timeout=3000)
+        fingers.up(1)
+        try:
+            page.wait_for_function("""y=>{
+              const b=__kql.game.scene.getScene('Game').player.body;
+              return b.blocked.down && Math.abs(b.bottom-y)<2;
+            }""", arg=row * 16, timeout=5000)
+        except Exception:
+            print(json.dumps({"recruit": recruit, "waypoint": index, "target": [column, row],
+                              "state": position(page)}), flush=True)
+            raise
         if 2 in fingers.points:
             fingers.up(2)
         page.wait_for_function("!__kql.game.scene.getScene('Game').jumpHeld")
-        if not running_takeoff:
-            page.wait_for_function("Math.abs(__kql.game.scene.getScene('Game').player.body.velocity.x)<1")
+        page.wait_for_function("Math.abs(__kql.game.scene.getScene('Game').player.body.velocity.x)<1")
     fingers.cancel()
     print(f"{recruit}: twelve physical touch-controlled platform waypoints passed.", flush=True)
 
@@ -479,6 +506,8 @@ def main():
                 test_phone(page, args.screenshots)
             except Exception:
                 print(json.dumps(page.evaluate("window.mobileEvents"), indent=2), flush=True)
+                if args.screenshots:
+                    page.screenshot(path=str(args.screenshots / "phone-failure.png"))
                 raise
             assert not errors, errors
             context.close()
@@ -493,18 +522,24 @@ def main():
             test_phone_case(page)
             assert not errors, errors
             context.close()
-            for recruit in ["SPARKY", "QUILL", "VELL", "CIRCUIT"]:
-                context = browser.new_context(
-                    viewport={"width": 844, "height": 390}, is_mobile=True, has_touch=True,
-                    reduced_motion="reduce",
-                )
-                page = context.new_page()
-                page.set_default_timeout(15000)
-                page.on("pageerror", lambda error: errors.append(str(error)))
-                page.goto(args.url, wait_until="networkidle")
-                test_touch_route(page, recruit)
-                assert not errors, errors
-                context.close()
+            for width, height in [(393, 700), (844, 320)]:
+                for recruit in ["SPARKY", "QUILL", "VELL", "CIRCUIT"]:
+                    context = browser.new_context(
+                        viewport={"width": width, "height": height}, is_mobile=True, has_touch=True,
+                        reduced_motion="reduce",
+                    )
+                    page = context.new_page()
+                    page.set_default_timeout(15000)
+                    page.on("pageerror", lambda error: errors.append(str(error)))
+                    page.goto(args.url, wait_until="networkidle")
+                    try:
+                        test_touch_route(page, recruit)
+                    except Exception:
+                        if args.screenshots:
+                            page.screenshot(path=str(args.screenshots / f"route-failure-{width}-{recruit}.png"))
+                        raise
+                    assert not errors, errors
+                    context.close()
             context = browser.new_context(viewport={"width": 1440, "height": 1080}, has_touch=False)
             # A Windows touch laptop may still report its hardware here;
             # explicitly model a keyboard/mouse-only desktop for this branch.

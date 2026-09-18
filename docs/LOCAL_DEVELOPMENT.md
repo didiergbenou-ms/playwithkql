@@ -85,6 +85,11 @@ run `python scripts/testMobileBrowser.py` with the same Playwright setup as the
 other browser suites. `npm run test:mobile` runs the deterministic input checks.
 `python scripts/testCompactBrowser.py` checks phone screen density and safe-area
 layouts; add `--screenshots <directory>` to save each menu and gameplay view.
+The mobile action camera adapts to orientation; a portrait route overview gives
+wider context while landscape uses the full safe width. Physics are unchanged.
+GitHub Actions runs `python scripts/runBrowserChecks.py` against its own preview
+and uploads a **browser-reports** artifact containing logs and phone screenshots,
+including failed runs. This does not require launching a browser through Scout.
 Emulation covers multi-touch and viewport changes, but a physical handset is
 still needed to assess its native keyboard and browser chrome.
 

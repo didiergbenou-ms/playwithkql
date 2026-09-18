@@ -41,6 +41,7 @@ jobs:
           node scripts/run.mjs scripts/testPauseClock.ts
           node scripts/run.mjs scripts/testTouchInput.ts
           node scripts/run.mjs scripts/testCompactUi.tsx
+          node scripts/run.mjs scripts/testViewport.ts
 
       - name: Case content and isolation
         run: |
@@ -104,18 +105,21 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Phaser renderer and gameplay
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: |
           node scripts/serve.mjs 4173 > "$RUNNER_TEMP/phaser-preview.log" 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
-          python scripts/testPhaserBrowser.py
-          python scripts/testPhaserBrowser.py --canvas
-          python scripts/testKqlBrowser.py
-          python scripts/testDifficultiesBrowser.py
-          python scripts/testPauseBrowser.py
-          python scripts/testMobileBrowser.py
-          python scripts/testCompactBrowser.py
+          python scripts/runBrowserChecks.py
+
+      - name: Upload browser reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-reports
+          path: browser-reports
+          if-no-files-found: ignore
+          retention-days: 7
 
       # Lets a reviewer download and open the actual build for a PR without
       # having to check the branch out and install anything.

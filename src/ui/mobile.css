@@ -124,12 +124,12 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto var(--touch-deck);
+  grid-template-rows: minmax(0, 1fr) var(--touch-deck);
   width: min(100%, 1600px);
   min-width: 0;
-  min-height: 0;
-  flex: 0 0 auto;
-  container-type: inline-size;
+  min-height: 256px;
+  flex: 1 0 256px;
+  container-type: size;
 }
 
 .touch-enabled .game-viewport > .phaser-host {
@@ -138,16 +138,22 @@
   min-width: 0;
   min-height: 0;
   width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 9;
-  box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--black);
+  height: 100%;
+  aspect-ratio: auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  box-shadow: none;
 }
 
 .touch-enabled .phaser-host canvas {
+  width: var(--game-content-width, 100%) !important;
+  height: var(--game-content-height, 100%) !important;
   max-width: 100%;
   max-height: 100%;
   margin: 0 !important;
-  object-fit: contain;
+  flex: none;
+  box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--black);
 }
 
 .touch-controls {
@@ -386,55 +392,38 @@
   margin: 8px max(12px, env(safe-area-inset-right, 0px));
 }
 
-/* Horizontal direction buttons at the left, actions at the right. These
-   gutters are not part of the canvas and never obscure a platform or clue. */
+/* Landscape gets a full-width camera, not a small widescreen picture between
+   control gutters. The separate deck keeps thumbs off platforms and clues. */
 @media (orientation: landscape) and (min-width: 560px) {
   .touch-enabled .game-viewport {
-    --touch-deck: 0px;
+    --touch-deck: 64px;
     --touch-size: 56px;
-    --touch-gutter: 192px;
-    grid-template-columns: 128px minmax(0, 1fr) 64px;
-    grid-template-rows: minmax(0, 1fr);
-    min-height: 128px;
-    flex: 1 0 128px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) var(--touch-deck);
+    min-height: 184px;
+    flex: 1 0 184px;
     container-type: size;
   }
 
   .touch-enabled .game-viewport > .phaser-host {
-    grid-area: 1 / 2;
-    --world-width: calc(100cqw - var(--touch-gutter));
-    --world-height: 100cqh;
-    width: min(var(--world-width), calc(var(--world-height) * 16 / 9));
-    height: min(var(--world-height), calc(var(--world-width) * 9 / 16));
+    grid-area: 1 / 1;
+    width: 100%;
+    height: 100%;
     aspect-ratio: auto;
   }
 
   .touch-enabled .touch-controls {
-    position: absolute;
-    inset: 0;
-    grid-area: 1 / 1 / -1 / -1;
-    display: grid;
-    grid-template-columns: 128px minmax(0, 1fr) 64px;
-    grid-template-rows: minmax(0, 1fr);
-    gap: 0;
-    padding: 0;
+    grid-area: 2 / 1;
+    padding: 8px 4px 0;
   }
 
   .touch-enabled .touch-move,
   .touch-enabled .touch-actions {
-    justify-self: center;
-    align-self: end;
-    padding-bottom: 12px;
     gap: 8px;
   }
 
-  .touch-enabled .touch-move {
-    grid-column: 1;
-  }
-
   .touch-enabled .touch-actions {
-    grid-column: 3;
-    flex-direction: column;
+    flex-direction: row;
   }
 
   .mobile-pause-actions {

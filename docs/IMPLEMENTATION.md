@@ -161,11 +161,17 @@ pending actions. Neither pointer state nor active runs are added to saved profil
 
 `mobile.css` adapts the existing retro UI, with separate control space, safe-area
 padding and scrollable terminal content. Phone gameplay chrome has a 44px menu
-target instead of a permanently expanded desktop dashboard. Portrait packs the
-canvas and controller deck together; landscape spends remaining height on the
-playfield. The canvas remains 640x360 with a 2x
-camera. A host `ResizeObserver` refreshes Phaser's display fit without restarting
-the scene, changing game dimensions or waking its paused frame loop. Modal
+target instead of a permanently expanded desktop dashboard. Desktop stays at
+640x360 with a 2x camera. Mobile uses `viewport.ts`: portrait has a 224-world-pixel
+wide action view, up to the room's 208-pixel height, and a wider live route view
+when there is enough vertical space. The overview shows actual terrain and a
+main-camera footprint, not a second simulation. Landscape uses the full safe
+width, with 180 world pixels vertically and a separate bottom control deck.
+Extremely tall windows can retain spare space once both views reach useful
+limits; the canvas must not stretch or add empty sky to hide that constraint.
+A host `ResizeObserver` changes mobile backing dimensions and projection without
+restarting the scene or changing physics. A paused resize renders one frozen
+frame, then sleeps again. Modal
 sizing follows the visible browser viewport so the editor can remain usable
 above a software keyboard; zoom remains enabled.
 
@@ -182,6 +188,16 @@ screen, a phone HUD must be at most 64px (52px landscape), and no flexible gap
 may separate the portrait game and controls. Long descriptions and records are
 opt-in disclosures rather than default scrolling. Test toolbar-reduced windows,
 including 667x300 landscape, not only full device screen dimensions.
+
+`testViewport.ts` checks pure projection geometry. `testViewportBrowser.py`
+checks camera bounds, uniform sizing, background coverage and rotation while
+paused with both renderers. The existing mobile traversal suite exercises all
+four recruits in both orientations and checks that the next landing is visible.
+`scripts/runBrowserChecks.py` runs all existing browser suites independently and
+collects logs and screenshots under `browser-reports`. CI uploads that directory
+even on failure. Use the GitHub Actions runner when Scout's local browser/file
+approval gate blocks unattended testing; a passing geometry test is not proof of
+playability.
 
 ---
 

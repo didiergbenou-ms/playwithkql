@@ -364,6 +364,7 @@ export default function App() {
             </div>
           }>
             <PhaserGame
+              mobile={touchEnabled}
               key={`${run.runId}-${runCaseDef.id}-${run.difficulty}-${character}`}
               characterId={character}
               caseId={runCaseDef.id}

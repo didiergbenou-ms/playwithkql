@@ -6,7 +6,8 @@ import { DEFAULT_DIFFICULTY, type Difficulty } from '../../data/difficulties';
 import { COLORS, PLAYER_H, PLAYER_W, generateTextures, registerAnimations } from '../textures';
 import { characterById, textureKey, type CharacterDef } from '../characters';
 import { TILE, parseLevel, type ParsedLevel } from '../levels/heartbeatHills';
-import { CAMERA_ZOOM, VIEW_WIDTH } from '../config';
+import { CAMERA_LOOKAHEAD, CAMERA_ZOOM, VIEW_WIDTH } from '../config';
+import { type ViewportLayout } from '../viewport';
 import { audio } from '../audio';
 import { touchInput, type TouchPress } from '../inputBridge';
 import {
@@ -98,6 +99,16 @@ export class GameScene extends Phaser.Scene {
   private nearest: Interactable | null = null;
   private frozen = false;
   private busOff: (() => void)[] = [];
+  /** Public read-only-by-convention handles for viewport/browser diagnostics. */
+  viewportLayout: ViewportLayout | null = null;
+  overviewCamera: Phaser.Cameras.Scene2D.Camera | null = null;
+  private routeLabelCamera: Phaser.Cameras.Scene2D.Camera | null = null;
+  private routeOutline: Phaser.GameObjects.Graphics | null = null;
+  private routeLabel: Phaser.GameObjects.Text | null = null;
+  private baseZoom = CAMERA_ZOOM;
+  private cameraReady = false;
+  private lookahead = 0;
+  private zoomReturn: Phaser.Time.TimerEvent | null = null;
 
   constructor() {
     super('Game');
@@ -133,6 +144,8 @@ export class GameScene extends Phaser.Scene {
     this.nearest = null;
     this.objectiveTarget = null;
     this.frozen = false;
+    this.cameraReady = false;
+    this.lookahead = 0;
     this.lastGroundedAt = -9999;
     this.jumpQueuedAt = -9999;
     this.touchJumpQueuedAt = -9999;
@@ -163,10 +176,157 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.16, 0.18);
     this.cameras.main.setDeadzone(56, 32);
     this.cameras.main.setBackgroundColor(COLORS.dark);
+    this.cameras.main.setName('main');
+    this.cameras.main.on(Phaser.Cameras.Scene2D.Events.FOLLOW_UPDATE, this.afterCameraFollow, this);
+    this.events.on(Phaser.Scenes.Events.PRE_RENDER, this.prepareCameraFrame, this);
+    this.cameraReady = true;
+    if (this.viewportLayout) this.setViewportLayout(this.viewportLayout);
 
     this.checkpoint = { ...this.level.spawn };
+    // SceneManager marks RUNNING only after create returns. Delivering READY
+    // sooner would overwrite a modal's synchronous pause during cold loading.
+    this.events.once(Phaser.Scenes.Events.CREATE, this.announceReady, this);
+  }
+
+  private announceReady() {
     bus.emit('game:ready');
     this.emitHud();
+  }
+
+  /** Changes projection only: no scene restart, world resize or physics changes. */
+  setViewportLayout(layout: ViewportLayout) {
+    const previous = this.viewportLayout;
+    this.viewportLayout = layout;
+    if (!this.cameraReady) return;
+    if (!layout.mobile && previous?.mode === 'desktop') return;
+    const cam = this.cameras.main;
+    const view = layout.main;
+    this.zoomReturn?.remove(false);
+    this.zoomReturn = null;
+    cam.zoomEffect.reset();
+    this.baseZoom = layout.baseZoom;
+    cam.setViewport(view.x, view.y, view.width, view.height).setZoom(this.baseZoom);
+    cam.setBounds(0, 0, this.level.width, this.level.height);
+    if (layout.mobile) {
+      // Mobile has no vertical follow: jumping must never shift the route.
+      cam.startFollow(this.player, true, 0.35, 1);
+      cam.setDeadzone();
+      cam.setFollowOffset(-this.lookahead, this.player.y - this.level.height / 2);
+      cam.centerOn(this.player.x + this.lookahead, this.level.height / 2);
+    } else {
+      this.lookahead = 0;
+      cam.startFollow(this.player, true, 0.16, 0.18);
+      cam.setFollowOffset(0, 0);
+      cam.setDeadzone(56, 32);
+      this.roomBanner.setScale(1);
+      this.prompt.setScale(1);
+      this.parallaxFar.setSize(VIEW_WIDTH + TILE, 160);
+      this.parallaxNear.setSize(VIEW_WIDTH + TILE, 160);
+    }
+    this.configureOverview(layout);
+    this.prepareCameraFrame();
+    // Scale changes can happen outside the game loop (including while paused).
+    cam.preRender();
+    this.overviewCamera?.preRender();
+    this.routeLabelCamera?.preRender();
+  }
+
+  private configureOverview(layout: ViewportLayout) {
+    const view = layout.overview;
+    if (!view) {
+      this.overviewCamera?.setVisible(false);
+      this.routeLabelCamera?.setVisible(false);
+      return;
+    }
+    if (!this.overviewCamera) {
+      const cam = this.cameras.add(0, 0, 1, 1, false, 'overview');
+      this.overviewCamera = cam;
+      this.routeOutline = this.add.graphics().setDepth(80);
+      this.routeLabel = this.add.text(0, 0, 'ROUTE VIEW', {
+        fontFamily: 'monospace', fontSize: '10px', color: '#9ef7ed',
+      }).setScrollFactor(0).setOrigin(0, 0.5).setDepth(90);
+      this.routeLabelCamera = this.cameras.add(0, 0, 1, 1, false, 'route-label');
+      this.routeLabelCamera.ignore(this.children.list.filter((child) => child !== this.routeLabel));
+      cam.ignore([this.parallaxFar, this.parallaxNear, this.prompt, this.roomBanner, this.waypoint, this.routeLabel]);
+      this.cameras.main.ignore([this.routeOutline, this.routeLabel]);
+    }
+    const cam = this.overviewCamera;
+    cam.setVisible(true).setViewport(view.x, view.y, view.width, view.height).setZoom(view.zoom);
+    cam.setBounds(0, 0, this.level.width, this.level.height);
+    cam.centerOn(this.player.x + this.lookahead, this.level.height / 2);
+    cam.setBackgroundColor(this.level.rooms[Math.max(0, this.currentRoom)].tint);
+    const labelCam = this.routeLabelCamera!;
+    labelCam.setVisible(true).setViewport(0, 0, layout.width, layout.labelHeight).setZoom(1);
+    labelCam.centerOn(layout.width / 2, layout.labelHeight / 2).setBackgroundColor(COLORS.dark);
+    const cssToLogical = layout.width / layout.cssWidth;
+    this.routeLabel!.setFontSize(10 * cssToLogical).setPosition(8 * cssToLogical, layout.labelHeight / 2);
+  }
+
+  private prepareCameraFrame() {
+    if (!this.cameraReady || !this.viewportLayout?.mobile) return;
+    const cam = this.cameras.main;
+    cam.followOffset.y = this.player.y - this.level.height / 2;
+    const maxLead = Math.max(0, cam.width / cam.zoom / 2 - PLAYER_W - 8);
+    const centerX = cam.scrollX + cam.width / 2;
+    cam.centerOnX(Phaser.Math.Clamp(centerX, this.player.x - maxLead, this.player.x + maxLead));
+    // No interpolated vertical motion, even after a gate zoom or a paused resize.
+    cam.centerOnY(this.level.height / 2);
+  }
+
+  /** FOLLOW_UPDATE fires after main.preRender, before either camera is drawn. */
+  private afterCameraFollow() {
+    if (!this.viewportLayout?.mobile) return;
+    const cam = this.cameras.main;
+    const view = cam.worldView;
+    if (this.parallaxFar.width !== view.width + TILE) {
+      this.parallaxFar.setSize(view.width + TILE, 160);
+      this.parallaxNear.setSize(view.width + TILE, 160);
+    }
+    this.parallaxFar.x = view.x;
+    this.parallaxFar.tilePositionX = view.x * 0.3;
+    this.parallaxNear.x = view.x;
+    this.parallaxNear.tilePositionX = view.x * 0.55;
+    this.clampMobileHud();
+    const route = this.overviewCamera;
+    if (!route?.visible || !this.routeOutline) return;
+    route.centerOn(cam.midPoint.x, this.level.height / 2);
+    const cssZoom = route.zoom * this.viewportLayout.cssWidth / this.viewportLayout.width;
+    const stroke = 1.5 / cssZoom;
+    const left = Math.max(0, view.left);
+    const top = Math.max(0, view.top);
+    const right = Math.min(this.level.width, view.right);
+    const bottom = Math.min(this.level.height, view.bottom);
+    this.routeOutline.clear().lineStyle(stroke, COLORS.cyan, 0.95)
+      .strokeRect(left + stroke / 2, top + stroke / 2, Math.max(0, right - left - stroke), Math.max(0, bottom - top - stroke));
+    // Highlight the real player, not a second simulated or reconstructed sprite.
+    this.routeOutline.lineStyle(2 / cssZoom, COLORS.lime, 1)
+      .strokeCircle(this.player.x, this.player.y, Math.max(PLAYER_H * 0.65, 5 / cssZoom));
+  }
+
+  private clampMobileHud() {
+    const view = this.cameras.main.worldView;
+    const margin = 5;
+    const fitX = (x: number, halfWidth: number) =>
+      Phaser.Math.Clamp(x, view.left + halfWidth + margin, view.right - halfWidth - margin);
+    const titleWidth = Math.max(...(this.roomBanner.list as Phaser.GameObjects.Text[]).map((text) => text.width));
+    this.roomBanner.setScale(Math.min(1, (view.width - 2 * margin) / Math.max(1, titleWidth)));
+    this.roomBanner.setPosition(view.centerX, view.top + Math.min(30, view.height / 4));
+    this.prompt.setScale(Math.min(1, (view.width - 2 * margin) / Math.max(1, this.promptText.width)));
+    this.prompt.x = fitX(this.prompt.x, this.promptText.width * this.prompt.scaleX / 2);
+    this.prompt.y = Phaser.Math.Clamp(this.prompt.y, view.top + this.promptText.height * this.prompt.scaleY + margin, view.bottom - margin);
+    this.waypoint.x = fitX(this.waypoint.x, this.waypoint.width / 2);
+    this.waypoint.y = Phaser.Math.Clamp(this.waypoint.y, view.top + 8, view.bottom - 8);
+  }
+
+  /** One normal render, with the entire scene paused, then sleep again. */
+  renderFrozenFrame() {
+    if (!this.cameraReady || !this.frozen || !this.game.isRunning) return;
+    this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
+    this.game.events.once(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
+    if (!this.game.loop.running) {
+      this.game.loop.resetDelta();
+      this.game.loop.wake();
+    }
   }
 
   private buildBackground() {
@@ -438,6 +598,7 @@ export class GameScene extends Phaser.Scene {
       bus.on('ui:openGate', ({ gateId, challengeId }) => {
         this.openGate(gateId, true);
         if (challengeId) this.markTerminalSolved(challengeId);
+        this.renderFrozenFrame();
       }),
     );
     this.busOff.push(
@@ -452,6 +613,9 @@ export class GameScene extends Phaser.Scene {
         if (paused) {
           this.physics.pause();
           this.player.anims.pause();
+          // Unlike just physics.pause(), this also freezes enemy animation,
+          // timers, particles and tweens during a resize-triggered single frame.
+          if (!this.sys.isPaused()) this.sys.pause();
           // drop held keys so movement does not resume on close
           this.input.keyboard?.resetKeys();
           // Finish one render for a stable backdrop, then stop the Phaser
@@ -460,6 +624,7 @@ export class GameScene extends Phaser.Scene {
           this.game.events.once(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
         } else {
           this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
+          this.sys.resume();
           this.physics.resume();
           this.player.anims.resume();
           // stop the key that closed the modal from immediately re-opening it
@@ -488,6 +653,22 @@ export class GameScene extends Phaser.Scene {
       this.events.off(Phaser.Scenes.Events.DESTROY, cleanup);
       touchInput.setBlocked(true);
       this.game.events.off(Phaser.Core.Events.POST_RENDER, this.sleepCoveredWorld, this);
+      this.events.off(Phaser.Scenes.Events.PRE_RENDER, this.prepareCameraFrame, this);
+      this.events.off(Phaser.Scenes.Events.CREATE, this.announceReady, this);
+      this.cameras.main?.off(Phaser.Cameras.Scene2D.Events.FOLLOW_UPDATE, this.afterCameraFollow, this);
+      this.zoomReturn?.remove(false);
+      this.zoomReturn = null;
+      // The camera/display-list plugins may already have destroyed their
+      // children when SHUTDOWN reaches us; don't destroy those objects twice.
+      if (this.overviewCamera && this.cameras.cameras.includes(this.overviewCamera)) this.cameras.remove(this.overviewCamera);
+      if (this.routeLabelCamera && this.cameras.cameras.includes(this.routeLabelCamera)) this.cameras.remove(this.routeLabelCamera);
+      if (this.routeOutline?.scene) this.routeOutline.destroy();
+      if (this.routeLabel?.scene) this.routeLabel.destroy();
+      this.overviewCamera = null;
+      this.routeLabelCamera = null;
+      this.routeOutline = null;
+      this.routeLabel = null;
+      this.cameraReady = false;
       this.busOff.forEach((off) => off());
       this.busOff = [];
     };
@@ -496,7 +677,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private sleepCoveredWorld() {
-    if (this.frozen && this.sys.isActive()) this.game.loop.sleep();
+    if (this.frozen && (this.sys.isActive() || this.sys.isPaused())) this.game.loop.sleep();
   }
 
   // ---- gameplay ------------------------------------------------------------
@@ -547,6 +728,15 @@ export class GameScene extends Phaser.Scene {
       if (Math.abs(body.velocity.x) < 12) body.velocity.x = 0;
     }
     this.player.setFlipX(this.facing < 0);
+    if (this.viewportLayout?.mobile) {
+      // Input direction wins over inertia: reversal loses the old lead rapidly,
+      // rather than hiding the next landing while velocity catches up.
+      const direction = left === right ? 0 : right ? 1 : -1;
+      const target = direction * CAMERA_LOOKAHEAD;
+      const reversing = this.lookahead * target < 0;
+      this.lookahead = Phaser.Math.Linear(this.lookahead, target, 1 - Math.exp(-dt / (reversing ? 0.045 : 0.1)));
+      this.cameras.main.followOffset.x = -this.lookahead;
+    }
 
     // coyote time + input buffering
     const canCoyote = now - this.lastGroundedAt <= COYOTE_MS;
@@ -722,6 +912,7 @@ export class GameScene extends Phaser.Scene {
 
     bus.emit('game:room', { name: room.name, index: idx });
     this.cameras.main.setBackgroundColor(room.tint);
+    this.overviewCamera?.setBackgroundColor(room.tint);
 
     const [title, sub] = this.roomBanner.list as Phaser.GameObjects.Text[];
     title.setText(room.name);
@@ -895,10 +1086,12 @@ export class GameScene extends Phaser.Scene {
       // camera punch: a brief zoom-in that snaps back reads as impact without
       // the vestibular problems of a big shake
       if (!this.reducedMotion) {
-        this.cameras.main.zoomTo(CAMERA_ZOOM * 1.06, 90, 'Quad.easeOut', true);
-        this.time.delayedCall(110, () =>
-          this.cameras.main.zoomTo(CAMERA_ZOOM, 220, 'Quad.easeOut', true),
-        );
+        this.zoomReturn?.remove(false);
+        this.cameras.main.zoomTo(this.baseZoom * 1.06, 90, 'Quad.easeOut', true);
+        this.zoomReturn = this.time.delayedCall(110, () => {
+          this.zoomReturn = null;
+          this.cameras.main.zoomTo(this.baseZoom, 220, 'Quad.easeOut', true);
+        });
         this.cameras.main.shake(180, 0.004);
       }
       // single flash, well inside the WCAG three-per-second limit
@@ -925,6 +1118,7 @@ export class GameScene extends Phaser.Scene {
       emitting: false,
     });
     emitter.setDepth(50);
+    this.routeLabelCamera?.ignore(emitter);
     emitter.explode(count);
     this.time.delayedCall(600, () => emitter.destroy());
   }

@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
 import { bus } from './bus';
 import { GAME_HEIGHT, GAME_WIDTH } from './config';
+import { chooseViews, type ViewportLayout } from './viewport';
 import { DEFAULT_CASE_ID } from '../data/cases';
 import { DEFAULT_DIFFICULTY, type Difficulty } from '../data/difficulties';
 
@@ -13,6 +14,7 @@ declare global {
 }
 
 interface Props {
+  mobile?: boolean;
   solvedChallenges: string[];
   openGates: string[];
   characterId: string;
@@ -21,6 +23,7 @@ interface Props {
 }
 
 export function PhaserGame({
+  mobile = false,
   solvedChallenges,
   openGates,
   characterId,
@@ -29,6 +32,8 @@ export function PhaserGame({
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const mobileRef = useRef(mobile);
+  const fitRef = useRef<(() => void) | null>(null);
   // captured once — the scene is seeded on boot, then driven by the event bus
   const seed = useRef({ solvedChallenges, openGates, characterId, caseId, difficulty });
 
@@ -56,15 +61,36 @@ export function PhaserGame({
     });
 
     let fitFrame: number | undefined;
+    let layout: ViewportLayout | undefined;
     const fitParent = () => {
       if (fitFrame !== undefined) return;
       fitFrame = requestAnimationFrame(() => {
         fitFrame = undefined;
         if (gameRef.current !== game || !game.isRunning || !hostRef.current?.isConnected) return;
+        const host = hostRef.current;
+        // A detached/hidden host has no allocation yet. ResizeObserver will
+        // retry when layout exists; invalid public geometry inputs still throw.
+        if (host.clientWidth <= 0 || host.clientHeight <= 0) return;
+        const next = chooseViews(host.clientWidth, host.clientHeight, mobileRef.current);
+        const changed = !layout || JSON.stringify(next) !== JSON.stringify(layout);
+        layout = next;
+        if (game.scale.gameSize.width !== next.width || game.scale.gameSize.height !== next.height) {
+          game.scale.setGameSize(next.width, next.height);
+        }
         game.scale.getParentBounds();
         game.scale.refresh();
+        host.dataset.viewportMode = next.mode;
+        host.dataset.viewportCapped = String(next.unusedCssHeight > 1);
+        host.style.setProperty('--game-content-width', `${next.cssWidth}px`);
+        host.style.setProperty('--game-content-height', `${next.cssHeight}px`);
+        host.style.setProperty('--game-unused-height', `${next.unusedCssHeight}px`);
+        const scene = game.scene.getScene('Game') as GameScene | null;
+        if (scene && changed) scene.setViewportLayout(next);
+        // setGameSize clears the backing surface even if the loop is asleep.
+        scene?.renderFrozenFrame();
       });
     };
+    fitRef.current = fitParent;
     // React layout and phone browser chrome can resize the host without a
     // window resize, including while Phaser's frame loop is sleeping.
     const resizeObserver = new ResizeObserver(fitParent);
@@ -81,6 +107,7 @@ export function PhaserGame({
     window.__kql = { game, bus };
 
     return () => {
+      fitRef.current = null;
       resizeObserver.disconnect();
       if (fitFrame !== undefined) cancelAnimationFrame(fitFrame);
       const g = gameRef.current;
@@ -95,6 +122,11 @@ export function PhaserGame({
       }
     };
   }, []);
+
+  useEffect(() => {
+    mobileRef.current = mobile;
+    fitRef.current?.();
+  }, [mobile]);
 
   return <div className="phaser-host" ref={hostRef} />;
 }
