@@ -948,7 +948,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private interact() {
-    if (this.frozen || !this.nearest || this.time.now < this.interactLockUntil) return;
+    if (this.frozen || !this.nearest || performance.now() < this.interactLockUntil) return;
     const target = this.nearest;
     if (target.kind === 'terminal') {
       bus.emit('game:terminal', { challengeId: target.challengeId });

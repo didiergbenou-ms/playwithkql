@@ -213,7 +213,7 @@ def test_fingers(page):
     fingers.cancel()
 
 
-def interact(page, kind, index=0):
+def interact(page, kind, index=0, lag_scene_clock=False):
     identity = page.evaluate("""([kind,index])=>{
       const s=__kql.game.scene.getScene('Game');
       const target=kind==='terminal'
@@ -228,8 +228,21 @@ def interact(page, kind, index=0):
       return n?.kind===kind && (n.noteId??n.challengeId??'verdict')===id &&
         performance.now()>=s.interactLockUntil;
     }""", arg=[kind, identity])
-    tap(page, "Interact")
-    expect(page.get_by_role("dialog")).to_be_visible()
+    if lag_scene_clock:
+        page.evaluate("""()=>{
+          const s=__kql.game.scene.getScene('Game');
+          window.lagSceneClock=()=>{s.time.now=0;};
+          s.events.on('preupdate',window.lagSceneClock);
+        }""")
+    try:
+        tap(page, "Interact")
+        expect(page.get_by_role("dialog")).to_be_visible()
+    finally:
+        if lag_scene_clock:
+            page.evaluate("""()=>{
+              __kql.game.scene.getScene('Game').events.off('preupdate',window.lagSceneClock);
+              delete window.lagSceneClock;
+            }""")
 
 
 def test_mixed_buffer(page):
@@ -367,7 +380,7 @@ def test_phone(page, screenshots=None):
         else:
             page.get_by_role("dialog").get_by_role("button", name=re.compile("^(Close|Esc)")).first.tap()
         page.wait_for_function("__kql.game.loop.running")
-    interact(page, "note")
+    interact(page, "note", lag_scene_clock=True)
     tap(page, "Pocket it")
     tap(page, "Notes (1)")
     no_overflow(page, "notebook")
