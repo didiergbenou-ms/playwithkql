@@ -1,0 +1,81 @@
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  public:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_PATH: /${{ github.event.repository.name }}/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: node node_modules/typescript/bin/tsc --noEmit
+      - name: Build for the project URL
+        run: node node_modules/vite/bin/vite.js build
+      - name: Check built asset paths
+        run: node scripts/checkPagesBuild.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Browser test dependencies
+        run: |
+          python -m pip install playwright==1.62.0
+          python -m playwright install --with-deps chromium
+      - name: Play the subpath build
+        run: |
+          node node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4173 --strictPort > "$RUNNER_TEMP/pages-preview.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          python scripts/testPagesBrowser.py --url "http://127.0.0.1:4173${BASE_PATH}" --screenshots pages-reports
+      - name: Upload Pages smoke reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pages-reports
+          path: pages-reports
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Package only the built game
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    # Preparation and PR builds work while private; publishing is main-only
+    # and deliberately waits for the owner's visibility/Pages configuration.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && !github.event.repository.private
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Read the owner's Pages configuration
+        uses: actions/configure-pages@v5
+      - name: Deploy the tested artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -342,6 +342,69 @@ preview. They open gates by solving terminal queries; positioning at interactabl
 isolates the UI/engine wiring rather than proving the full platform route.
 CI runs both WebGL and Canvas checks against its production build.
 
+## Publish stable main on GitHub Pages
+
+The `GitHub Pages` workflow (`.github/workflows/pages.yml`) builds the static
+game for `/playwithkql/`, including lazy Phaser chunks and the query worker.
+The expected URL, without a custom domain, is:
+
+**https://didiergbenou-ms.github.io/playwithkql/**
+
+Preparation can be merged while the repository is private. Builds and PR checks
+still run, but the publishing job deliberately skips private repositories and
+non-`main` refs. This does not change repository visibility or the separate
+Azure test deployment. GitHub Free provides Pages for public repositories;
+eligible paid plans can also host Pages from private repositories, but this
+workflow follows this project's public-source launch plan.
+
+### Owner's one-time launch steps
+
+1. Merge the Pages preparation into `main` before changing visibility.
+2. Review the repository's files and history for content that must not become
+   public, then make the repository public when approved.
+3. Open **Settings > Pages > Build and deployment > Source**, and choose
+   **GitHub Actions**. Do not choose a branch or `/docs`: this Vite app must be built.
+4. Open **Actions > GitHub Pages > Run workflow**, select **main**, and run it.
+   The private-to-public event also attempts a deployment automatically. If that
+   run arrived before Pages was enabled, rerun it after step 3.
+5. If the `github-pages` environment requires approval, approve its deployment.
+   Open the URL from the completed deployment.
+
+Only an owner/admin (or a suitably delegated role) can enable the repository's
+Pages settings. Write access alone is not enough. The workflow uses the normal
+GitHub Actions token and OIDC; do not add a deployment token or change the
+repository's visibility from automation.
+
+After setup, pushes to **main** automatically run the Pages workflow. Its own
+typecheck, project-path asset checks and browser smoke must succeed before the
+built `dist` artifact can deploy. PRs build and smoke-test without publishing.
+The broader `CI` workflow runs separately; it is not a prerequisite job of the
+Pages workflow. Neither `develop` nor personal feature branches publish Pages.
+No mobile/pause feature branch is merged by this setup.
+
+Only `dist` is uploaded to the website, not the repository root, marketing kit,
+source files or optional Express server. The source repository and its history
+are separately public after the owner changes visibility.
+
+The existing `BASE_PATH` build switch is set only by the Pages job; local and
+Azure builds continue to default to `/`. A custom domain would require revisiting
+this base-path setting. To inspect the project-path build locally in PowerShell:
+
+```powershell
+$env:BASE_PATH = '/playwithkql/'
+node node_modules\vite\bin\vite.js build
+node scripts\checkPagesBuild.mjs
+node node_modules\vite\bin\vite.js preview --host 127.0.0.1 --port 4173
+```
+
+Open `http://127.0.0.1:4173/playwithkql/`. The ordinary `serve:dist` helper serves
+at `/`; use Vite preview for this project-prefix build. Remove `BASE_PATH` from
+your shell before returning to a root-hosted build.
+
+The Pages workflow runs `scripts/testPagesBrowser.py` on GitHub's runner and
+uploads `pages-reports` screenshots even after a browser failure. Scout does not
+need to launch a local browser to perform that check.
+
 ## Common setup problems
 
 | Problem | What to do |

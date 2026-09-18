@@ -1,9 +1,8 @@
 name: CI
 
-# Runs on the shared branches and on every PR into them. Deployment is
-# deliberately not handled here: Azure CI/CD is being set up separately
-# (develop -> test, main -> prod), so this workflow only proves the code is
-# sound and leaves publishing alone.
+# Runs on the shared branches and on every PR into them. This workflow
+# validates the game; pages.yml separately builds and tests the project
+# subpath before publishing main once the owner enables GitHub Pages.
 
 on:
   push:
