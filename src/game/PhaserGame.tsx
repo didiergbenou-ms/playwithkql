@@ -81,8 +81,11 @@ export function PhaserGame({
         game.scale.refresh();
         host.dataset.viewportMode = next.mode;
         host.dataset.viewportCapped = String(next.unusedCssHeight > 1);
-        host.style.setProperty('--game-content-width', `${next.cssWidth}px`);
-        host.style.setProperty('--game-content-height', `${next.cssHeight}px`);
+        // Canvas backing dimensions are integers even when Scale's logical
+        // size is fractional. Fit the actual surface with one CSS scale.
+        const displayScale = Math.min(host.clientWidth / game.canvas.width, host.clientHeight / game.canvas.height);
+        host.style.setProperty('--game-content-width', `${game.canvas.width * displayScale}px`);
+        host.style.setProperty('--game-content-height', `${game.canvas.height * displayScale}px`);
         host.style.setProperty('--game-unused-height', `${next.unusedCssHeight}px`);
         const scene = game.scene.getScene('Game') as GameScene | null;
         if (scene && changed) scene.setViewportLayout(next);

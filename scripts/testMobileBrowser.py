@@ -153,34 +153,42 @@ def position(page):
       return {x:s.player.x,y:s.player.y,vx:s.player.body.velocity.x,vy:s.player.body.velocity.y};
     }""")
 
+def settled(page):
+    # Release stops input immediately, not airborne momentum. Wait for the
+    # existing landing/ground drag rather than assuming a CI frame rate.
+    expect(page.locator(".touch-controls .is-held")).to_have_count(0)
+    page.wait_for_function("""()=>{
+      const b=__kql.game.scene.getScene('Game').player.body;
+      return b.blocked.down && Math.abs(b.velocity.x)<1;
+    }""", timeout=5000)
+
 
 def test_fingers(page):
     fingers = Fingers(page)
     start = position(page)
     fingers.down(1, "Move right")
     fingers.down(2, "Jump")
-    page.wait_for_timeout(180)
+    page.wait_for_function("""start=>{
+      const p=__kql.game.scene.getScene('Game').player;
+      return p.x>start.x+5 && p.y<start.y-5;
+    }""", arg=start, timeout=3000)
     airborne = position(page)
     assert airborne["x"] > start["x"] + 5, "Touch movement did not move the player"
     assert airborne["y"] < start["y"] - 5, "Move + jump failed"
     fingers.up(2)
     fingers.move(1, 2, 2)
-    page.wait_for_timeout(100)
-    assert position(page)["x"] > airborne["x"], "Pointer capture lost held movement"
+    page.wait_for_function("x=>__kql.game.scene.getScene('Game').player.x>x", arg=airborne["x"], timeout=3000)
     fingers.cancel()
-    page.wait_for_timeout(300)
-    assert abs(position(page)["vx"]) < 1, "Cancelled touch left movement stuck"
+    settled(page)
     ready(page)
 
     fingers.down(1, "Move left", -5)
     fingers.down(2, "Move left", 5)
     page.wait_for_timeout(60)
     fingers.up(1)
-    page.wait_for_timeout(80)
-    assert position(page)["vx"] < 0, "One release cleared a second finger on the same action"
+    page.wait_for_function("__kql.game.scene.getScene('Game').player.body.velocity.x<0", timeout=3000)
     fingers.up(2)
-    page.wait_for_timeout(250)
-    assert abs(position(page)["vx"]) < 1
+    settled(page)
     expect(page.locator(".touch-controls .is-held")).to_have_count(0)
 
     fingers.down(1, "Move right")
@@ -194,16 +202,14 @@ def test_fingers(page):
     fingers.down(2, "Resume game")
     fingers.up(2)
     page.wait_for_function("__kql.game.loop.running")
-    page.wait_for_timeout(250)
-    assert abs(position(page)["vx"]) < 1, "An old finger rearmed after closing Pause"
+    settled(page)
     fingers.up(1)
     expect(page.locator(".touch-controls .is-held")).to_have_count(0)
 
     # The visibility event itself is synthetic; pointer input above is real CDP.
     fingers.down(1, "Move right")
     page.evaluate("window.dispatchEvent(new Event('blur'))")
-    page.wait_for_timeout(250)
-    assert abs(position(page)["vx"]) < 1, "Focus loss left movement active"
+    settled(page)
     fingers.cancel()
 
 
@@ -265,19 +271,18 @@ def test_mixed_buffer(page):
     right.focus()
     start = position(page)
     page.keyboard.down("Space")
-    page.wait_for_timeout(160)
-    page.keyboard.up("Space")
-    assert position(page)["x"] > start["x"] + 5, "Focused button keyboard activation failed"
+    try:
+        page.wait_for_function("x=>__kql.game.scene.getScene('Game').player.x>x+5", arg=start["x"], timeout=3000)
+    finally:
+        page.keyboard.up("Space")
     assert abs(position(page)["y"] - start["y"]) < 1, "Button Space leaked into Phaser jump"
-    page.wait_for_timeout(200)
+    settled(page)
     # AT activation uses a click without a pointer sequence. Ordinary touch
     # above must not duplicate actions through this separate activation path.
     right.evaluate("el=>el.click()")
-    page.wait_for_timeout(100)
-    assert position(page)["vx"] > 0
+    page.wait_for_function("__kql.game.scene.getScene('Game').player.body.velocity.x>0", timeout=3000)
     right.evaluate("el=>el.click()")
-    page.wait_for_timeout(250)
-    assert abs(position(page)["vx"]) < 1
+    settled(page)
     expect(page.locator(".touch-controls .is-held")).to_have_count(0)
     right.evaluate("el=>el.blur()")
 

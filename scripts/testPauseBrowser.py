@@ -76,9 +76,10 @@ def test_controls(page):
     expect(page.get_by_role("button", name="Pause (P)", exact=True)).to_be_focused()
     start_x = page.evaluate("__kql.game.scene.getScene('Game').player.x")
     page.keyboard.down("d")
-    page.wait_for_timeout(220)
-    page.keyboard.up("d")
-    assert page.evaluate("__kql.game.scene.getScene('Game').player.x") > start_x + 5
+    try:
+        page.wait_for_function("x=>__kql.game.scene.getScene('Game').player.x>x+5", arg=start_x, timeout=3000)
+    finally:
+        page.keyboard.up("d")
     for key in ["p", "Escape", "p"]:
         page.keyboard.press("p")
         paused(page)
