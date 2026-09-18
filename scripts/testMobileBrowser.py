@@ -397,13 +397,22 @@ def test_touch_route(page, recruit):
       for(const id of Object.values(s.caseDef.level.gateChars))s.openGate(id,false);
     }""")
     route = [
-        (9, 10, False), (12, 8, True), (14, 8, False), (17, 6, True),
-        (20, 6, False), (23, 4, True), (27, 4, False), (30, 6, False),
-        (32, 6, False), (34, 8, False), (36, 8, False), (42, 10, False),
+        (9, 10, False), (12, 8, True), (13, 8, False), (16, 6, True),
+        (18, 6, False), (22, 4, True), (25, 4, False), (29, 6, False),
+        (30, 6, False), (34, 8, False), (35, 8, False), (42, 10, False),
     ]
     fingers = Fingers(page)
+    history = []
     for index, (column, row, jump) in enumerate(route):
+        # Interior stopping points leave room for ground drag and browser/CDP
+        # latency. An edge position followed by settling can walk off the ledge.
+        before = page.evaluate("""()=>{
+          const s=__kql.game.scene.getScene('Game'),b=s.player.body;
+          return {x:s.player.x,y:s.player.y,bottom:b.bottom,vx:b.velocity.x,grounded:b.blocked.down};
+        }""")
+        history.append({"waypoint": index, "target": [column, row], "before": before})
         if jump:
+            assert before["grounded"], f"{recruit}: jump starts off its intended platform: {history}"
             assert page.evaluate("""x=>{
               const c=__kql.game.scene.getScene('Game').cameras.main;
               return x>=c.worldView.left && x<=c.worldView.right;
@@ -419,11 +428,11 @@ def test_touch_route(page, recruit):
         try:
             page.wait_for_function("""y=>{
               const b=__kql.game.scene.getScene('Game').player.body;
-              return b.blocked.down && Math.abs(b.bottom-y)<2;
+              return b.blocked.down && Math.abs(b.bottom-y)<2 && Math.abs(b.velocity.x)<1;
             }""", arg=row * 16, timeout=5000)
         except Exception:
             print(json.dumps({"recruit": recruit, "waypoint": index, "target": [column, row],
-                              "state": position(page)}), flush=True)
+                              "state": position(page), "history": history}), flush=True)
             raise
         if 2 in fingers.points:
             fingers.up(2)
